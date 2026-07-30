@@ -1,0 +1,40 @@
+name: music-kg-graphrag
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: music-kg-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-music_kg}
+      POSTGRES_USER: ${POSTGRES_USER:-music_kg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-music_kg_local_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  graphdb:
+    image: ontotext/graphdb:10.8.8
+    container_name: music-kg-graphdb
+    restart: unless-stopped
+    ports:
+      - "${GRAPHDB_PORT:-7200}:7200"
+    environment:
+      GDB_HEAP_SIZE: ${GRAPHDB_HEAP_SIZE:-2g}
+    volumes:
+      - graphdb-data:/opt/graphdb/home
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7200/ || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  postgres-data:
+  graphdb-data:

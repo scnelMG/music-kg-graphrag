@@ -1,0 +1,154 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+music: a owl:Ontology ;
+    dcterms:title "Music KG GraphRAG Ontology" ;
+    dcterms:description "MVP ontology for personal album listening records, source-aware music metadata, graph-path recommendations, and grounded GraphRAG evidence." ;
+    owl:versionInfo "0.1.0" .
+
+music:User a owl:Class ;
+    rdfs:label "User" ;
+    rdfs:comment "A person whose listening records, reviews, and recommendation requests are represented in the graph." .
+
+music:Artist a owl:Class ;
+    rdfs:label "Artist" ;
+    rdfs:comment "A person, group, or credited musical entity associated with albums or tracks." ;
+    rdfs:subClassOf prov:Agent .
+
+music:Album a owl:Class ;
+    rdfs:label "Album" ;
+    rdfs:comment "A release or release-group level music entity reviewed or recommended by the system." .
+
+music:Track a owl:Class ;
+    rdfs:label "Track" ;
+    rdfs:comment "A recorded track contained by an album and optionally selected as a favorite track." .
+
+music:Genre a owl:Class ;
+    rdfs:label "Genre" ;
+    rdfs:comment "A genre tag or controlled genre concept, source-qualified when imported from external services." ;
+    rdfs:subClassOf skos:Concept .
+
+music:Mood a owl:Class ;
+    rdfs:label "Mood" ;
+    rdfs:comment "A mood, affective tag, or listening impression attached to music or a review." ;
+    rdfs:subClassOf skos:Concept .
+
+music:ListeningContext a owl:Class ;
+    rdfs:label "Listening context" ;
+    rdfs:comment "A contextual listening condition such as commute, focus, late night, or workout." .
+
+music:UserReview a owl:Class ;
+    rdfs:label "User review" ;
+    rdfs:comment "A user's album review, rating label, notes, favorite track, and listening context." .
+
+music:Recommendation a owl:Class ;
+    rdfs:label "Recommendation" ;
+    rdfs:comment "A recommended album or track with explicit graph evidence and human-readable reason text." .
+
+music:Source a owl:Class ;
+    rdfs:label "Source" ;
+    rdfs:comment "A source system, catalog, or document that supports an identity, tag, review, or recommendation evidence item." ;
+    rdfs:subClassOf prov:Entity .
+
+music:title a owl:DatatypeProperty ;
+    rdfs:label "title" ;
+    rdfs:comment "Human-readable title for albums, tracks, sources, and reviews." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string .
+
+music:createdBy a owl:ObjectProperty ;
+    rdfs:label "created by" ;
+    rdfs:comment "Connects an album or track to its credited artist." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range music:Artist .
+
+music:containsTrack a owl:ObjectProperty ;
+    rdfs:label "contains track" ;
+    rdfs:comment "Connects an album to a track on that album." ;
+    rdfs:domain music:Album ;
+    rdfs:range music:Track .
+
+music:hasGenre a owl:ObjectProperty ;
+    rdfs:label "has genre" ;
+    rdfs:comment "Connects albums, tracks, artists, reviews, or recommendations to a genre concept." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range music:Genre .
+
+music:hasMood a owl:ObjectProperty ;
+    rdfs:label "has mood" ;
+    rdfs:comment "Connects reviews, albums, tracks, or recommendations to a mood concept." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range music:Mood .
+
+music:wroteReview a owl:ObjectProperty ;
+    rdfs:label "wrote review" ;
+    rdfs:comment "Connects a user to a review written by that user." ;
+    rdfs:domain music:User ;
+    rdfs:range music:UserReview .
+
+music:targetAlbum a owl:ObjectProperty ;
+    rdfs:label "target album" ;
+    rdfs:comment "Connects a review or recommendation to the album it evaluates or recommends." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range music:Album .
+
+music:favoriteTrack a owl:ObjectProperty ;
+    rdfs:label "favorite track" ;
+    rdfs:comment "Connects a review, user, or recommendation to a standout track." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range music:Track .
+
+music:similarTo a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:label "similar to" ;
+    rdfs:comment "Connects music entities considered similar by metadata, graph path, or enrichment evidence." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range owl:Thing .
+
+music:hasReason a owl:DatatypeProperty ;
+    rdfs:label "has reason" ;
+    rdfs:comment "Stores concise recommendation or review reason text derived from explicit evidence." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string .
+
+music:ratingLabel a owl:DatatypeProperty ;
+    rdfs:label "rating label" ;
+    rdfs:comment "Controlled user-facing review label such as loved, liked, mixed, disliked, or unknown." ;
+    rdfs:domain music:UserReview ;
+    rdfs:range xsd:string .
+
+music:ratingValue a owl:DatatypeProperty ;
+    rdfs:label "rating value" ;
+    rdfs:comment "Optional numeric rating normalized by the application layer." ;
+    rdfs:domain music:UserReview ;
+    rdfs:range xsd:decimal .
+
+music:externalId a owl:DatatypeProperty ;
+    rdfs:label "external identifier" ;
+    rdfs:comment "Source-local external identifier such as a MusicBrainz MBID, Wikidata QID, or Last.fm tag key." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string .
+
+music:source a owl:ObjectProperty ;
+    rdfs:label "source" ;
+    rdfs:comment "Connects a graph assertion node or imported resource to the source that supports it." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range music:Source ;
+    rdfs:subPropertyOf prov:wasDerivedFrom .
+
+music:confidence a owl:DatatypeProperty ;
+    rdfs:label "confidence" ;
+    rdfs:comment "Optional source or matching confidence in the inclusive range 0.0 to 1.0." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:decimal .
+
+music:sourceName a owl:DatatypeProperty ;
+    rdfs:label "source name" ;
+    rdfs:comment "Human-readable name of a catalog, API, or user-maintained source." ;
+    rdfs:domain music:Source ;
+    rdfs:range xsd:string .

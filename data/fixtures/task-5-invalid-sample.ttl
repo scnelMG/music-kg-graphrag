@@ -1,0 +1,17 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix musicres: <https://w3id.org/music-kg-graphrag/resource/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+musicres:artist/example a music:Artist ;
+    music:title "Example Artist" .
+
+musicres:album/incomplete a music:Album ;
+    music:title "Incomplete Album" .
+
+musicres:track/incomplete a music:Track .
+
+musicres:review/incomplete a music:UserReview ;
+    music:ratingLabel "five stars" .
+
+musicres:recommendation/incomplete a music:Recommendation ;
+    music:targetAlbum musicres:album/incomplete .

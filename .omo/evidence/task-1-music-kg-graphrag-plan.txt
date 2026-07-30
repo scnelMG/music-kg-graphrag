@@ -1,0 +1,146 @@
+name: music-kg-graphrag
+services:
+  graphdb:
+    container_name: music-kg-graphdb
+    environment:
+      GDB_HEAP_SIZE: 2g
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q --spider http://localhost:7200/ || exit 1
+      timeout: 10s
+      interval: 20s
+      retries: 10
+    image: ontotext/graphdb:10.8.8
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 7200
+        published: "7200"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: graphdb-data
+        target: /opt/graphdb/home
+        volume: {}
+  postgres:
+    container_name: music-kg-postgres
+    environment:
+      POSTGRES_DB: music_kg
+      POSTGRES_PASSWORD: music_kg_local_password
+      POSTGRES_USER: music_kg
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}
+      timeout: 5s
+      interval: 10s
+      retries: 5
+    image: pgvector/pgvector:pg16
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 5432
+        published: "5432"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: postgres-data
+        target: /var/lib/postgresql/data
+        volume: {}
+networks:
+  default:
+    name: music-kg-graphrag_default
+volumes:
+  graphdb-data:
+    name: music-kg-graphrag_graphdb-data
+  postgres-data:
+    name: music-kg-graphrag_postgres-data
+
+
+===== Command Record =====
+Primary command attempted: docker compose config > .omo/evidence/task-1-music-kg-graphrag-plan.txt
+Primary command result: unavailable on PATH in Git Bash and PowerShell (docker command not found).
+Fallback command used: docker-compose config > .omo/evidence/task-1-music-kg-graphrag-plan.txt
+Fallback binary source: temporary standalone Docker Compose release at /c/Users/user/AppData/Local/Temp/music-kg-compose-v5.3.0/docker-compose.exe, not committed to repo.
+
+===== Failure Scenario: Env Checker Rejects Missing Config =====
+Command: bash scripts/check-env.example.sh .omo/evidence/task-1-incomplete-test.env
+Exit code: 1
+STDOUT:
+STDERR:
+ERROR: invalid env file: .omo/evidence/task-1-incomplete-test.env
+Missing required variables: NOTION_API_KEY
+Cleanup: removed temporary incomplete env and captured transient stdout/stderr files after appending output.
+
+===== Required Path Checks =====
+OK backend
+OK pipeline
+OK ontology
+OK queries
+OK docs
+OK data/fixtures
+OK scripts
+OK .omo/evidence
+OK README.md
+OK docker-compose.yml
+OK .env.example
+OK backend/README.md
+OK pipeline/README.md
+OK frontend/README.md
+OK DESIGN.md
+OK docs/frontend-demo-ui-plan.md
+OK ontology/README.md
+OK queries/README.md
+OK data/fixtures/README.md
+OK scripts/README.md
+OK scripts/check-env.example.sh
+Path check exit code: 0
+
+===== git diff --check =====
+Command: git diff --check
+Exit code: 0
+STDOUT:
+STDERR:
+Cleanup: removed transient git diff --check stdout/stderr files after appending output.
+
+===== Cleanup Receipts =====
+Fallback docker-compose config exit code: 0 (config output is the first section of this artifact).
+Removed temporary Compose binary directory: /c/Users/user/AppData/Local/Temp/music-kg-compose-v5.3.0
+
+===== Content Checks =====
+Scenario: .env.example lists required config categories without real secrets.
+OK .env.example contains NOTION_API_KEY
+OK .env.example contains NOTION_DATABASE_ID
+OK .env.example contains MUSICBRAINZ_USER_AGENT
+OK .env.example contains GRAPHDB_BASE_URL
+OK .env.example contains GRAPHDB_REPOSITORY
+OK .env.example contains POSTGRES_HOST
+OK .env.example contains POSTGRES_DB
+OK .env.example contains POSTGRES_USER
+OK .env.example contains POSTGRES_PASSWORD
+OK .env.example contains LLM_PROVIDER
+OK .env.example contains LLM_MODEL
+OK .env.example contains LLM_API_KEY
+Env listing check exit code: 0
+
+Scenario: README includes quick start/task command anchors.
+OK README.md contains cp .env.example .env
+OK README.md contains bash scripts/check-env.example.sh .env
+OK README.md contains docker compose config
+OK README.md contains docker compose up -d postgres graphdb
+OK README.md contains git diff --check
+README command check exit code: 0
+
+Scenario: frontend planning artifact names required demo flows.
+OK docs/frontend-demo-ui-plan.md contains Album Search
+OK docs/frontend-demo-ui-plan.md contains Candidate Selection
+OK docs/frontend-demo-ui-plan.md contains Personal Review Input
+OK docs/frontend-demo-ui-plan.md contains Notion Dry-Run Sync Status
+OK docs/frontend-demo-ui-plan.md contains Knowledge Graph Evidence Path Viewing
+OK docs/frontend-demo-ui-plan.md contains GraphRAG Recommendation Answer
+Frontend flow check exit code: 0

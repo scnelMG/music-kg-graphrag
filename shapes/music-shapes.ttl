@@ -1,0 +1,78 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+music:AlbumShape a sh:NodeShape ;
+    sh:targetClass music:Album ;
+    sh:property [
+        sh:path music:title ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:message "Albums must have at least one string title." ;
+    ] ;
+    sh:property [
+        sh:path music:createdBy ;
+        sh:class music:Artist ;
+        sh:minCount 1 ;
+        sh:message "Albums must identify at least one artist with music:createdBy." ;
+    ] ;
+    sh:property [
+        sh:path music:containsTrack ;
+        sh:class music:Track ;
+        sh:minCount 1 ;
+        sh:message "Albums must contain at least one music:Track." ;
+    ] .
+
+music:TrackShape a sh:NodeShape ;
+    sh:targetClass music:Track ;
+    sh:property [
+        sh:path music:title ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:message "Tracks must have at least one string title." ;
+    ] ;
+    sh:property [
+        sh:path music:createdBy ;
+        sh:class music:Artist ;
+        sh:minCount 1 ;
+        sh:message "Tracks must identify at least one artist with music:createdBy." ;
+    ] .
+
+music:UserReviewShape a sh:NodeShape ;
+    sh:targetClass music:UserReview ;
+    sh:property [
+        sh:path music:targetAlbum ;
+        sh:class music:Album ;
+        sh:minCount 1 ;
+        sh:message "User reviews must target an album." ;
+    ] ;
+    sh:property [
+        sh:path music:ratingLabel ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:in ( "loved" "liked" "mixed" "disliked" "unknown" ) ;
+        sh:message "User reviews must provide one allowed rating label." ;
+    ] .
+
+music:UserShape a sh:NodeShape ;
+    sh:targetClass music:User ;
+    sh:property [
+        sh:path music:wroteReview ;
+        sh:class music:UserReview ;
+        sh:message "User review links must point to music:UserReview nodes." ;
+    ] .
+
+music:RecommendationShape a sh:NodeShape ;
+    sh:targetClass music:Recommendation ;
+    sh:property [
+        sh:path music:targetAlbum ;
+        sh:class music:Album ;
+        sh:minCount 1 ;
+        sh:message "Recommendations must target an album." ;
+    ] ;
+    sh:property [
+        sh:path music:hasReason ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:message "Recommendations must include evidence-backed reason text." ;
+    ] .
