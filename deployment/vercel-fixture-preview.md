@@ -8,7 +8,7 @@ The Vercel project root directory is `frontend`. Do not deploy the repository ro
 | `BACKEND_BASE_URL` | `https://fixture-api.example.invalid` | protected fixture service URL when approved | protected fixture service URL when approved | Server-only; this slice never contacts it |
 | `BACKEND_SHARED_SECRET` | local placeholder | Vercel encrypted secret | Vercel encrypted secret | Server-only; never `NEXT_PUBLIC_` |
 
-Preview protections: enable Vercel Deployment Protection before assigning a preview URL, keep production deployments disabled by `frontend/vercel.json`, and restrict project membership to reviewers who may access fixture output. Do not place credentials, Notion configuration, provider keys, GraphDB connection strings, or personal-review data in any Vercel variable.
+Preview protections: enable Vercel Deployment Protection before assigning a preview URL, and restrict project membership to reviewers who may access fixture output. Vercel Production must track `main`; it may expose only the public fixture mode until the later authentication and real-data gates have passed. Do not place credentials, Notion configuration, provider keys, GraphDB connection strings, or personal-review data in any Vercel variable.
 
 ## Local checks
 
