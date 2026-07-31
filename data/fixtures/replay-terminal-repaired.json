@@ -1,0 +1,13 @@
+{
+  "fixture_mode": true,
+  "projection": {
+    "generation": "fixture-20260731",
+    "events": [
+      {
+        "event_id": "fixture-event-invalid-001",
+        "source": "manual",
+        "rdf_path": "valid/music-graph.ttl"
+      }
+    ]
+  }
+}

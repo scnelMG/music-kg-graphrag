@@ -134,6 +134,26 @@ def _extract_codes(report_graph: Graph) -> tuple[str, ...]:
     return tuple(sorted(codes))
 
 
+def validate_rdf_path(path: Path) -> FixtureResult:
+    ontology = _parse_graph(ONTOLOGY_PATH)
+    shapes = _parse_graph(SHAPES_PATH)
+    data_graph = _parse_graph(path)
+    conforms, report_graph, _ = validator(
+        data_graph,
+        shacl_graph=shapes,
+        ont_graph=ontology,
+        meta_shacl=True,
+        advanced=False,
+        inference="none",
+    )
+    return FixtureResult(
+        fixture=path,
+        conforms=conforms,
+        error_codes=_extract_codes(report_graph),
+        report_graph=report_graph,
+    )
+
+
 def validate_fixture(fixture_directory: Path) -> tuple[FixtureResult, ...]:
     if not fixture_directory.is_dir():
         raise SemanticInputError(
@@ -144,28 +164,7 @@ def validate_fixture(fixture_directory: Path) -> tuple[FixtureResult, ...]:
     if not fixture_paths:
         raise SemanticInputError(InputCode.NO_TTL_FIXTURES, str(fixture_directory))
 
-    ontology = _parse_graph(ONTOLOGY_PATH)
-    shapes = _parse_graph(SHAPES_PATH)
-    results: list[FixtureResult] = []
-    for fixture_path in fixture_paths:
-        data_graph = _parse_graph(fixture_path)
-        conforms, report_graph, _ = validator(
-            data_graph,
-            shacl_graph=shapes,
-            ont_graph=ontology,
-            meta_shacl=True,
-            advanced=False,
-            inference="none",
-        )
-        results.append(
-            FixtureResult(
-                fixture=fixture_path,
-                conforms=conforms,
-                error_codes=_extract_codes(report_graph),
-                report_graph=report_graph,
-            ),
-        )
-    return tuple(results)
+    return tuple(validate_rdf_path(fixture_path) for fixture_path in fixture_paths)
 
 
 def _load_expected_codes(path: Path) -> dict[str, tuple[str, ...]]:

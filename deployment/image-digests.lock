@@ -1,3 +1,5 @@
 # Release images must be referenced by immutable digest, never a mutable tag.
 postgres=pgvector/pgvector@sha256:4a8233fa340ec319a948e3ce5f33771c78772e68c31bb1b6f0327c6425f6b4dd
-graphdb=ontotext/graphdb@sha256:f7255ac1b0eb292bd0f45d3776d331452239ae94e9d5a6b032b190322e6bda2d
+graphdb=ontotext/graphdb@sha256:e66ad4c6cbec16bb209735d4f777c97bab8c508cdd7709d916abe854612052d3
+graphdb-bootstrap=curlimages/curl@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6
+graphdb-projector=ghcr.io/astral-sh/uv@sha256:727eea7895e8bda0c5f582a5fa2795bdeecabbcb2e9371de066b95da06c31ad5

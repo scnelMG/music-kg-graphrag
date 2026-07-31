@@ -28,5 +28,20 @@
     "untrusted_inputs": ["review_text", "provider_metadata", "cover_description"],
     "forbidden_sinks": ["llm", "external_provider", "notion_live_write"],
     "retention": {"fixtures": "source_controlled", "logs": "ids_and_hashes_only", "deletion": "remove_fixture_then_rebuild_derivatives"}
+  },
+  "projection": {
+    "generation": "fixture-20260731",
+    "events": [
+      {
+        "event_id": "fixture-event-musicbrainz-001",
+        "source": "musicbrainz",
+        "rdf_path": "valid/music-graph.ttl"
+      },
+      {
+        "event_id": "fixture-event-musicbrainz-001",
+        "source": "musicbrainz",
+        "rdf_path": "valid/music-graph.ttl"
+      }
+    ]
   }
 }

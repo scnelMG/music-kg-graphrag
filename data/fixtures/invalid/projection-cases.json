@@ -1,0 +1,29 @@
+{
+  "fixture_mode": true,
+  "projection": {
+    "generation": "fixture-20260731",
+    "events": [
+      {
+        "event_id": "fixture-event-musicbrainz-001",
+        "source": "musicbrainz",
+        "rdf_path": "../valid/music-graph.ttl"
+      },
+      {
+        "event_id": "fixture-event-musicbrainz-001",
+        "source": "musicbrainz",
+        "rdf_path": "../valid/music-graph.ttl"
+      },
+      {
+        "event_id": "fixture-event-retry-001",
+        "source": "manual",
+        "rdf_path": "../valid/music-graph.ttl",
+        "fixture_retry_failures": 2
+      },
+      {
+        "event_id": "fixture-event-invalid-001",
+        "source": "manual",
+        "rdf_path": "missing-artist.ttl"
+      }
+    ]
+  }
+}

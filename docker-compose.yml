@@ -2,7 +2,7 @@ name: music-kg-graphrag
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector@sha256:4a8233fa340ec319a948e3ce5f33771c78772e68c31bb1b6f0327c6425f6b4dd
     container_name: music-kg-postgres
     restart: unless-stopped
     environment:
@@ -20,21 +20,67 @@ services:
       retries: 5
 
   graphdb:
-    image: ontotext/graphdb:10.8.8
+    image: ontotext/graphdb@sha256:e66ad4c6cbec16bb209735d4f777c97bab8c508cdd7709d916abe854612052d3
     container_name: music-kg-graphdb
     restart: unless-stopped
-    ports:
-      - "${GRAPHDB_PORT:-7200}:7200"
+    expose:
+      - "7200"
     environment:
       GDB_HEAP_SIZE: ${GRAPHDB_HEAP_SIZE:-2g}
     volumes:
       - graphdb-data:/opt/graphdb/home
+    networks:
+      - graph-private
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:7200/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7200/rest/repositories || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 10
 
+  graphdb-bootstrap:
+    build:
+      context: .
+      dockerfile: deployment/graphdb/projector.Dockerfile
+    entrypoint:
+      - /app/pipeline/.venv/bin/python
+      - -m
+      - pipeline.graphdb_bootstrap
+    restart: "no"
+    depends_on:
+      graphdb:
+        condition: service_healthy
+    networks:
+      - graph-private
+    command:
+      - --graphdb-url
+      - http://graphdb:7200
+
+  graphdb-projector:
+    build:
+      context: .
+      dockerfile: deployment/graphdb/projector.Dockerfile
+    profiles: ["graphdb-integration"]
+    restart: "no"
+    depends_on:
+      graphdb-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - graph-private
+    volumes:
+      - ./deployment/evidence/task-7:/evidence
+    command:
+      - --fixture
+      - /app/data/fixtures/manifest.json
+      - --graphdb-url
+      - http://graphdb:7200
+      - --output
+      - /evidence/live-graphdb-report.json
+      - --reset
+
 volumes:
   postgres-data:
   graphdb-data:
+
+networks:
+  graph-private:
+    internal: true

@@ -1,0 +1,43 @@
+{
+  "backup_owner": "platform-operations",
+  "restore_order": [
+    "restore-postgres",
+    "recreate-graphdb-repository",
+    "load-shacl-shapes",
+    "replay-projection-outbox",
+    "verify-named-graph-snapshots",
+    "enable-backend-traffic"
+  ],
+  "services": {
+    "frontend": {
+      "host": "vercel",
+      "public_route": true,
+      "health_endpoint": "/",
+      "responsibilities": ["reviewer-ui", "same-origin-bff"]
+    },
+    "backend": {
+      "host": "external-stateless-host",
+      "public_route": true,
+      "health_endpoint": "/actuator/health",
+      "responsibilities": ["typed-api", "canonical-write-orchestration"]
+    },
+    "postgres": {
+      "host": "external-stateful-host",
+      "public_route": false,
+      "health_endpoint": "pg_isready",
+      "responsibilities": ["canonical-source-of-truth", "outbox"]
+    },
+    "worker": {
+      "host": "external-worker-host",
+      "public_route": false,
+      "health_endpoint": "/health/worker",
+      "responsibilities": ["outbox-projection", "retry-and-replay"]
+    },
+    "graphdb": {
+      "host": "external-stateful-host",
+      "public_route": false,
+      "health_endpoint": "/rest/repositories/music-kg/size",
+      "responsibilities": ["rebuildable-rdf-projection", "private-sparql"]
+    }
+  }
+}
