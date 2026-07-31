@@ -1,0 +1,71 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.7'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.cyclonedx.bom' version '2.3.1'
+}
+
+group = 'org.musickg'
+version = '0.1.0'
+
+ext['testcontainers.version'] = '2.0.4'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+    implementation 'io.swagger.parser.v3:swagger-parser:2.1.22'
+    implementation 'javax.xml.bind:jaxb-api:2.3.1'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.4'
+    testImplementation 'org.testcontainers:testcontainers-postgresql:2.0.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.register('verifyTestcontainersResolution') {
+    group = 'verification'
+    description = 'Fails when the Testcontainers test runtime is not fully resolved to 2.0.4.'
+
+    doLast {
+        def unexpectedVersions = configurations.testRuntimeClasspath.incoming.resolutionResult.allComponents
+            .collect { it.moduleVersion }
+            .findAll { it != null && it.group == 'org.testcontainers' && it.version != '2.0.4' }
+            .collect { "${it.name}:${it.version}" }
+            .unique()
+
+        if (!unexpectedVersions.isEmpty()) {
+            throw new GradleException("Testcontainers must resolve to 2.0.4 on testRuntimeClasspath; found ${unexpectedVersions.join(', ')}")
+        }
+    }
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('verifyTestcontainersResolution')
+}
+
+tasks.register('openApiGenerate', JavaExec) {
+    group = 'documentation'
+    description = 'Generates and validates the Spring OpenAPI 3.1 contract.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.musickg.backend.api.OpenApiGenerator'
+    dependsOn tasks.named('classes')
+}

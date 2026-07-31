@@ -1,5 +1,5 @@
 # Queries Scaffold
 
-Future location for SPARQL query files used to inspect the music knowledge graph and recommendation evidence paths.
+Future location for allowlisted SPARQL query templates used to inspect the music knowledge graph and recommendation evidence paths.
 
-Todo 1 intentionally does not add query content. Todo 12 owns SPARQL query implementation and evidence snapshots.
+Todo 1 intentionally does not add query content. Task 8 owns bounded query-template implementation, fixture oracles, and evidence snapshots; raw SPARQL execution is out of scope.

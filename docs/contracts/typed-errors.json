@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "errors": {
+    "MALFORMED_CONTRACT": "Contract JSON is malformed and was rejected before any side effect.",
+    "NOTION_MAPPING_UNCONFIGURED": "Notion mapping has no human-approved fixture-safe configuration.",
+    "UNKNOWN_NOTION_PROPERTY": "Notion mapping names a property outside the frozen template.",
+    "PLACEHOLDER_USER_AGENT": "MusicBrainz user agent is a placeholder.",
+    "UNAPPROVED_PROVIDER_HOST": "Provider URL is not an HTTPS MusicBrainz or Cover Art host.",
+    "REAL_PROVIDER_EGRESS_FORBIDDEN": "Fixture mode forbids provider egress.",
+    "LLM_EGRESS_FORBIDDEN": "Fixture mode forbids LLM egress.",
+    "SECRET_LIKE_VALUE": "Contract contains a secret-looking value.",
+    "INVALID_CHECKSUM": "Fixture file checksum does not match the manifest.",
+    "MISSING_STABLE_ID": "Fixture record lacks a stable identifier.",
+    "UNDEFINED_DATA_CLASS": "Fixture record or classification uses an undefined data class."
+    ,"MALFORMED_REQUEST": "The request failed structural validation before any side effect."
+    ,"INVALID_RATING": "A review rating must be an integer from 1 through 5."
+    ,"UNSUPPORTED_QUESTION_CLASS": "GraphRAG only accepts documented fixed question classes."
+    ,"EVIDENCE_NOT_FOUND": "The requested evidence identifier is unknown."
+    ,"REAL_WRITE_FORBIDDEN": "Fixture mode rejects every real-write intent."
+    ,"ORIGIN_NOT_ALLOWED": "The browser origin is outside the explicit CORS allowlist."
+    ,"PAYLOAD_TOO_LARGE": "The request exceeded the configured payload cap."
+    ,"RATE_LIMITED": "The per-route request limit was exceeded."
+    ,"PRODUCTION_AUTH_CONFIGURATION_REQUIRED": "Production cannot start without explicit authentication configuration."
+    ,"PRODUCTION_ALLOWED_ORIGIN_REQUIRED": "Production cannot start without a non-wildcard allowed origin."
+  }
+}

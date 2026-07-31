@@ -1,4 +1,4 @@
-# Pipeline Scaffold
+# Pipeline Foundation
 
 Future Python worker/CLI boundary for:
 
@@ -11,4 +11,9 @@ Future Python worker/CLI boundary for:
 - embedding generation,
 - GraphRAG retrieval composition.
 
-Todo 1 intentionally does not add pipeline logic. Later code should use fixtures by default, avoid live API calls in ordinary tests, and enforce MusicBrainz User-Agent plus rate-limit requirements.
+Todo 1 adds a pinned Python package and a fixture-only CLI boundary, not metadata/RDF/GraphRAG logic. Later code must use fixtures by default, avoid live API calls in ordinary tests, and enforce MusicBrainz User-Agent plus rate-limit requirements.
+
+```bash
+uv run --directory pipeline --group dev pytest tests
+uv run --directory pipeline --group dev python -m pipeline --help
+```

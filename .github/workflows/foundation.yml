@@ -1,0 +1,31 @@
+name: foundation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21.0.9'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.26'
+      - run: bash backend/gradlew -p backend test --no-daemon
+      - run: uv run --directory pipeline --group dev pytest tests
+      - run: docker compose config
+      - run: git diff --check
+      - run: bash scripts/verify-supply-chain.sh
+      - run: bash scripts/test-verify-supply-chain-redaction.sh
+      - run: bash scripts/test-invalid-env-contract.sh

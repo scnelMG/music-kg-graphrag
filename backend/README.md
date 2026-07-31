@@ -1,4 +1,4 @@
-# Backend Scaffold
+# Backend Foundation
 
 Future Spring Boot service boundary for:
 
@@ -8,4 +8,18 @@ Future Spring Boot service boundary for:
 - recommendation and GraphRAG API responses,
 - health and operational endpoints.
 
-Todo 1 intentionally does not add controllers, DTOs, migrations, services, or endpoint code. Later backend work should preserve the Todo 0 decisions: PostgreSQL is canonical, GraphDB is rebuilt from normalized data, and external tokens never appear in responses or logs.
+PostgreSQL is canonical. The Flyway baseline holds normalized music/review history, provider identities and snapshots, job/idempotency records, deletion state, and a transactional projection outbox. GraphDB and embeddings remain derived work only; no request transaction writes either system.
+
+Outbox rows move through `PENDING`, `PROCESSING`, `SUCCEEDED`, `RETRYABLE_FAILED`, and `TERMINAL_FAILED`. Attempts, a scheduled retry time, and only redacted error codes are retained. Terminal rows are inspectable and can be replayed without a second canonical mutation or second outbox row:
+
+```sql
+SELECT replay_terminal_outbox_event('<event UUID>', now());
+```
+
+Run the foundation test from the repository root:
+
+```bash
+bash backend/gradlew -p backend test --no-daemon
+```
+
+On Windows PowerShell, use `backend\\gradlew.bat -p backend test --no-daemon`.

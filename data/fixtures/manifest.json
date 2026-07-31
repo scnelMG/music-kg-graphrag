@@ -1,0 +1,32 @@
+{
+  "contract_version": "1.0.0",
+  "fixture_mode": true,
+  "fixture_files": {
+    "albums": {"path": "albums.json", "sha256": "cd44f6c6ef668f0d483c7322770e0392a670796a361401c6758ace72966366d7"},
+    "reviews": {"path": "reviews.json", "sha256": "8f13b34d27b74deb7f3bf5d1780cf7266286e49b4a4d07da8a245dcd5770ec5c"}
+  },
+  "provider_policy": {
+    "musicbrainz_user_agent": "music-kg-fixture-validator/0.1 (fixture-contact@example.invalid)",
+    "endpoints": ["https://musicbrainz.org/ws/2", "https://coverartarchive.org/release"],
+    "fixture_mode": "disabled",
+    "llm_egress": "forbidden"
+  },
+  "notion_mapping": {
+    "NOTION_VERSION": "2026-03-11",
+    "approval_status": "UNCONFIGURED",
+    "database_id": "UNCONFIGURED",
+    "data_source_id": "UNCONFIGURED",
+    "property_ids": {"title": "UNCONFIGURED", "artist": "UNCONFIGURED", "rating": "UNCONFIGURED", "review": "UNCONFIGURED"},
+    "live_import_write_forbidden": true
+  },
+  "data_classification": {
+    "album_metadata": "PUBLIC_FIXTURE",
+    "review_text": "UNTRUSTED_TEXT",
+    "cover_reference": "PUBLIC_FIXTURE"
+  },
+  "trust_and_retention": {
+    "untrusted_inputs": ["review_text", "provider_metadata", "cover_description"],
+    "forbidden_sinks": ["llm", "external_provider", "notion_live_write"],
+    "retention": {"fixtures": "source_controlled", "logs": "ids_and_hashes_only", "deletion": "remove_fixture_then_rebuild_derivatives"}
+  }
+}

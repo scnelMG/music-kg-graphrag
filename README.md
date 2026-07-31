@@ -1,13 +1,13 @@
 # Music Knowledge Graph & GraphRAG
 
-Portfolio backend/data project scaffold for turning personal album records into a PostgreSQL-backed app, RDF knowledge graph, and evidence-grounded GraphRAG recommendation flow.
+Fixture-only foundation for a portfolio backend/data project that will turn anonymised album records into a PostgreSQL-backed app, RDF knowledge graph, and evidence-grounded GraphRAG recommendation flow.
 
-This repository is intentionally scaffold-only at Todo 1. It defines the workspace layout, local services, configuration contract, and frontend demo UI planning. It does not yet include database migrations, API endpoints, ontology TTL/SHACL content, metadata pipeline logic, Notion sync logic, GraphRAG logic, or product screens.
+Todo 1 establishes reproducible Java/Python build boundaries, a fixture-only worker CLI, local configuration checks, SBOM generation, digest-lock validation, and CI commands. It does not yet implement migrations, API endpoints, RDF/SHACL validity proof, metadata ingestion, Notion sync, GraphRAG, or product screens. Existing ontology and shape files are unverified inputs; Task 6 owns their validation proof.
 
 ## Architecture Direction
 
-- Backend API: Spring Boot, later under `backend/`
-- Data and AI pipeline: Python worker/CLI, later under `pipeline/`
+- Backend API: Spring Boot under `backend/` (currently a fixture-only application context)
+- Data and AI pipeline: Python worker CLI under `pipeline/` (currently help/command boundary only)
 - App database and vector storage: PostgreSQL with pgvector
 - Knowledge graph: Ontotext GraphDB for RDF/SPARQL/SHACL workflows
 - External sources: Notion, MusicBrainz, Cover Art Archive, optional Last.fm/Wikidata/LLM providers
@@ -23,12 +23,12 @@ The Todo 0 research package under `docs/research/` and `outputs/tech-stack-ratio
    cp .env.example .env
    ```
 
-2. Fill the required values in `.env`. Use a real contactable MusicBrainz User-Agent before any live MusicBrainz calls.
+2. Fill the required local values in `.env`. The public service remains fixture-only; do not add real credentials or enable external calls.
 
 3. Validate local configuration.
 
    ```bash
-   bash scripts/check-env.example.sh .env
+   bash scripts/check-env.sh .env
    ```
 
 4. Validate Docker Compose without starting containers.
@@ -37,7 +37,7 @@ The Todo 0 research package under `docs/research/` and `outputs/tech-stack-ratio
    docker compose config
    ```
 
-5. Start local services only when a later todo needs them.
+5. Start local services only when a later todo needs them. Compose images are development tags; release deployment must use `deployment/image-digests.lock`.
 
    ```bash
    docker compose up -d postgres graphdb
@@ -54,20 +54,22 @@ The Todo 0 research package under `docs/research/` and `outputs/tech-stack-ratio
 Use these commands from the repository root:
 
 ```bash
-bash scripts/check-env.example.sh .env
+bash backend/gradlew -p backend test --no-daemon
+uv run --directory pipeline --group dev pytest tests
+uv run --directory pipeline --group dev python -m pipeline --help
+bash scripts/check-env.sh .env
 docker compose config
-docker compose up -d postgres graphdb
-docker compose down
+bash scripts/verify-supply-chain.sh
 git diff --check
 ```
 
-The verification evidence for Todo 1 is recorded in `.omo/evidence/task-1-music-kg-graphrag-plan.txt`.
+The verification evidence for Todo 1 is recorded in `.omo/evidence/task-1-music-kg-evidence-graphrag.md`.
 
 ## Repository Layout
 
 ```text
-backend/        Spring Boot backend service scaffold
-pipeline/       Python metadata, RDF, embedding, and GraphRAG pipeline scaffold
+backend/        Spring Boot fixture-service foundation
+pipeline/       Python fixture-only worker CLI foundation
 frontend/       Demo UI planning scaffold only
 ontology/       Future RDF/OWL/SHACL assets
 queries/        Future SPARQL query files
@@ -79,7 +81,9 @@ scripts/        Local developer scripts
 
 ## Guardrails
 
-- Do not commit real `.env` files or secrets.
+- Do not commit real `.env` files, credentials, or provider responses.
+- Do not expose anything except anonymised fixtures in public surfaces.
+- Do not use mutable image tags in release artifacts; validate digest locks before release.
 - Do not start live external API calls from default tests.
 - Do not alter existing Notion schema or overwrite user-entered Notion values.
 - Do not treat GraphDB as the system of record; rebuild it from normalized data.

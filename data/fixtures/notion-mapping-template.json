@@ -1,0 +1,14 @@
+{
+  "NOTION_VERSION": "2026-03-11",
+  "approval_status": "UNCONFIGURED",
+  "database_id": "UNCONFIGURED",
+  "data_source_id": "UNCONFIGURED",
+  "property_ids": {
+    "title": "UNCONFIGURED",
+    "artist": "UNCONFIGURED",
+    "rating": "UNCONFIGURED",
+    "review": "UNCONFIGURED"
+  },
+  "live_import_write_forbidden": true,
+  "human_approval_required_before_live_operations": true
+}

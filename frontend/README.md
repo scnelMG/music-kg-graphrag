@@ -1,10 +1,5 @@
-# Frontend Scaffold
+# Fixture review desk
 
-This directory is reserved for a future portfolio demo UI. Todo 1 only creates planning artifacts:
+This Next.js vertical slice is an evidence-review desk for a single public fixture candidate. It contains only same-origin routes under `/api/fixture/*`; it does not contact GraphDB, providers, an LLM, Notion, or an external backend.
 
-- `DESIGN.md` defines the design system contract.
-- `docs/frontend-demo-ui-plan.md` defines planned flows, states, and responsive behavior.
-
-No product screens, React app, routes, or UI components are implemented in Todo 1.
-
-The planned interface is an operational backend/data demo for technical reviewers. It should make data lineage, sync safety, graph evidence, and GraphRAG grounding inspectable instead of presenting a generic consumer music app.
+Run locally with `pnpm dev`. The browser QA suite is `pnpm test:e2e`; see [`deployment/vercel-fixture-preview.md`](../deployment/vercel-fixture-preview.md) for protected-preview and variable requirements.

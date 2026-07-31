@@ -1,6 +1,6 @@
-# Music KG Ontology
+# Music KG Ontology (unverified draft)
 
-Todo 5 defines the MVP RDF/OWL and SHACL surface for personal album listening records, source-aware music metadata, recommendation evidence, and later GraphRAG retrieval. It does not define RDF generation, GraphDB loading, SPARQL query execution, or application APIs.
+The existing RDF/OWL and SHACL files are an unverified draft surface for personal album listening records, source-aware music metadata, recommendation evidence, and later GraphRAG retrieval. Task 6 owns semantic validation and must not be inferred complete merely because these files exist. This directory does not yet prove RDF generation, GraphDB loading, SPARQL query execution, or application APIs.
 
 ## Files
 
@@ -50,11 +50,11 @@ https://w3id.org/music-kg-graphrag/graph/lastfm
 https://w3id.org/music-kg-graphrag/graph/recommendation-runs/{run-id}
 ```
 
-GraphDB repositories can load these named graphs later, but Todo 5 only documents the naming convention.
+GraphDB repositories may load these named graphs later, but this document only records the naming convention; no validation or loading claim is made here.
 
 ## Validation Contract
 
-Before GraphDB load, RDF data should pass `shapes/music-shapes.ttl`:
+The intended future contract is that RDF passes `shapes/music-shapes.ttl` before GraphDB load. Task 6 must demonstrate that contract:
 
 - Albums require `music:title`, at least one `music:createdBy` artist, and at least one `music:containsTrack` track.
 - Tracks require `music:title` and at least one `music:createdBy` artist.

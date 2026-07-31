@@ -1,0 +1,29 @@
+.env
+.env.*
+!.env.example
+!.env.invalid
+
+.gradle/
+backend/build/
+pipeline/.venv/
+pipeline/.pytest_cache/
+pipeline/.ruff_cache/
+pipeline/.basedpyright/
+__pycache__/
+*.py[cod]
+
+# JavaScript build and test artifacts
+node_modules/
+.next/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.pnpm-store/
+
+# Local tool caches and generated reports
+.ruff_cache/
+.uv-cache/
+outputs/
+
+artifacts/
+sbom/

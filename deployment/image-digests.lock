@@ -1,0 +1,3 @@
+# Release images must be referenced by immutable digest, never a mutable tag.
+postgres=pgvector/pgvector@sha256:4a8233fa340ec319a948e3ce5f33771c78772e68c31bb1b6f0327c6425f6b4dd
+graphdb=ontotext/graphdb@sha256:f7255ac1b0eb292bd0f45d3776d331452239ae94e9d5a6b032b190322e6bda2d
