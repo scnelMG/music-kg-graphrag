@@ -2,25 +2,52 @@
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-music:AlbumShape a sh:NodeShape ;
-    sh:targetClass music:Album ;
+music:ReleaseGroupShape a sh:NodeShape ;
+    sh:targetClass music:ReleaseGroup ;
     sh:property [
         sh:path music:title ;
         sh:datatype xsd:string ;
         sh:minCount 1 ;
-        sh:message "Albums must have at least one string title." ;
+        sh:message "MISSING_RELEASE_GROUP_TITLE: Release groups require a title." ;
     ] ;
     sh:property [
         sh:path music:createdBy ;
         sh:class music:Artist ;
         sh:minCount 1 ;
-        sh:message "Albums must identify at least one artist with music:createdBy." ;
+        sh:message "MISSING_ARTIST: Release groups require at least one artist." ;
     ] ;
     sh:property [
-        sh:path music:containsTrack ;
-        sh:class music:Track ;
+        sh:path music:stableId ;
+        sh:datatype xsd:string ;
         sh:minCount 1 ;
-        sh:message "Albums must contain at least one music:Track." ;
+        sh:maxCount 1 ;
+        sh:minLength 1 ;
+        sh:message "MISSING_STABLE_ID: Release groups require one stable identifier." ;
+    ] .
+
+music:ReleaseShape a sh:NodeShape ;
+    sh:targetClass music:Release ;
+    sh:property [
+        sh:path music:releaseOf ;
+        sh:class music:ReleaseGroup ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "MISSING_RELEASE_IDENTITY: Releases require exactly one release group." ;
+    ] ;
+    sh:property [
+        sh:path music:externalId ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:minLength 1 ;
+        sh:message "MISSING_RELEASE_IDENTITY: Releases require an external identifier." ;
+    ] ;
+    sh:property [
+        sh:path music:stableId ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minLength 1 ;
+        sh:message "MISSING_RELEASE_IDENTITY: Releases require one stable identifier." ;
     ] .
 
 music:TrackShape a sh:NodeShape ;
@@ -29,29 +56,35 @@ music:TrackShape a sh:NodeShape ;
         sh:path music:title ;
         sh:datatype xsd:string ;
         sh:minCount 1 ;
-        sh:message "Tracks must have at least one string title." ;
+        sh:message "MISSING_TRACK_TITLE: Tracks require a title." ;
     ] ;
     sh:property [
         sh:path music:createdBy ;
         sh:class music:Artist ;
         sh:minCount 1 ;
-        sh:message "Tracks must identify at least one artist with music:createdBy." ;
+        sh:message "MISSING_ARTIST: Tracks require at least one artist." ;
     ] .
 
 music:UserReviewShape a sh:NodeShape ;
     sh:targetClass music:UserReview ;
     sh:property [
-        sh:path music:targetAlbum ;
-        sh:class music:Album ;
+        sh:path music:targetReleaseGroup ;
+        sh:class music:ReleaseGroup ;
         sh:minCount 1 ;
-        sh:message "User reviews must target an album." ;
+        sh:message "MISSING_REVIEW_TARGET: User reviews require a release-group target." ;
     ] ;
     sh:property [
         sh:path music:ratingLabel ;
         sh:datatype xsd:string ;
         sh:minCount 1 ;
         sh:in ( "loved" "liked" "mixed" "disliked" "unknown" ) ;
-        sh:message "User reviews must provide one allowed rating label." ;
+        sh:message "INVALID_RATING_LABEL: User reviews require one allowed rating label." ;
+    ] ;
+    sh:property [
+        sh:path music:hasListeningContext ;
+        sh:class music:ListeningContext ;
+        sh:minCount 1 ;
+        sh:message "MISSING_LISTENING_CONTEXT: User reviews require a listening context." ;
     ] .
 
 music:UserShape a sh:NodeShape ;
@@ -59,20 +92,124 @@ music:UserShape a sh:NodeShape ;
     sh:property [
         sh:path music:wroteReview ;
         sh:class music:UserReview ;
-        sh:message "User review links must point to music:UserReview nodes." ;
+        sh:message "INVALID_REVIEW_LINK: User review links must target UserReview nodes." ;
     ] .
 
 music:RecommendationShape a sh:NodeShape ;
     sh:targetClass music:Recommendation ;
     sh:property [
-        sh:path music:targetAlbum ;
-        sh:class music:Album ;
+        sh:path music:targetReleaseGroup ;
+        sh:class music:ReleaseGroup ;
         sh:minCount 1 ;
-        sh:message "Recommendations must target an album." ;
+        sh:message "MISSING_RECOMMENDATION_TARGET: Recommendations require a release-group target." ;
     ] ;
     sh:property [
         sh:path music:hasReason ;
         sh:datatype xsd:string ;
         sh:minCount 1 ;
-        sh:message "Recommendations must include evidence-backed reason text." ;
+        sh:minLength 1 ;
+        sh:message "MISSING_RECOMMENDATION_REASON: Recommendations require non-empty reason text." ;
+    ] ;
+    sh:property [
+        sh:path music:hasEvidence ;
+        sh:class music:RecommendationEvidence ;
+        sh:minCount 1 ;
+        sh:message "MISSING_EVIDENCE: Recommendations require typed evidence." ;
+    ] .
+
+music:SourceShape a sh:NodeShape ;
+    sh:targetClass music:Source ;
+    sh:property [
+        sh:path music:stableId ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minLength 1 ;
+        sh:message "MISSING_STABLE_ID: Sources require one stable identifier." ;
+    ] .
+
+music:AssertionShape a sh:NodeShape ;
+    sh:targetClass music:Assertion ;
+    sh:property [
+        sh:path music:stableId ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minLength 1 ;
+        sh:message "MISSING_STABLE_ID: Assertions require one stable identifier." ;
+    ] ;
+    sh:property [
+        sh:path music:source ;
+        sh:class music:Source ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "MISSING_SOURCE: Assertions require exactly one source." ;
+    ] ;
+    sh:property [
+        sh:path music:assertedSubject ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "MISSING_ASSERTED_SUBJECT: Assertions require one subject IRI." ;
+    ] ;
+    sh:property [
+        sh:path music:assertedPredicate ;
+        sh:nodeKind sh:IRI ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "MISSING_ASSERTED_PREDICATE: Assertions require one predicate IRI." ;
+    ] ;
+    sh:property [
+        sh:path music:assertedObject ;
+        sh:nodeKind sh:IRIOrLiteral ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "MISSING_ASSERTED_OBJECT: Assertions require one object." ;
+    ] ;
+    sh:property [
+        sh:path music:confidence ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 0.0 ;
+        sh:maxInclusive 1.0 ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "CONFIDENCE_OUT_OF_RANGE: Confidence must be from 0.0 through 1.0." ;
+    ] ;
+    sh:property [
+        sh:path music:retrievalRun ;
+        sh:class music:RetrievalRun ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "MISSING_RETRIEVAL_RUN: Assertions require exactly one retrieval run." ;
+    ] ;
+    sh:property [
+        sh:path music:namedGraph ;
+        sh:class music:NamedGraph ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "MISSING_NAMED_GRAPH: Assertions require exactly one named graph." ;
+    ] .
+
+music:RecommendationEvidenceShape a sh:NodeShape ;
+    sh:targetClass music:RecommendationEvidence ;
+    sh:property [
+        sh:path music:stableId ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:minLength 1 ;
+        sh:message "MISSING_STABLE_ID: Recommendation evidence requires one stable identifier." ;
+    ] ;
+    sh:property [
+        sh:path music:evidencePath ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:minLength 1 ;
+        sh:message "MISSING_EVIDENCE_PATH: Recommendation evidence requires a predicate path." ;
+    ] ;
+    sh:property [
+        sh:path music:supportedBy ;
+        sh:class music:Assertion ;
+        sh:minCount 1 ;
+        sh:message "MISSING_EVIDENCE_ASSERTION: Recommendation evidence requires an assertion." ;
     ] .

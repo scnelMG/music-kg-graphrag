@@ -1,21 +1,22 @@
-# Music KG Ontology (unverified draft)
+# Music KG Ontology
 
-The existing RDF/OWL and SHACL files are an unverified draft surface for personal album listening records, source-aware music metadata, recommendation evidence, and later GraphRAG retrieval. Task 6 owns semantic validation and must not be inferred complete merely because these files exist. This directory does not yet prove RDF generation, GraphDB loading, SPARQL query execution, or application APIs.
+The RDF/OWL and SHACL files define the locally verified semantic contract for fixture music records, source-qualified assertions, and recommendation evidence. The validation CLI proves parsing and SHACL conformance without network calls. It does not prove GraphDB loading, SPARQL query execution, RDF projection from application data, or application integration.
 
 ## Files
 
 - `ontology/prefixes.ttl` - shared namespace declarations for ontology, resources, named graphs, and common vocabularies.
 - `ontology/music-ontology.ttl` - OWL classes and properties for the MVP graph model.
 - `shapes/music-shapes.ttl` - SHACL validation rules for required album, track, review, rating, and recommendation fields.
-- `data/fixtures/task-5-invalid-sample.ttl` - intentionally incomplete RDF used to prove validation failures are detected.
+- `data/fixtures/valid/music-graph.ttl` - complete fixture covering release identity, review context, assertion provenance, and recommendation evidence.
+- `data/fixtures/invalid/*.ttl` - isolated failure fixtures with expected codes in `expected-codes.json`.
 
 ## Scope
 
-The core classes are `User`, `Artist`, `Album`, `Track`, `Genre`, `Mood`, `ListeningContext`, `UserReview`, `Recommendation`, and `Source`.
+The core classes are `User`, `Artist`, `ReleaseGroup`, `Release`, `Track`, `Genre`, `Mood`, `ListeningContext`, `UserReview`, `Recommendation`, `RecommendationEvidence`, `Assertion`, `Source`, `RetrievalRun`, and `NamedGraph`. `Album` remains only as a deprecated compatibility superclass for `ReleaseGroup` and `Release`.
 
-The core relationships are `createdBy`, `containsTrack`, `hasGenre`, `hasMood`, `wroteReview`, `targetAlbum`, `favoriteTrack`, `similarTo`, and `hasReason`.
+The core relationships include `createdBy`, `containsRelease`, `releaseOf`, `containsTrack`, `hasGenre`, `hasMood`, `hasListeningContext`, `wroteReview`, `targetReleaseGroup`, `favoriteTrack`, and `similarTo`.
 
-`Source`, `source`, and `externalId` are included from the start because the research notes require MusicBrainz/Wikidata/Last.fm and manual data to remain source-qualified. Festival, performance, instrument, symbolic score, and MusicXML features are deferred extension modules; the MVP ontology should not require them.
+Every source-qualified claim is a conventional `Assertion` resource, not RDF-star. SHACL requires its `stableId`, `source`, `assertedSubject`, `assertedPredicate`, `assertedObject`, bounded `confidence`, `retrievalRun`, and `namedGraph`. `source`, `retrievalRun`, and `namedGraph` are aligned through PROV-O subproperties or PROV-O classes. Festival, performance, instrument, symbolic score, and MusicXML features remain deferred extension modules.
 
 ## URI Strategy
 
@@ -27,7 +28,7 @@ Resources:      https://w3id.org/music-kg-graphrag/resource/album/{slug-or-id}
 Named graphs:   https://w3id.org/music-kg-graphrag/graph/{dataset-or-run}
 ```
 
-Resource paths should be lowercase, URL-safe, and typed by path segment: `user/`, `artist/`, `album/`, `track/`, `genre/`, `mood/`, `context/`, `review/`, `recommendation/`, and `source/`.
+Resource paths should be lowercase, URL-safe, and typed by path segment: `user/`, `artist/`, `release-group/`, `release/`, `track/`, `genre/`, `mood/`, `context/`, `review/`, `recommendation/`, `evidence/`, `assertion/`, `run/`, and `source/`.
 
 Prefer canonical external identifiers when available:
 
@@ -36,7 +37,7 @@ Prefer canonical external identifiers when available:
 - Last.fm tag keys only as soft enrichment evidence.
 - Manual identifiers for private/user-entered records that lack catalog matches.
 
-Do not replace local resource URIs with third-party URLs. Store third-party identifiers with `music:externalId` and connect the entity to a `music:Source` with `music:source` when the assertion depends on that source. This keeps internal links stable if an external catalog is unavailable or a match is corrected.
+Do not replace local resource URIs with third-party URLs. Store provider identity with `music:externalId`; represent each provider-dependent claim as an assertion linked to its source. This keeps internal links stable if a catalog is unavailable or a match is corrected.
 
 ## Named Graph Conventions
 
@@ -54,11 +55,11 @@ GraphDB repositories may load these named graphs later, but this document only r
 
 ## Validation Contract
 
-The intended future contract is that RDF passes `shapes/music-shapes.ttl` before GraphDB load. Task 6 must demonstrate that contract:
+Run the offline contract from the repository root:
 
-- Albums require `music:title`, at least one `music:createdBy` artist, and at least one `music:containsTrack` track.
-- Tracks require `music:title` and at least one `music:createdBy` artist.
-- User reviews require `music:targetAlbum` and a controlled `music:ratingLabel`.
-- Recommendations require `music:targetAlbum` and `music:hasReason`.
+```text
+python -m pipeline.validate_rdf --fixture data/fixtures/valid --report valid-report.ttl
+python -m pipeline.validate_rdf --fixture data/fixtures/invalid --expect-codes data/fixtures/invalid/expected-codes.json --report invalid-report.json
+```
 
-The invalid fixture intentionally omits several of these values so validation evidence can prove the shapes are active.
+The validator parses the ontology, shapes, and fixtures with rdflib; asks pySHACL to meta-validate the shape graph; validates each fixture independently; and reports stable error codes. Exit status `0` means a valid fixture conformed or all expected invalid codes matched, `1` means semantic non-conformance or an expectation mismatch, and `2` means unsafe or malformed CLI input. The command performs no provider or network call.

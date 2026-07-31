@@ -1,0 +1,19 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix mbgraph: <https://w3id.org/music-kg-graphrag/graph/musicbrainz/> .
+@prefix assertion: <https://w3id.org/music-kg-graphrag/resource/assertion/> .
+@prefix genre: <https://w3id.org/music-kg-graphrag/resource/genre/> .
+@prefix releasegroup: <https://w3id.org/music-kg-graphrag/resource/release-group/> .
+@prefix run: <https://w3id.org/music-kg-graphrag/resource/run/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+run:missing-source a music:RetrievalRun .
+mbgraph:missing-source a music:NamedGraph .
+
+assertion:missing-source a music:Assertion ;
+    music:stableId "assertion:missing-source" ;
+    music:assertedSubject releasegroup:source-case ;
+    music:assertedPredicate music:hasGenre ;
+    music:assertedObject genre:ambient ;
+    music:confidence "0.8"^^xsd:decimal ;
+    music:retrievalRun run:missing-source ;
+    music:namedGraph mbgraph:missing-source .

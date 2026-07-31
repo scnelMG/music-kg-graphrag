@@ -1,0 +1,6 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix release: <https://w3id.org/music-kg-graphrag/resource/release/> .
+
+release:missing-group a music:Release ;
+    music:stableId "release:missing-group" ;
+    music:externalId "fixture-release-missing-group" .

@@ -1,0 +1,15 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix artist: <https://w3id.org/music-kg-graphrag/resource/artist/> .
+@prefix releasegroup: <https://w3id.org/music-kg-graphrag/resource/release-group/> .
+@prefix review: <https://w3id.org/music-kg-graphrag/resource/review/> .
+
+artist:context-case a music:Artist .
+
+releasegroup:context-case a music:ReleaseGroup ;
+    music:stableId "release-group:context-case" ;
+    music:title "Context Case" ;
+    music:createdBy artist:context-case .
+
+review:missing-context a music:UserReview ;
+    music:targetReleaseGroup releasegroup:context-case ;
+    music:ratingLabel "liked" .

@@ -1,0 +1,23 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix fixturegraph: <https://w3id.org/music-kg-graphrag/graph/fixture/> .
+@prefix assertion: <https://w3id.org/music-kg-graphrag/resource/assertion/> .
+@prefix mood: <https://w3id.org/music-kg-graphrag/resource/mood/> .
+@prefix releasegroup: <https://w3id.org/music-kg-graphrag/resource/release-group/> .
+@prefix run: <https://w3id.org/music-kg-graphrag/resource/run/> .
+@prefix source: <https://w3id.org/music-kg-graphrag/resource/source/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+source:confidence-case a music:Source ;
+    music:stableId "source:confidence-case" .
+run:confidence-case a music:RetrievalRun .
+fixturegraph:confidence-case a music:NamedGraph .
+
+assertion:confidence-case a music:Assertion ;
+    music:stableId "assertion:confidence-case" ;
+    music:source source:confidence-case ;
+    music:assertedSubject releasegroup:confidence-case ;
+    music:assertedPredicate music:hasMood ;
+    music:assertedObject mood:calm ;
+    music:confidence "1.1"^^xsd:decimal ;
+    music:retrievalRun run:confidence-case ;
+    music:namedGraph fixturegraph:confidence-case .

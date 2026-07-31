@@ -1,0 +1,15 @@
+{
+  "assertion-missing-named-graph.ttl": ["MISSING_NAMED_GRAPH"],
+  "assertion-missing-object.ttl": ["MISSING_ASSERTED_OBJECT"],
+  "assertion-missing-predicate.ttl": ["MISSING_ASSERTED_PREDICATE"],
+  "assertion-missing-retrieval-run.ttl": ["MISSING_RETRIEVAL_RUN"],
+  "assertion-missing-stable-id.ttl": ["MISSING_STABLE_ID"],
+  "assertion-missing-subject.ttl": ["MISSING_ASSERTED_SUBJECT"],
+  "confidence-out-of-range.ttl": ["CONFIDENCE_OUT_OF_RANGE"],
+  "missing-artist.ttl": ["MISSING_ARTIST"],
+  "missing-evidence-path.ttl": ["MISSING_EVIDENCE_PATH"],
+  "missing-listening-context.ttl": ["MISSING_LISTENING_CONTEXT"],
+  "missing-recommendation-reason.ttl": ["MISSING_RECOMMENDATION_REASON"],
+  "missing-release-identity.ttl": ["MISSING_RELEASE_IDENTITY"],
+  "missing-source.ttl": ["MISSING_SOURCE"]
+}

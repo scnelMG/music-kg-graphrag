@@ -1,0 +1,40 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix fixturegraph: <https://w3id.org/music-kg-graphrag/graph/fixture/> .
+@prefix assertion: <https://w3id.org/music-kg-graphrag/resource/assertion/> .
+@prefix artist: <https://w3id.org/music-kg-graphrag/resource/artist/> .
+@prefix evidence: <https://w3id.org/music-kg-graphrag/resource/evidence/> .
+@prefix genre: <https://w3id.org/music-kg-graphrag/resource/genre/> .
+@prefix recommendation: <https://w3id.org/music-kg-graphrag/resource/recommendation/> .
+@prefix releasegroup: <https://w3id.org/music-kg-graphrag/resource/release-group/> .
+@prefix run: <https://w3id.org/music-kg-graphrag/resource/run/> .
+@prefix source: <https://w3id.org/music-kg-graphrag/resource/source/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+artist:recommendation-case a music:Artist .
+releasegroup:recommendation-case a music:ReleaseGroup ;
+    music:stableId "release-group:recommendation-case" ;
+    music:title "Recommendation Case" ;
+    music:createdBy artist:recommendation-case .
+source:recommendation-case a music:Source ;
+    music:stableId "source:recommendation-case" .
+run:recommendation-case a music:RetrievalRun .
+fixturegraph:recommendation-case a music:NamedGraph .
+
+assertion:recommendation-case a music:Assertion ;
+    music:stableId "assertion:recommendation-case" ;
+    music:source source:recommendation-case ;
+    music:assertedSubject releasegroup:recommendation-case ;
+    music:assertedPredicate music:hasGenre ;
+    music:assertedObject genre:dream-pop ;
+    music:confidence "0.9"^^xsd:decimal ;
+    music:retrievalRun run:recommendation-case ;
+    music:namedGraph fixturegraph:recommendation-case .
+
+evidence:recommendation-case a music:RecommendationEvidence ;
+    music:stableId "evidence:recommendation-case" ;
+    music:evidencePath "music:hasGenre" ;
+    music:supportedBy assertion:recommendation-case .
+
+recommendation:missing-reason a music:Recommendation ;
+    music:targetReleaseGroup releasegroup:recommendation-case ;
+    music:hasEvidence evidence:recommendation-case .

@@ -1,0 +1,28 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix fixturegraph: <https://w3id.org/music-kg-graphrag/graph/fixture/> .
+@prefix assertion: <https://w3id.org/music-kg-graphrag/resource/assertion/> .
+@prefix evidence: <https://w3id.org/music-kg-graphrag/resource/evidence/> .
+@prefix mood: <https://w3id.org/music-kg-graphrag/resource/mood/> .
+@prefix releasegroup: <https://w3id.org/music-kg-graphrag/resource/release-group/> .
+@prefix run: <https://w3id.org/music-kg-graphrag/resource/run/> .
+@prefix source: <https://w3id.org/music-kg-graphrag/resource/source/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+source:evidence-case a music:Source ;
+    music:stableId "source:evidence-case" .
+run:evidence-case a music:RetrievalRun .
+fixturegraph:evidence-case a music:NamedGraph .
+
+assertion:evidence-case a music:Assertion ;
+    music:stableId "assertion:evidence-case" ;
+    music:source source:evidence-case ;
+    music:assertedSubject releasegroup:evidence-case ;
+    music:assertedPredicate music:hasMood ;
+    music:assertedObject mood:bright ;
+    music:confidence "0.75"^^xsd:decimal ;
+    music:retrievalRun run:evidence-case ;
+    music:namedGraph fixturegraph:evidence-case .
+
+evidence:missing-path a music:RecommendationEvidence ;
+    music:stableId "evidence:missing-path" ;
+    music:supportedBy assertion:evidence-case .

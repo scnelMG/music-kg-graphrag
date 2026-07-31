@@ -1,0 +1,70 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix mbgraph: <https://w3id.org/music-kg-graphrag/graph/musicbrainz/> .
+@prefix assertion: <https://w3id.org/music-kg-graphrag/resource/assertion/> .
+@prefix artist: <https://w3id.org/music-kg-graphrag/resource/artist/> .
+@prefix context: <https://w3id.org/music-kg-graphrag/resource/context/> .
+@prefix evidence: <https://w3id.org/music-kg-graphrag/resource/evidence/> .
+@prefix genre: <https://w3id.org/music-kg-graphrag/resource/genre/> .
+@prefix recommendation: <https://w3id.org/music-kg-graphrag/resource/recommendation/> .
+@prefix release: <https://w3id.org/music-kg-graphrag/resource/release/> .
+@prefix releasegroup: <https://w3id.org/music-kg-graphrag/resource/release-group/> .
+@prefix review: <https://w3id.org/music-kg-graphrag/resource/review/> .
+@prefix run: <https://w3id.org/music-kg-graphrag/resource/run/> .
+@prefix source: <https://w3id.org/music-kg-graphrag/resource/source/> .
+@prefix track: <https://w3id.org/music-kg-graphrag/resource/track/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+source:musicbrainz a music:Source ;
+    music:stableId "source:musicbrainz" ;
+    music:sourceName "MusicBrainz" .
+
+run:fixture-20260731 a music:RetrievalRun .
+
+mbgraph:fixture-20260731 a music:NamedGraph .
+
+artist:mid-air-thief a music:Artist ;
+    music:title "Mid-Air Thief" .
+
+releasegroup:crumbling a music:ReleaseGroup ;
+    music:stableId "release-group:crumbling" ;
+    music:title "Crumbling" ;
+    music:createdBy artist:mid-air-thief ;
+    music:containsRelease release:crumbling-kr .
+
+release:crumbling-kr a music:Release ;
+    music:stableId "release:crumbling-kr" ;
+    music:externalId "fixture-release-001" ;
+    music:releaseOf releasegroup:crumbling ;
+    music:containsTrack track:these-chains .
+
+track:these-chains a music:Track ;
+    music:title "These Chains" ;
+    music:createdBy artist:mid-air-thief .
+
+context:late-night a music:ListeningContext ;
+    music:title "Late night" .
+
+review:crumbling-fixture a music:UserReview ;
+    music:targetReleaseGroup releasegroup:crumbling ;
+    music:ratingLabel "loved" ;
+    music:hasListeningContext context:late-night .
+
+assertion:crumbling-genre-001 a music:Assertion ;
+    music:stableId "assertion:crumbling-genre-001" ;
+    music:source source:musicbrainz ;
+    music:assertedSubject releasegroup:crumbling ;
+    music:assertedPredicate music:hasGenre ;
+    music:assertedObject genre:folktronica ;
+    music:confidence "0.97"^^xsd:decimal ;
+    music:retrievalRun run:fixture-20260731 ;
+    music:namedGraph mbgraph:fixture-20260731 .
+
+evidence:crumbling-path-001 a music:RecommendationEvidence ;
+    music:stableId "evidence:crumbling-path-001" ;
+    music:evidencePath "music:hasGenre/^music:hasGenre" ;
+    music:supportedBy assertion:crumbling-genre-001 .
+
+recommendation:crumbling-001 a music:Recommendation ;
+    music:targetReleaseGroup releasegroup:crumbling ;
+    music:hasReason "Shares a source-qualified folktronica genre assertion." ;
+    music:hasEvidence evidence:crumbling-path-001 .

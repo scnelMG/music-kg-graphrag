@@ -1,0 +1,19 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix assertion: <https://w3id.org/music-kg-graphrag/resource/assertion/> .
+@prefix entity: <https://w3id.org/music-kg-graphrag/resource/entity/> .
+@prefix fixturegraph: <https://w3id.org/music-kg-graphrag/graph/fixture/> .
+@prefix source: <https://w3id.org/music-kg-graphrag/resource/source/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+source:missing-retrieval-run a music:Source ;
+    music:stableId "source:missing-retrieval-run" .
+fixturegraph:missing-retrieval-run a music:NamedGraph .
+
+assertion:missing-retrieval-run a music:Assertion ;
+    music:stableId "assertion:missing-retrieval-run" ;
+    music:source source:missing-retrieval-run ;
+    music:assertedSubject entity:subject ;
+    music:assertedPredicate music:hasGenre ;
+    music:assertedObject entity:object ;
+    music:confidence "0.8"^^xsd:decimal ;
+    music:namedGraph fixturegraph:missing-retrieval-run .
