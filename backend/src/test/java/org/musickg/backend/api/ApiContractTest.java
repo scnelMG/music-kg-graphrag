@@ -65,6 +65,22 @@ class ApiContractTest {
     }
 
     @Test
+    void returnsTransparentDeterministicRecommendationContract() throws Exception {
+        mvc.perform(post("/api/v1/recommendations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"questionClass\":\"PERSONAL_DISCOVERY\",\"excludedIdentityIds\":[\"artist:excluded\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RECOMMENDATIONS_AVAILABLE"))
+                .andExpect(jsonPath("$.policyVersion").value("personal-graph-lexical-v1"))
+                .andExpect(jsonPath("$.recommendations[0].totalScore").isNumber())
+                .andExpect(jsonPath("$.recommendations[0].generationRoutes[0]").exists())
+                .andExpect(jsonPath("$.recommendations[0].evidencePaths[0].sourceIds[0]").exists())
+                .andExpect(jsonPath("$.recommendations[0].evidenceIds[0]").exists())
+                .andExpect(jsonPath("$.exclusions[?(@.reason == 'ALREADY_REVIEWED')]").exists())
+                .andExpect(jsonPath("$.exclusions[?(@.reason == 'EXCLUDED_IDENTITY')]").exists());
+    }
+
+    @Test
     void rejectsUnknownEvidenceId() throws Exception {
         mvc.perform(get("/api/v1/evidence/missing-evidence"))
                 .andExpect(status().isNotFound())

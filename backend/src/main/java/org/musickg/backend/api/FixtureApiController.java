@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import java.util.Set;
+import org.musickg.backend.recommendation.RecommendationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,8 +37,12 @@ import org.springframework.web.bind.annotation.RestController;
 class FixtureApiController {
     private static final Set<String> QUESTION_CLASSES = Set.of("RECOMMENDATION_EXPLANATION", "EVIDENCE_SUMMARY");
     private final ApiProperties properties;
+    private final RecommendationService recommendationService;
 
-    FixtureApiController(ApiProperties properties) { this.properties = properties; }
+    FixtureApiController(ApiProperties properties, RecommendationService recommendationService) {
+        this.properties = properties;
+        this.recommendationService = recommendationService;
+    }
 
     @GetMapping("/health")
     @Operation(summary = "Fixture-safe service health")
@@ -73,8 +78,13 @@ class FixtureApiController {
 
     @PostMapping("/recommendations")
     @Operation(summary = "Request fixed deterministic recommendations")
-    Recommendation recommendation(@RequestBody(required = false) RecommendationRequest request) {
-        return new Recommendation("fixture-recommendation-001", List.of("fixture-evidence-001"));
+    RecommendationService.Result recommendation(@RequestBody RecommendationRequest request) {
+        try {
+            return recommendationService.recommend(
+                    new RecommendationService.Request(request.questionClass(), request.excludedIdentityIds()));
+        } catch (RecommendationService.UnsupportedQuestionClassException exception) {
+            throw new ApiException("UNSUPPORTED_QUESTION_CLASS", HttpStatus.BAD_REQUEST);
+        }
     }
 
     @GetMapping("/evidence/{evidenceId}")
@@ -102,11 +112,10 @@ class FixtureApiController {
     record Selection(String candidateId, String status) {}
     record ReviewSaved(String reviewId, String status) {}
     record JobStatus(String jobId, String status) {}
-    record Recommendation(String id, List<String> evidenceIds) {}
     record Evidence(String id, String subjectId, String summary) {}
     record GraphRagAnswer(String questionClass, List<String> evidenceIds, String answer) {}
     record SelectRequest(String destination) {}
-    record RecommendationRequest(String requestType) {}
+    record RecommendationRequest(String questionClass, Set<String> excludedIdentityIds) {}
     record GraphRagRequest(String questionClass, String question) {}
     record ReviewRequest(@NotBlank String candidateId, @Min(1) @Max(5) int rating, @NotBlank String review, String writeIntent) {}
 }
