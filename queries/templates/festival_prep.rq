@@ -1,0 +1,10 @@
+PREFIX music: <https://w3id.org/music-kg-graphrag/ontology#>
+SELECT ?candidate ?artist ?release
+WHERE {
+  GRAPH ?snapshot {
+    ?festival music:featuresArtist ?artist .
+    ?candidate music:createdBy ?artist ;
+               music:containsRelease ?release .
+  }
+}
+LIMIT 100

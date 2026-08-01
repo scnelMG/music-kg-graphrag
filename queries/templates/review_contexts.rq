@@ -1,0 +1,9 @@
+PREFIX music: <https://w3id.org/music-kg-graphrag/ontology#>
+SELECT ?context ?label
+WHERE {
+  GRAPH ?snapshot {
+    ?review music:hasListeningContext ?context .
+    ?context music:title ?label .
+  }
+}
+LIMIT 100

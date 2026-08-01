@@ -1,0 +1,16 @@
+PREFIX music: <https://w3id.org/music-kg-graphrag/ontology#>
+SELECT ?candidate ?shared ?originAssertion ?candidateAssertion
+WHERE {
+  GRAPH ?snapshot {
+    ?originAssertion music:assertedSubject ?origin ;
+                     music:assertedPredicate ?relation ;
+                     music:assertedObject ?shared ;
+                     music:source ?source .
+    ?candidateAssertion music:assertedSubject ?candidate ;
+                        music:assertedPredicate ?relation ;
+                        music:assertedObject ?shared ;
+                        music:source ?source .
+    FILTER (?candidate != ?origin)
+  }
+}
+LIMIT 100

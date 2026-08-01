@@ -1,0 +1,39 @@
+@prefix music: <https://w3id.org/music-kg-graphrag/ontology#> .
+@prefix assertion: <https://w3id.org/music-kg-graphrag/resource/assertion/> .
+@prefix artist: <https://w3id.org/music-kg-graphrag/resource/artist/> .
+@prefix festival: <https://w3id.org/music-kg-graphrag/resource/festival/> .
+@prefix genre: <https://w3id.org/music-kg-graphrag/resource/genre/> .
+@prefix release: <https://w3id.org/music-kg-graphrag/resource/release/> .
+@prefix releasegroup: <https://w3id.org/music-kg-graphrag/resource/release-group/> .
+@prefix source: <https://w3id.org/music-kg-graphrag/resource/source/> .
+
+<https://w3id.org/music-kg-graphrag/graph/musicbrainz/generation/fixture-20260731> {
+    artist:carbon-based-lifeforms a music:Artist ;
+        music:title "Carbon Based Lifeforms" .
+
+    releasegroup:world-of-sleepers a music:ReleaseGroup ;
+        music:stableId "release-group:world-of-sleepers" ;
+        music:title "World of Sleepers" ;
+        music:createdBy artist:carbon-based-lifeforms ;
+        music:containsRelease release:world-of-sleepers-se .
+
+    release:world-of-sleepers-se a music:Release ;
+        music:externalId "fixture-release-002" ;
+        music:releaseOf releasegroup:world-of-sleepers .
+
+    assertion:world-of-sleepers-genre-001 a music:Assertion ;
+        music:source source:musicbrainz ;
+        music:assertedSubject releasegroup:world-of-sleepers ;
+        music:assertedPredicate music:hasGenre ;
+        music:assertedObject genre:folktronica .
+
+    festival:seoul-2026 music:featuresArtist artist:mid-air-thief .
+}
+
+<https://example.invalid/unauthorized-snapshot> {
+    assertion:forged a music:Assertion ;
+        music:source source:musicbrainz ;
+        music:assertedSubject releasegroup:crumbling ;
+        music:assertedPredicate music:hasGenre ;
+        music:assertedObject genre:malicious .
+}

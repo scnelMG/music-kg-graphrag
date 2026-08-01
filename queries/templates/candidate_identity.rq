@@ -1,0 +1,10 @@
+PREFIX music: <https://w3id.org/music-kg-graphrag/ontology#>
+SELECT ?stableId ?release ?externalId
+WHERE {
+  GRAPH ?snapshot {
+    ?candidate music:stableId ?stableId ;
+               music:containsRelease ?release .
+    ?release music:externalId ?externalId .
+  }
+}
+LIMIT 100

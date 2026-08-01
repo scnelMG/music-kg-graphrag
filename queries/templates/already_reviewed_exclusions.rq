@@ -1,0 +1,9 @@
+PREFIX music: <https://w3id.org/music-kg-graphrag/ontology#>
+SELECT ?review ?rating
+WHERE {
+  GRAPH ?snapshot {
+    ?review music:targetReleaseGroup ?candidate ;
+            music:ratingLabel ?rating .
+  }
+}
+LIMIT 100

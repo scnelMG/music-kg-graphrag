@@ -1,0 +1,11 @@
+PREFIX music: <https://w3id.org/music-kg-graphrag/ontology#>
+SELECT ?predicate ?value ?assertion
+WHERE {
+  GRAPH ?snapshot {
+    ?assertion music:assertedSubject ?releaseGroup ;
+               music:assertedPredicate ?predicate ;
+               music:assertedObject ?value ;
+               music:source ?source .
+  }
+}
+LIMIT 100
