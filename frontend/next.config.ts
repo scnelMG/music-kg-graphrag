@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
 
-const exposedBackendSecret = process.env.NEXT_PUBLIC_BACKEND_SHARED_SECRET;
+const exposedBackendSecrets = [
+  process.env.NEXT_PUBLIC_BACKEND_BFF_SHARED_SECRET,
+  process.env.NEXT_PUBLIC_BACKEND_SHARED_SECRET
+];
 
-if (exposedBackendSecret !== undefined && exposedBackendSecret.length > 0) {
-  throw new Error("NEXT_PUBLIC_BACKEND_SHARED_SECRET is forbidden: backend credentials must remain server-only.");
+if (exposedBackendSecrets.some((secret) => secret !== undefined && secret.length > 0)) {
+  throw new Error("NEXT_PUBLIC backend credentials are forbidden: backend credentials must remain server-only.");
 }
 
 const nextConfig: NextConfig = {

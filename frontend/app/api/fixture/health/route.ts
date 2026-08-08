@@ -1,18 +1,27 @@
 import { NextResponse } from "next/server";
 
-import { getFixtureAdapterState } from "../../../../lib/fixture-adapter";
+import { z } from "zod";
+
+import { backendContractError, callFixtureBackend } from "../../../../lib/backend-bff";
 
 export const dynamic = "force-dynamic";
 
-export function GET(): NextResponse {
-  const adapterState = getFixtureAdapterState(process.env.FIXTURE_ADAPTER_MODE);
-  if (adapterState.status === "unavailable") {
-    return NextResponse.json({ externalBackend: { state: "unavailable", ...adapterState }, mode: "fixture", status: "unavailable" });
-  }
+const healthSchema = z.object({
+  mode: z.union([z.literal("fixture"), z.literal("production")]),
+  status: z.literal("ok")
+});
 
-  return NextResponse.json({
-    externalBackend: { state: "unavailable", summary: "외부 백엔드 연결은 이 미리보기에서 사용하지 않습니다." },
-    mode: "fixture",
-    status: "ok"
-  });
+export async function GET(): Promise<NextResponse> {
+  const result = await callFixtureBackend("api/v1/health");
+  if (result.kind === "handled") return result.response;
+  let payload: unknown;
+  try {
+    payload = await result.response.json();
+  } catch (error) {
+    if (error instanceof SyntaxError) return backendContractError();
+    throw error;
+  }
+  const health = healthSchema.safeParse(payload);
+  if (!health.success) return backendContractError();
+  return NextResponse.json(health.data);
 }

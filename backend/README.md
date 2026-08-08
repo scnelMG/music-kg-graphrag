@@ -23,3 +23,13 @@ bash backend/gradlew -p backend test --no-daemon
 ```
 
 On Windows PowerShell, use `backend\\gradlew.bat -p backend test --no-daemon`.
+
+## Fixture BFF boundary
+
+Every HTTP route requires exactly one `X-Music-Kg-Bff-Secret` header matching
+`BACKEND_BFF_SHARED_SECRET`. Keep that value server-only in Vercel and Google
+Secret Manager. `GET /api/v1/health` is the authenticated health endpoint;
+missing or invalid credentials return the typed `BFF_AUTH_REQUIRED` response.
+
+Container and Cloud Run instructions live in
+[`deployment/cloud-run/README.md`](../deployment/cloud-run/README.md).

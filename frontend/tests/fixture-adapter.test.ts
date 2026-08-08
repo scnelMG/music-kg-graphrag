@@ -1,27 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { getFixtureAdapterState, searchFixtureCandidates, validateFixtureReview } from "../lib/fixture-adapter";
+import { getFixtureAdapterState } from "../lib/fixture-adapter";
 
-describe("fixture BFF adapter", () => {
-  it("returns exactly the fixture candidate for a fixture search", () => {
-    expect(searchFixtureCandidates("Fixture Album")).toEqual([
-      {
-        artist: "Fixture Artist",
-        id: "fixture-album-001",
-        source: "PUBLIC_FIXTURE",
-        title: "Fixture Album"
-      }
-    ]);
-  });
-
-  it("preserves a typed invalid rating failure", () => {
-    expect(validateFixtureReview({ candidateId: "fixture-album-001", rating: 6, review: "기록" })).toEqual({
-      code: "INVALID_RATING",
-      field: "rating",
-      message: "평점은 1에서 5 사이의 정수여야 합니다."
-    });
-  });
-
+describe("fixture preview availability state", () => {
   it("reports a typed recoverable unavailable state when fixture mode is disabled", () => {
     expect(getFixtureAdapterState("disabled")).toEqual({
       code: "EXTERNAL_BACKEND_UNAVAILABLE",

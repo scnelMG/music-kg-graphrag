@@ -8,5 +8,10 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 5"] } }
   ],
-  webServer: { command: "node node_modules\\next\\dist\\bin\\next dev --port 3100", port: 3100, reuseExistingServer: true }
+  webServer: {
+    command: "node scripts/start-e2e-services.mjs",
+    port: 3100,
+    reuseExistingServer: false,
+    timeout: 120_000
+  }
 });

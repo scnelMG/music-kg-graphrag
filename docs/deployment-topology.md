@@ -8,8 +8,13 @@ generation; neither Workbench edits nor GraphDB backups can become canonical.
 
 ## External host responsibilities
 
-Vercel hosts only the Next.js reviewer and short same-origin BFF routes. A
-separate stateless host runs Spring Boot. PostgreSQL and GraphDB run on an
+Vercel is intended to host only the Next.js reviewer and short same-origin BFF
+routes. The deployment templates define two separate Google Cloud Run services
+for the Spring fixture API: a dedicated preview service and a production
+service deployed from the same immutable container digest. Each template uses
+a distinct user-managed runtime service account with access only to its own
+environment's BFF secret. No remote Cloud Run deployment is evidenced yet.
+PostgreSQL and GraphDB run on an
 external stateful host, and the Python worker runs on an external worker host.
 The backend and worker may join the private data network. Browser and Vercel
 traffic cannot.
@@ -22,7 +27,8 @@ state instead of proxying GraphDB responses.
 ## Health and readiness
 
 - Frontend: `/` proves the static/BFF surface is available.
-- Backend: `/actuator/health` reports a redacted aggregate status.
+- Backend: authenticated `/api/v1/health` reports only `status` and `mode`;
+  missing or invalid BFF credentials return typed HTTP 401.
 - PostgreSQL: `pg_isready` runs inside its trusted network.
 - Worker: its private `/health/worker` reports outbox lag and terminal-failure
   count without payloads.

@@ -51,7 +51,14 @@ class FixtureApiController {
     @GetMapping("/candidates")
     @Operation(summary = "Search deterministic fixture candidates")
     List<Candidate> candidates(@RequestParam(defaultValue = "") String q) {
-        return List.of(new Candidate("fixture-album-001", "Fixture Album", "Fixture Artist"));
+        Candidate fixture = new Candidate("fixture-album-001", "Fixture Album", "Fixture Artist", "PUBLIC_FIXTURE");
+        String normalizedQuery = q.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalizedQuery.isEmpty()
+                || fixture.title().toLowerCase(java.util.Locale.ROOT).contains(normalizedQuery)
+                || fixture.artist().toLowerCase(java.util.Locale.ROOT).contains(normalizedQuery)) {
+            return List.of(fixture);
+        }
+        return List.of();
     }
 
     @PostMapping("/candidates/{candidateId}/select")
@@ -108,7 +115,7 @@ class FixtureApiController {
     }
 
     record Health(String status, String mode) {}
-    record Candidate(String id, String title, String artist) {}
+    record Candidate(String id, String title, String artist, String source) {}
     record Selection(String candidateId, String status) {}
     record ReviewSaved(String reviewId, String status) {}
     record JobStatus(String jobId, String status) {}

@@ -3,11 +3,19 @@
 import { CheckCircle, Database, FloppyDisk, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react/ssr";
 import ky from "ky";
 import { useEffect, useState } from "react";
+import { z } from "zod";
+
+import { requestBff } from "../lib/review-bff-contract";
 
 type Candidate = { readonly artist: string; readonly id: string; readonly source: "PUBLIC_FIXTURE"; readonly title: string };
-type Health = { readonly externalBackend: { readonly state: "unavailable"; readonly summary: string }; readonly mode: "fixture"; readonly status: "ok" };
-type ReviewFailure = { readonly code: string; readonly field: string; readonly message: string };
-type SavedReview = { readonly id: string; readonly status: "SAVED_IN_FIXTURE_MODE" };
+type Health = { readonly mode: "fixture" | "production"; readonly status: "ok" };
+type ReviewFailure = { readonly code: string; readonly message: string };
+type SavedReview = { readonly reviewId: string; readonly status: "SAVED_IN_FIXTURE_MODE" };
+
+const candidateSchema = z.object({ artist: z.string(), id: z.string(), source: z.literal("PUBLIC_FIXTURE"), title: z.string() });
+const candidatesSchema = z.object({ candidates: z.array(candidateSchema), mode: z.literal("fixture") });
+const healthSchema = z.object({ mode: z.union([z.literal("fixture"), z.literal("production")]), status: z.literal("ok") });
+const savedReviewSchema = z.object({ reviewId: z.string().min(1), status: z.literal("SAVED_IN_FIXTURE_MODE") });
 
 function isReviewFailure(value: SavedReview | ReviewFailure): value is ReviewFailure {
   return "code" in value;
@@ -23,11 +31,28 @@ export function ReviewDesk(): React.JSX.Element {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    void ky.get("/api/fixture/health").json<Health>().then(setHealth);
+    void requestBff(ky.get("/api/fixture/health", { throwHttpErrors: false }), healthSchema).then((outcome) => {
+      if (outcome.kind === "success") {
+        setHealth(outcome.value);
+        return;
+      }
+      setHealth(null);
+      setNotice(outcome.message);
+    });
   }, []);
 
   async function search(): Promise<void> {
-    const result = await ky.get("/api/fixture/candidates", { searchParams: { q: query } }).json<{ readonly candidates: readonly Candidate[] }>();
+    const outcome = await requestBff(
+      ky.get("/api/fixture/candidates", { searchParams: { q: query }, throwHttpErrors: false }),
+      candidatesSchema
+    );
+    if (outcome.kind === "failure") {
+      setCandidates([]);
+      setSelectedCandidate(null);
+      setNotice(outcome.message);
+      return;
+    }
+    const result = outcome.value;
     setCandidates(result.candidates);
     setSelectedCandidate(result.candidates[0] ?? null);
     setNotice(result.candidates.length === 0 ? "일치하는 fixture 후보를 찾지 못했습니다." : "후보를 확인하고 검토 기록을 남길 수 있습니다.");
@@ -38,8 +63,13 @@ export function ReviewDesk(): React.JSX.Element {
       setNotice("검토할 후보를 먼저 선택해 주세요.");
       return;
     }
-    const response = await ky.post("/api/fixture/reviews", { json: { candidateId: selectedCandidate.id, rating: Number(rating), review }, throwHttpErrors: false });
-    const result = await response.json<SavedReview | ReviewFailure>();
+    const outcome = await requestBff(
+      ky.post("/api/fixture/reviews", { json: { candidateId: selectedCandidate.id, rating: Number(rating), review }, throwHttpErrors: false }),
+      savedReviewSchema
+    );
+    const result: SavedReview | ReviewFailure = outcome.kind === "failure"
+      ? { code: "BFF_REQUEST_FAILED", message: outcome.message }
+      : outcome.value;
     setNotice(isReviewFailure(result) ? result.message : "fixture 검토 기록을 저장했습니다. 외부 쓰기는 수행하지 않았습니다.");
   }
 
@@ -50,7 +80,7 @@ export function ReviewDesk(): React.JSX.Element {
         <dl className="environment-record" aria-label="실행 환경"><div><dt>모드</dt><dd data-testid="fixture-label">fixture only</dd></div><div><dt>상태</dt><dd>{health?.status ?? "확인 중"}</dd></div></dl>
       </header>
       <section className="workspace" aria-label="fixture 검토 작업공간">
-        <aside className="context-rail"><Database size={22} weight="fill" aria-hidden="true" /><p>현재 검토는 저장소에 포함된 공개 fixture만 사용합니다.</p><dl><div><dt>외부 백엔드</dt><dd>{health?.externalBackend.state ?? "확인 중"}</dd></div><div><dt>복구 방법</dt><dd>이 미리보기에서는 fixture 경로를 계속 사용합니다.</dd></div></dl></aside>
+        <aside className="context-rail"><Database size={22} weight="fill" aria-hidden="true" /><p>현재 검토는 저장소에 포함된 공개 fixture만 사용합니다.</p><dl><div><dt>외부 백엔드</dt><dd>{health === null ? "확인 중" : "연결됨"}</dd></div><div><dt>복구 방법</dt><dd>연결 오류가 지속되면 잠시 후 다시 시도해 주세요.</dd></div></dl></aside>
         <section className="work-sheet" aria-labelledby="task-heading">
           <p className="section-index">01 / 후보 검색</p><h2 id="task-heading">어떤 앨범을 검토할까요?</h2><p className="instruction">제목이나 아티스트를 입력하면 공개 fixture 후보만 같은 출처에서 찾습니다.</p>
           <div className="search-row"><label htmlFor="album-search">앨범 또는 아티스트</label><input id="album-search" value={query} onChange={(event) => setQuery(event.target.value)} /><button type="button" onClick={() => void search()}><MagnifyingGlass size={18} weight="bold" /> 후보 찾기</button></div>

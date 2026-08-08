@@ -1,0 +1,40 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: music-kg-fixture-api
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "4"
+    spec:
+      serviceAccountName: ${CLOUD_RUN_PRODUCTION_SERVICE_ACCOUNT}
+      containerConcurrency: 20
+      timeoutSeconds: 10
+      containers:
+        - image: ${IMAGE_DIGEST}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MUSIC_KG_API_MODE
+              value: production
+            - name: MUSIC_KG_API_AUTH_CONFIGURATION
+              value: bff-shared-secret
+            - name: MUSIC_KG_API_CORS_ALLOWED_ORIGINS
+              value: ${VERCEL_PRODUCTION_ORIGIN}
+            - name: BACKEND_BFF_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: music-kg-production-bff-secret
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 2
+            failureThreshold: 30

@@ -16,9 +16,10 @@
       "responsibilities": ["reviewer-ui", "same-origin-bff"]
     },
     "backend": {
-      "host": "external-stateless-host",
+      "host": "google-cloud-run",
       "public_route": true,
-      "health_endpoint": "/actuator/health",
+      "health_endpoint": "/api/v1/health",
+      "health_authentication": "X-Music-Kg-Bff-Secret",
       "responsibilities": ["typed-api", "canonical-write-orchestration"]
     },
     "postgres": {

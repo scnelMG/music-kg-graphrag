@@ -17,6 +17,9 @@ class ApiSafetyConfiguration {
         if (properties.authConfiguration() == null || properties.authConfiguration().isBlank()) {
             throw new IllegalStateException("PRODUCTION_AUTH_CONFIGURATION_REQUIRED");
         }
+        if (properties.bffSharedSecret() == null || properties.bffSharedSecret().isBlank()) {
+            throw new IllegalStateException("PRODUCTION_BFF_SHARED_SECRET_REQUIRED");
+        }
         if (properties.cors().allowedOrigins().isEmpty() || properties.cors().allowedOrigins().contains("*")) {
             throw new IllegalStateException("PRODUCTION_ALLOWED_ORIGIN_REQUIRED");
         }

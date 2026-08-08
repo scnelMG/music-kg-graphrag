@@ -15,7 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration",
-        "music-kg.api.mode=fixture"
+        "music-kg.api.mode=fixture",
+        "music-kg.api.bff-shared-secret=test-bff-secret"
 })
 @AutoConfigureMockMvc
 class UnsupportedQuestionClassTest {
@@ -25,7 +26,7 @@ class UnsupportedQuestionClassTest {
     @Test
     void rejectsUnsupportedQuestionClassWithoutQueryExecution() throws Exception {
         String payload = "{\"questionClass\":\"FREE_TEXT\",\"question\":\"SELECT * WHERE {?s ?p ?o}\"}";
-        mvc.perform(post("/api/v1/graphrag").contentType(MediaType.APPLICATION_JSON).content(payload))
+        mvc.perform(post("/api/v1/graphrag").header("X-Music-Kg-Bff-Secret", "test-bff-secret").contentType(MediaType.APPLICATION_JSON).content(payload))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_QUESTION_CLASS"));
     }

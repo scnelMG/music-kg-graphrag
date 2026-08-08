@@ -34,7 +34,7 @@ test("keeps the form usable and reports a typed invalid rating", async ({ page }
   await expect(page.getByLabel("검토 메모")).toHaveValue("입력은 남아 있어야 합니다.");
 });
 
-test("backend unavailable renders a recoverable typed state without fixture candidates", async ({ page }) => {
+test("adapter-disabled mode renders a recoverable state without fixture candidates", async ({ page }) => {
   test.skip(process.env.FIXTURE_ADAPTER_MODE !== "disabled", "requires the deterministic disabled fixture-adapter mode");
 
   await page.goto("/");
