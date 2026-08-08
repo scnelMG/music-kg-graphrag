@@ -11,7 +11,7 @@ export default defineConfig({
   webServer: {
     command: "node scripts/start-e2e-services.mjs",
     port: 3100,
-    reuseExistingServer: false,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "true",
     timeout: 120_000
   }
 });

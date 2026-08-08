@@ -96,18 +96,19 @@ Layout strategy:
 
 - Mobile stack: one-column task flow with source/evidence panels beneath the active task.
 - Tablet split: primary action column plus contextual evidence column.
-- Desktop review desk: a narrow context rail, a central work sheet for search/review, and an evidence inspector that opens only when there is something to inspect. It must not default to a permanent generic left sidebar.
+- Desktop review desk: a central work sheet for search/review beside a contextual evidence workspace. It must not default to a permanent generic left sidebar.
+- Reviewer task navigation is an inline, wrapping sequence above the workspace. The work sheet and evidence workspace share the desktop canvas; tablet and zoomed layouts stack the active task above evidence so labels retain natural Korean phrase boundaries.
 - No horizontal scrolling at 320px width or 200% zoom.
 - Interactive targets must be at least 44px by 44px with an 8px minimum gap where adjacent.
 
 ## 5. Components
 
-### ContextRail
+### TaskNavigation
 
-- **Structure**: product wordmark, current workspace, keyboard-accessible task links, and a compact environment record.
-- **Variants**: expanded desktop, collapsed tablet, drawer mobile.
-- **States**: default, current-page, focus, unavailable.
-- **Accessibility**: landmark navigation and visible current-page text; no icon-only navigation without labels.
+- **Structure**: three text links for candidate search, review record, and evidence review; presented inline on wide screens and stacked on mobile.
+- **Variants**: wrapping desktop/tablet sequence, stacked mobile sequence.
+- **States**: default, hover, focus, current anchor.
+- **Accessibility**: a named navigation landmark with full Korean task labels and 44px targets; never an icon-only or permanently bordered generic rail.
 
 ### WorkSheet
 
@@ -150,6 +151,7 @@ Layout strategy:
 - **Variants**: path-list, query-preview, no-evidence.
 - **States**: collapsed, expanded, focused, copied, empty, error.
 - **Accessibility**: graph paths are readable as ordered text, not only visual nodes.
+- **Data integrity**: candidate IDs and candidate source labels may be shown before graph evidence exists, but they must be identified as candidate metadata. Paths, source IDs, SPARQL references, and provenance render only when supplied by a typed evidence payload.
 
 ### EvidenceSynthesisPanel
 
@@ -158,6 +160,7 @@ Layout strategy:
 - **States**: asking, answered, no-evidence, error.
 - **Accessibility**: answer updates use polite live regions; citations are keyboard reachable.
 - **Korean copy**: use a short evidence-led answer, then `근거` as a plain section label. If evidence is insufficient, state what is missing and the next safe action; never pad the answer with generic summaries.
+- **Data integrity**: no answer or claim is synthesized client-side. Answer, claims, evaluation, and provenance render only when explicitly present; otherwise the panel uses the no-evidence, configuration-required, or error variant.
 
 ## 6. Motion & Interaction
 

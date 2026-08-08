@@ -14,8 +14,10 @@ test("searches and saves an explicitly labelled fixture review without external 
 
   await page.goto("/");
   await expect(page.getByTestId("fixture-label")).toHaveText("fixture only");
+  await expect(page.getByRole("button", { name: "fixture에 저장" })).toBeDisabled();
   await page.getByRole("button", { name: "후보 찾기" }).click();
   await expect(page.getByText("Fixture Album", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Fixture Album/ }).click();
   await page.getByLabel("검토 메모").fill("fixture 검토 기록");
   await page.getByRole("button", { name: "fixture에 저장" }).click();
   await expect(page.getByRole("status")).toContainText("외부 쓰기는 수행하지 않았습니다.");
@@ -27,6 +29,7 @@ test("searches and saves an explicitly labelled fixture review without external 
 test("keeps the form usable and reports a typed invalid rating", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "후보 찾기" }).click();
+  await page.getByRole("button", { name: /Fixture Album/ }).click();
   await page.getByLabel("평점 (1–5)").fill("6");
   await page.getByLabel("검토 메모").fill("입력은 남아 있어야 합니다.");
   await page.getByRole("button", { name: "fixture에 저장" }).click();

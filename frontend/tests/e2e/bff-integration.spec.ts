@@ -45,9 +45,10 @@ test("running BFF process renders a recoverable typed 503 during backend outage"
   });
 
   await page.goto("/");
-  await expect(page.getByRole("status")).toContainText("The fixture backend is temporarily unavailable.");
+  await expect(page.getByRole("status")).toContainText("백엔드에 연결할 수 없습니다.");
+  await expect(page.getByRole("status")).not.toContainText("temporarily unavailable");
   await page.locator(".search-row button").click();
-  await expect(page.getByRole("status")).toContainText("The fixture backend is temporarily unavailable.");
+  await expect(page.getByRole("status")).toContainText("연결이 복구된 뒤 다시 시도해 주세요.");
   await expect(page.locator("#album-search")).toBeEditable();
   expect(pageErrors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("backend-outage-recoverable.png"), fullPage: true });
@@ -79,11 +80,12 @@ test("review desk renders a message-less 502 contract error without crashing", a
   // When a user searches, writes a review, and submits it through a real browser
   await page.goto("/");
   await page.locator(".search-row button").click();
+  await page.getByRole("button", { name: /Fixture Album/ }).click();
   await page.locator("#review").fill("preserve this review");
   await page.locator(".save-button").click();
 
   // Then the typed code is display-safe, the form remains usable, and no page exception occurs
-  await expect(page.getByRole("status")).toContainText("BACKEND_CONTRACT_ERROR");
+  await expect(page.getByRole("status")).toContainText("백엔드 응답 형식을 확인하지 못했습니다.");
   await expect(page.locator("#review")).toHaveValue("preserve this review");
   await expect(page.locator("#review")).toBeEditable();
   expect(pageErrors).toEqual([]);
