@@ -85,6 +85,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .candidate-row small { color: var(--text-secondary); }
 .selection-label { font-size: .75rem; font-weight: 650; }
 .mono { font-family: "Geist Mono", "IBM Plex Mono KR", Consolas, monospace; font-size: .75rem; overflow-wrap: anywhere; word-break: break-all; }
+.keep-together { white-space: nowrap; }
 
 .review-form { margin-top: var(--space-8); padding-top: var(--space-6); border-top: 1px solid var(--border-default); }
 .selection-feedback { margin: var(--space-3) 0; padding: var(--space-3); color: var(--text-secondary); background: var(--surface-elevated); font-size: .875rem; }
@@ -113,6 +114,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .metadata-record summary { display: flex; justify-content: space-between; align-items: center; min-height: var(--target-min); cursor: pointer; font-weight: 650; }
 .metadata-record code { display: block; padding: var(--space-3); overflow-wrap: anywhere; background: var(--surface-elevated); }
 .synthesis-answer { font-family: "Noto Serif KR", Georgia, serif; font-size: 1rem; }
+.recommendation-record { margin: var(--space-4) 0; padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); }
+.recommendation-record h3, .recommendation-record p { margin: 0 0 var(--space-2); }
+.recommendation-record .source-record { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
@@ -128,6 +132,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
   .task-navigation { display: grid; grid-template-columns: 1fr; gap: 0; }
   .work-sheet { padding: var(--space-4); }
   .search-row, .field-grid, .evidence-workspace { grid-template-columns: minmax(0, 1fr); }
+  .recommendation-record .source-record { grid-template-columns: minmax(0, 1fr); }
   .candidate-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
 }
 

@@ -8,6 +8,8 @@ const frontendDirectory = resolve(scriptDirectory, "..");
 const backendDirectory = resolve(frontendDirectory, "..", "backend");
 const secret = "task-12b-local-e2e-secret";
 const backendOutage = process.env.TASK12B_E2E_BACKEND_OUTAGE === "true";
+const backendPort = process.env.TASK12_UI_E2E_BACKEND_PORT ?? "18080";
+const e2ePort = process.env.TASK12_UI_E2E_PORT ?? "3100";
 const children = [];
 let stopping = false;
 
@@ -21,7 +23,7 @@ function startBackend() {
     env: {
       ...process.env,
       BACKEND_BFF_SHARED_SECRET: secret,
-      PORT: "18080",
+      PORT: backendPort,
       SPRING_AUTOCONFIGURE_EXCLUDE: "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
     },
     stdio: "inherit"
@@ -35,7 +37,7 @@ function backendReady() {
       hostname: "127.0.0.1",
       method: "GET",
       path: "/api/v1/health",
-      port: 18080,
+      port: Number(backendPort),
       timeout: 500
     }, (response) => {
       response.resume();
@@ -80,11 +82,11 @@ try {
     backend.on("exit", (code) => stop(code ?? 1));
     await waitForBackend();
   }
-  const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--port", "3100"], {
+  const next = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--port", e2ePort], {
     cwd: frontendDirectory,
     env: {
       ...process.env,
-      BACKEND_BASE_URL: backendOutage ? "http://127.0.0.1:1" : "http://127.0.0.1:18080",
+      BACKEND_BASE_URL: backendOutage ? "http://127.0.0.1:1" : `http://127.0.0.1:${backendPort}`,
       BACKEND_BFF_SHARED_SECRET: secret
     },
     stdio: "inherit"

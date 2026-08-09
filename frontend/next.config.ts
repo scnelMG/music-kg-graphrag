@@ -10,6 +10,7 @@ if (exposedBackendSecrets.some((secret) => secret !== undefined && secret.length
 }
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   poweredByHeader: false,
   reactStrictMode: true
 };

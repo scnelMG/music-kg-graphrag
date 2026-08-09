@@ -21,7 +21,14 @@ type BackendCall =
   | { readonly kind: "received"; readonly response: Response }
   | { readonly kind: "handled"; readonly response: NextResponse };
 
-type FixtureBackendPath = "api/v1/candidates" | "api/v1/health" | "api/v1/reviews";
+type FixtureBackendPath =
+  | "api/v1/candidates"
+  | `api/v1/candidates/${string}/select`
+  | `api/v1/evidence/${string}`
+  | "api/v1/graphrag"
+  | "api/v1/health"
+  | "api/v1/recommendations"
+  | "api/v1/reviews";
 
 const unavailableResponse = (): NextResponse => NextResponse.json({
   code: "BACKEND_UNAVAILABLE",

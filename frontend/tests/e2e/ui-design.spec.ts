@@ -11,6 +11,17 @@ const responsiveViewports = [
 async function mockConfiguredBff(page: Page): Promise<void> {
   await page.route("**/api/fixture/health", (route) => route.fulfill({ body: JSON.stringify({ mode: "fixture", status: "ok" }), contentType: "application/json", status: 200 }));
   await page.route("**/api/fixture/candidates**", (route) => route.fulfill({ body: JSON.stringify({ candidates: [{ artist: "Fixture Artist", id: "fixture-album-001", source: "PUBLIC_FIXTURE", title: "Fixture Album" }], mode: "fixture" }), contentType: "application/json", status: 200 }));
+  await page.route("**/api/fixture/candidates/*/evidence", (route) => route.fulfill({
+    body: JSON.stringify({
+      answer: "Fixture evidence answer",
+      claims: [{ evidenceIds: ["fixture-evidence-001"], text: "Fixture evidence only" }],
+      records: [{ id: "fixture-evidence-001", subjectId: "fixture-album-001", summary: "Fixture evidence only" }],
+      selectionStatus: "FIXTURE_SELECTED",
+      state: "ready"
+    }),
+    contentType: "application/json",
+    status: 200
+  }));
 }
 
 async function evidencePath(testInfo: TestInfo, name: string): Promise<string> {
@@ -21,7 +32,7 @@ async function evidencePath(testInfo: TestInfo, name: string): Promise<string> {
   return resolve(directory, name);
 }
 
-test("requires an explicit candidate selection and never invents evidence", async ({ page }) => {
+test("requires explicit selection and renders only typed supplied evidence", async ({ page }) => {
   await mockConfiguredBff(page);
   await page.goto("/");
 
@@ -37,8 +48,9 @@ test("requires an explicit candidate selection and never invents evidence", asyn
   await page.getByRole("button", { name: /Fixture Album/ }).click();
 
   await expect(page.getByRole("button", { name: "fixture에 저장" })).toBeEnabled();
-  await expect(page.getByText("fixture-album-001", { exact: true })).toHaveCount(4);
-  await expect(page.getByText("근거가 연결되기 전에는 답변을 만들지 않습니다.")).toHaveCount(2);
+  await expect(page.getByText("Fixture evidence answer", { exact: true })).toBeVisible();
+  await expect(page.getByText("fixture-evidence-001", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("근거가 연결되기 전에는 답변을 만들지 않습니다.")).toHaveCount(0);
 });
 
 test("renders Korean-first configuration recovery", async ({ page }) => {
