@@ -82,9 +82,17 @@ For the fixture CLI, `--reset` deletes and recreates the GraphDB repository
 only. It does not remove the mounted Docker volume and must not be described
 as a clean-volume reset. A clean-volume run counts only when it uses a
 distinct, newly-created QA volume or records an explicit volume reset; a
-reused named volume is not fresh-volume evidence. The current live evidence
-contains one isolated QA volume run and preserves the project volume, so the
-two-run clean-volume requirement remains open.
+reused named volume is not fresh-volume evidence. The deterministic operator
+drill is `scripts/restore-fixture-volumes.ps1`. It creates GUID-prefixed
+source and restored PostgreSQL volumes, a dump volume, a fresh GraphDB volume,
+and an isolated network and containers. It seeds the canonical fixture and
+outbox, performs `pg_dump`/`pg_restore`, projects the restored canonical
+outbox, and requires matching database hashes/counts plus a verified graph
+hash/count. Its JSON success artifact identifies
+`postgres_fresh_volume_restore`, `restore_exit_code: 0`, and
+`graph_verified: true`. The script's `finally` block removes only its exact
+GUID-prefixed resources; it does not run Compose teardown or touch retained
+project volumes.
 
 Operators inspect redacted terminal codes in PostgreSQL, correct the canonical
 input or deployment failure, and replay that event ID. They do not patch
@@ -113,6 +121,13 @@ Restore in this order:
 4. Replay pending/stale projection events from PostgreSQL.
 5. Compare named-graph triple counts and checksums with the expected snapshot.
 6. Start the backend and worker health gates, then enable backend traffic.
+
+Run the isolated fixture proof from the repository root without exposing
+credentials or host ports:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/restore-fixture-volumes.ps1 -OutputPath .omo/evidence/fresh-volume-restore/manual-report.json
+```
 
 If a GraphDB volume snapshot is restored, the same post-restore outbox replay
 and checksum checks are mandatory. A mismatch discards the derived volume and
