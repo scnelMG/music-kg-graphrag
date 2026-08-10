@@ -75,6 +75,16 @@ tag remains in a rendered manifest. Both `CLOUD_RUN_*_SERVICE_ACCOUNT`
 variables must remain set while invoking the wrapper so it can verify the
 rendered identity for each environment.
 
+The production fixture template is intentionally a scale-to-zero, request-only
+service. It caps `autoscaling.knative.dev/maxScale` at `1`, enables
+`run.googleapis.com/cpu-throttling`, and leaves `minScale` unset so Cloud Run's
+zero-minimum default applies. Its existing `1` CPU and `512Mi` memory limits are
+the repository-compatible Spring baseline. `SPRING_AUTOCONFIGURE_EXCLUDE`
+disables JDBC datasource and Flyway auto-configuration because this public
+fixture service has no PostgreSQL dependency. Keep these values in the rendered
+manifest; removing them can reintroduce the datasource startup crash or the
+former four-instance cost ceiling.
+
 Public invocation is intentional: the application boundary must return a typed
 401 when the BFF header is absent. The backend exposes no GraphDB or provider
 route, and it contains deterministic fixture data only.

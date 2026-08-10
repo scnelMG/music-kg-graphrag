@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -179,6 +179,41 @@ test("deployment wrapper rejects missing service-account configuration before gc
   }
 });
 
+test("deployment wrapper selects the platform gcloud executable after validation", async () => {
+  // Given a valid manifest and only the platform-specific gcloud executable on PATH
+  const directory = await mkdtemp(join(tmpdir(), "music-kg-cloud-run-"));
+  const manifest = join(directory, "service.yaml");
+  const executable = join(directory, process.platform === "win32" ? "gcloud.cmd" : "gcloud");
+  await writeFile(manifest, renderedManifest(), "utf8");
+  await writeFile(executable, process.platform === "win32" ? "@exit /b 7\r\n" : "#!/bin/sh\nexit 7\n", "utf8");
+  if (process.platform !== "win32") await chmod(executable, 0o755);
+
+  try {
+    // When the validated deployment wrapper starts its replacement process
+    const deployment = execFileAsync(process.execPath, [
+      join(import.meta.dirname, "deploy-cloud-run-service.mjs"),
+      manifest,
+      "us-central1",
+      "project"
+    ], {
+      env: {
+        ...process.env,
+        CLOUD_RUN_PREVIEW_SERVICE_ACCOUNT: previewServiceAccount,
+        CLOUD_RUN_PRODUCTION_SERVICE_ACCOUNT: productionServiceAccount,
+        PATH: directory
+      }
+    });
+
+    // Then the fake platform executable's observable exit status is propagated
+    await assert.rejects(deployment, (error) => {
+      assert.equal(error.code, 7);
+      return true;
+    });
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
 test("preview and production templates render with their distinct configured identities", async () => {
   // Given the checked-in templates and two explicitly different user-managed identities
   const directory = await mkdtemp(join(tmpdir(), "music-kg-cloud-run-"));
@@ -215,4 +250,21 @@ test("preview and production templates render with their distinct configured ide
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
+});
+
+test("production template preserves the fixture no-database and low-cost runtime profile", async () => {
+  // Given the checked-in production Cloud Run template
+  const template = await readFile(
+    join(import.meta.dirname, "..", "deployment", "cloud-run", "production-service.yaml.tmpl"),
+    "utf8"
+  );
+
+  // When an operator uses the template for a repeat deployment
+  // Then it retains the live fixture no-database mode and scale-to-zero cost controls
+  assert.match(template, /autoscaling\.knative\.dev\/maxScale: "1"/);
+  assert.match(template, /run\.googleapis\.com\/cpu-throttling: "true"/);
+  assert.match(
+    template,
+    /- name: SPRING_AUTOCONFIGURE_EXCLUDE\n\s+value: org\.springframework\.boot\.autoconfigure\.jdbc\.DataSourceAutoConfiguration,org\.springframework\.boot\.autoconfigure\.flyway\.FlywayAutoConfiguration/
+  );
 });

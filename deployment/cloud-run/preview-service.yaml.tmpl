@@ -8,7 +8,8 @@ spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/maxScale: "2"
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/cpu-throttling: "true"
     spec:
       serviceAccountName: ${CLOUD_RUN_PREVIEW_SERVICE_ACCOUNT}
       containerConcurrency: 20
@@ -22,6 +23,8 @@ spec:
               value: fixture
             - name: MUSIC_KG_API_CORS_ALLOWED_ORIGINS
               value: ${VERCEL_PREVIEW_ORIGIN}
+            - name: SPRING_AUTOCONFIGURE_EXCLUDE
+              value: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
             - name: BACKEND_BFF_SHARED_SECRET
               valueFrom:
                 secretKeyRef:

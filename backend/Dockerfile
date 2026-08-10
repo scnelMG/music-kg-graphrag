@@ -5,7 +5,7 @@ COPY gradlew gradlew
 COPY gradlew.bat gradlew.bat
 COPY settings.gradle build.gradle gradle.properties ./
 COPY src src
-RUN ./gradlew bootJar --no-daemon
+RUN chmod +x gradlew && ./gradlew bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-jammy@sha256:3097cbbebb7d490494a98aed2301f284b38f79eba158eef098c6fc8c8af11c23
 WORKDIR /app

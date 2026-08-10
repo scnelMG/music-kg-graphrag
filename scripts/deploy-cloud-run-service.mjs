@@ -17,11 +17,13 @@ if (validation.kind === "invalid") {
   process.exit(2);
 }
 
-const deployment = spawnSync("gcloud", [
+const isWindows = process.platform === "win32";
+const gcloudExecutable = isWindows ? "gcloud.cmd" : "gcloud";
+const deployment = spawnSync(gcloudExecutable, [
   "run", "services", "replace", manifest,
   "--region", region,
   "--project", project
-], { stdio: "inherit" });
+], { shell: isWindows, stdio: "inherit" });
 if (deployment.error !== undefined) {
   console.error(deployment.error.message);
   process.exit(1);
