@@ -23,5 +23,5 @@ outputs/
 pipeline/
 queries/
 sbom/
-scripts/
+/scripts/
 shapes/
