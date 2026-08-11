@@ -1,19 +1,23 @@
 # Music Knowledge Graph & GraphRAG
 
-Fixture-only foundation for a portfolio backend/data project that will turn anonymised album records into a PostgreSQL-backed app, RDF knowledge graph, and evidence-grounded GraphRAG recommendation flow.
+<p align="center">음악 메타데이터 지식 그래프 · GraphRAG · Spring Boot · PostgreSQL · GraphDB</p>
 
-Todo 1 establishes reproducible Java/Python build boundaries, a fixture-only worker CLI, local configuration checks, SBOM generation, digest-lock validation, and CI commands. It does not yet implement migrations, API endpoints, RDF/SHACL validity proof, metadata ingestion, Notion sync, GraphRAG, or product screens. Existing ontology and shape files are unverified inputs; Task 6 owns their validation proof.
+익명화한 앨범 메타데이터를 PostgreSQL, RDF 지식 그래프, 근거 기반 GraphRAG 추천으로 연결하기 위한 백엔드·데이터 파이프라인 프로젝트입니다.
 
-## Architecture Direction
+## 구현 현황
 
-- Backend API: Spring Boot under `backend/` (currently a fixture-only application context)
-- Data and AI pipeline: Python worker CLI under `pipeline/` (currently help/command boundary only)
-- App database and vector storage: PostgreSQL with pgvector
-- Knowledge graph: Ontotext GraphDB for RDF/SPARQL/SHACL workflows
-- External sources: Notion, MusicBrainz, Cover Art Archive, optional Last.fm/Wikidata/LLM providers
-- Frontend demo UI: operational portfolio interface for technical reviewers, planned in `DESIGN.md` and `docs/frontend-demo-ui-plan.md`
+공개 저장소에는 Java/Python 빌드 경계, fixture 기반 worker CLI, 로컬 환경 검증, SBOM·이미지 digest 검증, CI 명령이 구현되어 있습니다. 실제 데이터 마이그레이션, 공개 API, RDF/SHACL 검증, 외부 메타데이터 수집, GraphRAG 추천, 제품 화면은 아직 구현하지 않았습니다.
 
-The Todo 0 research package under `docs/research/` and `outputs/tech-stack-rationale.md` is the source of truth for these choices.
+## 설계 방향
+
+- 백엔드 API: `backend/`의 Spring Boot 기반 서비스 경계
+- 데이터·AI 파이프라인: `pipeline/`의 Python worker CLI 경계
+- 애플리케이션 DB·벡터 저장소: PostgreSQL + pgvector
+- 지식 그래프: RDF/SPARQL/SHACL 처리를 위한 Ontotext GraphDB
+- 외부 메타데이터 후보: Notion, MusicBrainz, Cover Art Archive, Last.fm, Wikidata, LLM Provider
+- 프런트엔드 데모 UI: `DESIGN.md`, `docs/frontend-demo-ui-plan.md`에 설계만 정리
+
+기술 선택 근거는 `docs/research/`와 `outputs/tech-stack-rationale.md`에서 확인할 수 있습니다.
 
 ## Quick Start
 
@@ -37,7 +41,7 @@ The Todo 0 research package under `docs/research/` and `outputs/tech-stack-ratio
    docker compose config
    ```
 
-5. Start local services only when a later todo needs them. Compose images are development tags; release deployment must use `deployment/image-digests.lock`.
+5. 필요한 경우에만 로컬 서비스를 시작합니다. 운영 배포에는 `deployment/image-digests.lock`의 고정 digest를 사용합니다.
 
    ```bash
    docker compose up -d postgres graphdb
@@ -49,7 +53,7 @@ The Todo 0 research package under `docs/research/` and `outputs/tech-stack-ratio
    docker compose down
    ```
 
-## Task Commands
+## 검증 방법
 
 Use these commands from the repository root:
 
@@ -63,20 +67,20 @@ bash scripts/verify-supply-chain.sh
 git diff --check
 ```
 
-The verification evidence for Todo 1 is recorded in `.omo/evidence/task-1-music-kg-evidence-graphrag.md`.
+현재 구현 범위의 검증 결과는 `.omo/evidence/task-1-music-kg-evidence-graphrag.md`에서 확인할 수 있습니다.
 
 ## Repository Layout
 
 ```text
-backend/        Spring Boot fixture-service foundation
-pipeline/       Python fixture-only worker CLI foundation
-frontend/       Demo UI planning scaffold only
-ontology/       Future RDF/OWL/SHACL assets
-queries/        Future SPARQL query files
-docs/           Research, architecture, and planning docs
-data/fixtures/  Local fixture data for tests and demos
-scripts/        Local developer scripts
-.omo/evidence/  Verification evidence artifacts
+backend/        Spring Boot 서비스 기반
+pipeline/       Python worker CLI 기반
+frontend/       데모 UI 설계 문서
+ontology/       RDF/OWL/SHACL 확장 예정 자산
+queries/        SPARQL 확장 예정 쿼리
+docs/           리서치·아키텍처·설계 문서
+data/fixtures/  테스트·데모용 익명 fixture 데이터
+scripts/        로컬 개발 스크립트
+.omo/evidence/  구현 범위 검증 기록
 ```
 
 ## Guardrails
