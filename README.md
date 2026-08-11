@@ -2,7 +2,13 @@
 
 <p align="center">음악 메타데이터 지식 그래프 · GraphRAG · Spring Boot · PostgreSQL · GraphDB</p>
 
-익명화한 앨범 메타데이터를 PostgreSQL, RDF 지식 그래프, 근거 기반 GraphRAG 추천으로 연결하기 위한 백엔드·데이터 파이프라인 프로젝트입니다.
+![Java](https://img.shields.io/badge/Java-Spring%20Boot-6DB33F?logo=springboot&logoColor=white)
+![Python](https://img.shields.io/badge/Python-Data%20Pipeline-3776AB?logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)
+![GraphDB](https://img.shields.io/badge/GraphDB-RDF%20%7C%20SPARQL-0F766E)
+![Portfolio](https://img.shields.io/badge/Portfolio-GraphRAG-111827)
+
+> 익명화한 앨범 메타데이터를 PostgreSQL, RDF 지식 그래프, 근거 기반 GraphRAG 추천으로 연결하기 위한 백엔드·데이터 파이프라인 프로젝트입니다.
 
 ## 구현 현황
 
