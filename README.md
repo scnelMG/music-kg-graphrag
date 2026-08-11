@@ -14,7 +14,7 @@ fixture 경로는 회귀 검증용으로만 남아 있으며, 연결 모드의 �
 ## 현재 제공하는 기능
 
 - Spring Boot API: MusicBrainz 앨범/아티스트 검색, Notion 개인 기록 읽기·쓰기,
-  취향 집계, 개인 기록 그래프 탐색, 오류 계약
+  취향 집계, 사설 GraphDB SPARQL 개인 근거 투영·조회, 오류 계약
 - Next.js 음악 기록장: 실제 앨범 검색, 커버 확인, 최애곡·감상·보유 여부 저장,
   개인 취향과 근거가 있는 다음 앨범 후보 확인
 - Python 데이터 파이프라인: RDF/SHACL 검증, GraphDB 투영 계약, 검색
@@ -28,11 +28,13 @@ fixture 경로는 회귀 검증용으로만 남아 있으며, 연결 모드의 �
   Archive가 실제 커버를 제공할 때만 표시합니다.
 - 개인 기록의 원본은 사용자가 연결한 Notion 데이터베이스입니다. 저장은
   `앨범명`과 `가수`가 같은 기존 항목을 갱신하거나 새 페이지를 생성합니다.
-- 추천은 현재 개인 기록의 아티스트를 그래프의 시작점으로 삼아 MusicBrainz의
-  다른 발매 그룹을 찾는 결정론적 탐색입니다. 근거로 사용된 Notion 페이지 ID와
-  시드 아티스트를 함께 제공합니다.
-- 외부 LLM 문장 생성, 벡터 검색, GraphDB 질의는 연결 모드에서 사용하지
-  않습니다. 따라서 그 기능이 동작하는 것처럼 표시하지 않습니다.
+- 추천은 현재 Notion 기록의 최소 근거(페이지 ID·아티스트·발매 그룹 ID·가중치)를
+  사설 GraphDB `music-kg-personal` 그래프에 투영하고 SPARQL로 집계한 뒤,
+  MusicBrainz의 실제 다른 발매 그룹을 찾는 결정론적 경로입니다. 근거로 사용된
+  Notion 페이지 ID와 시드 아티스트를 함께 제공합니다. GraphDB가 없거나 응답하지
+  않으면 인메모리 추천으로 가장하지 않고 503을 반환합니다.
+- 외부 LLM 문장 생성과 벡터 검색은 아직 사용하지 않습니다. 따라서 그 기능이
+  동작하는 것처럼 표시하지 않습니다.
 
 원격 배포는 별도 서비스 설정이 필요합니다. 이 README는 특정 Preview 또는
 Production URL의 가용성을 보장하지 않습니다.
@@ -57,6 +59,7 @@ PowerShell에서는 아래처럼 실행할 수 있습니다.
 
 ```powershell
 Copy-Item .env.example .env
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-personal-graphdb.ps1
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-connected-service.ps1
 ```
 

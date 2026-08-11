@@ -1,0 +1,47 @@
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rep: <http://www.openrdf.org/config/repository#> .
+@prefix sail: <http://www.openrdf.org/config/sail#> .
+@prefix sail-shacl: <http://rdf4j.org/config/sail/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<#music-kg-personal> a rep:Repository ;
+    rep:repositoryID "music-kg-personal" ;
+    rep:repositoryImpl [
+        rep:repositoryType "graphdb:SailRepository" ;
+        <http://www.openrdf.org/config/repository/sail#sailImpl> [
+            sail-shacl:cacheSelectNodes true ;
+            sail-shacl:rdfsSubClassReasoning true ;
+            sail-shacl:serializableValidation true ;
+            sail-shacl:validationEnabled true ;
+            sail:delegate [
+                <http://www.ontotext.com/config/graphdb#base-URL>
+                    "https://w3id.org/music-kg-graphrag/personal/" ;
+                <http://www.ontotext.com/config/graphdb#check-for-inconsistencies>
+                    "false" ;
+                <http://www.ontotext.com/config/graphdb#defaultNS> "" ;
+                <http://www.ontotext.com/config/graphdb#disable-sameAs> "true" ;
+                <http://www.ontotext.com/config/graphdb#enable-context-index> "true" ;
+                <http://www.ontotext.com/config/graphdb#enable-fts-index> "false" ;
+                <http://www.ontotext.com/config/graphdb#enable-literal-index> "true" ;
+                <http://www.ontotext.com/config/graphdb#enablePredicateList> "true" ;
+                <http://www.ontotext.com/config/graphdb#entity-id-size> "32" ;
+                <http://www.ontotext.com/config/graphdb#entity-index-size> "10000000" ;
+                <http://www.ontotext.com/config/graphdb#imports> "" ;
+                <http://www.ontotext.com/config/graphdb#in-memory-literal-properties>
+                    "true" ;
+                <http://www.ontotext.com/config/graphdb#query-limit-results> "0" ;
+                <http://www.ontotext.com/config/graphdb#query-timeout> "0" ;
+                <http://www.ontotext.com/config/graphdb#read-only> "false" ;
+                <http://www.ontotext.com/config/graphdb#repository-type>
+                    "file-repository" ;
+                <http://www.ontotext.com/config/graphdb#ruleset>
+                    "rdfsplus-optimized" ;
+                <http://www.ontotext.com/config/graphdb#storage-folder> "storage" ;
+                <http://www.ontotext.com/config/graphdb#throw-QueryEvaluationException-on-timeout>
+                    "false" ;
+                sail:sailType "graphdb:Sail"
+            ] ;
+            sail:sailType "rdf4j:ShaclSail"
+        ]
+    ] ;
+    rdfs:label "Private personal music evidence projection" .

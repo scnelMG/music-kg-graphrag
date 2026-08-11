@@ -5,6 +5,7 @@ export type ConnectedMusicFailureKind =
   | "notion-not-shared"
   | "notion-rate-limited"
   | "notion-unauthorized"
+  | "personal-graph-unavailable"
   | "unavailable";
 
 export function connectedMusicFailureKind(message: string): ConnectedMusicFailureKind {
@@ -12,6 +13,7 @@ export function connectedMusicFailureKind(message: string): ConnectedMusicFailur
   if (message.includes("NOTION_CONNECTION_UNAUTHORIZED")) return "notion-unauthorized";
   if (message.includes("NOTION_RATE_LIMITED")) return "notion-rate-limited";
   if (message.includes("MUSICBRAINZ_RATE_LIMITED")) return "catalog-rate-limited";
+  if (message.includes("GRAPHDB_UNAVAILABLE")) return "personal-graph-unavailable";
   if (message.includes("INSUFFICIENT_PERSONAL_HISTORY")) return "insufficient-history";
   if (message.includes("BACKEND_CONFIGURATION_ERROR")) return "configuration";
   return "unavailable";

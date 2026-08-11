@@ -13,7 +13,8 @@ class ConnectedServicePropertiesTest {
         var properties = new ConnectedServiceProperties(
                 ConnectedServiceProperties.Mode.CONNECTED,
                 new ConnectedServiceProperties.Notion("", "", fields()),
-                new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
+                new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"),
+                new ConnectedServiceProperties.GraphDb("http://127.0.0.1:7200", "music-kg-personal"));
 
         assertThatThrownBy(properties::validate)
                 .hasMessage("CONNECTED_NOTION_CONFIGURATION_REQUIRED");
@@ -24,10 +25,23 @@ class ConnectedServicePropertiesTest {
         var properties = new ConnectedServiceProperties(
                 ConnectedServiceProperties.Mode.CONNECTED,
                 new ConnectedServiceProperties.Notion("replace-with-notion-integration-token", "replace-with-data-source-id", asciiFields()),
-                new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
+                new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"),
+                new ConnectedServiceProperties.GraphDb("http://127.0.0.1:7200", "music-kg-personal"));
 
         assertThatThrownBy(properties::validate)
                 .hasMessage("CONNECTED_NOTION_CONFIGURATION_REQUIRED");
+    }
+
+    @Test
+    void rejectsConnectedModeWithoutAPrivateGraphDbRepository() {
+        var properties = new ConnectedServiceProperties(
+                ConnectedServiceProperties.Mode.CONNECTED,
+                new ConnectedServiceProperties.Notion("notion-test-token", "data-source-id", fields()),
+                new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"),
+                new ConnectedServiceProperties.GraphDb("", "music-kg-personal"));
+
+        assertThatThrownBy(properties::validate)
+                .hasMessage("CONNECTED_GRAPHDB_CONFIGURATION_REQUIRED");
     }
 
     @Test
@@ -56,7 +70,9 @@ class ConnectedServicePropertiesTest {
                         "--music-kg.connected.notion.fields.favourite-track=track",
                         "--music-kg.connected.notion.fields.owned=owned",
                         "--music-kg.connected.notion.fields.release-group-mbid=mbid",
-                        "--music-kg.connected.music-brainz.user-agent=music-kg/1.0 (https://example.test)")) {
+                        "--music-kg.connected.music-brainz.user-agent=music-kg/1.0 (https://example.test)",
+                        "--music-kg.connected.graph-db.base-url=http://127.0.0.1:7200",
+                        "--music-kg.connected.graph-db.repository=music-kg-personal")) {
             assertThatThrownBy(() -> context.getBean("dataSource"))
                     .hasMessageContaining("No bean named 'dataSource'");
         }

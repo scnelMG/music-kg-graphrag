@@ -3,13 +3,14 @@
 ## 현재 데이터 경로
 
 브라우저는 `/api/music/*`만 호출한다. Next.js BFF는 서버에서 Spring 연결 API에
-인증하고, Spring API는 MusicBrainz와 사용자가 공유한 Notion 데이터 소스에만
-접근한다. Notion API 토큰과 BFF 공유 비밀은 브라우저, Git, 로그에 노출하지
-않는다.
+인증하고, Spring API는 MusicBrainz·사용자가 공유한 Notion 데이터 소스·사설
+GraphDB에만 접근한다. Notion API 토큰과 BFF 공유 비밀, GraphDB 내부 주소는
+브라우저, Git, 로그에 노출하지 않는다.
 
 ```text
 브라우저 → Next.js BFF → Spring 연결 API → MusicBrainz
-                                      └→ Notion 개인 음악 데이터베이스
+                                      ├→ Notion 개인 음악 데이터베이스
+                                      └→ 사설 GraphDB 개인 근거 그래프
 ```
 
 ## 한 번만 할 사용자 작업
@@ -26,11 +27,14 @@
 PowerShell에서 저장소 루트로 이동한 다음 실행한다.
 
 ```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-personal-graphdb.ps1
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-connected-service.ps1
 ```
 
 화면은 기본적으로 `http://127.0.0.1:3000`에서 열린다. 스크립트는 매 실행마다
 프로세스 안에서만 쓰는 BFF 공유 비밀을 만들며 `.env.local`에 쓰지 않는다.
+GraphDB 컨테이너는 `127.0.0.1:7200`에만 바인딩되고, 개인 Notion 투영은 별도
+`music-kg-personal` 저장소에만 쓴다.
 
 ## 직접 확인할 순서
 
@@ -45,10 +49,14 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-co
 
 ## 추천과 그래프 근거의 의미
 
-현재 추천은 외부 LLM의 생성문이나 벡터 유사도가 아니다. 저장된 Notion 기록의
-아티스트를 시작점으로 삼아 MusicBrainz의 다른 발매 그룹을 찾는 결정론적
-그래프 탐색이다. 기록이 없거나 하나뿐이면 시스템은 추천을 만들어 내지 않고
-기록을 더 추가하라는 상태를 표시한다.
+현재 추천은 외부 LLM의 생성문이나 벡터 유사도가 아니다. 통찰 요청마다 현재
+Notion 기록의 페이지 ID, 아티스트, release-group MBID, 근거 가중치만 사설
+GraphDB의 `music-kg-personal` named graph에 투영하고 SPARQL 집계로 시드
+아티스트와 근거 페이지를 조회한다. 이어 MusicBrainz 태그와 아티스트 연결을
+통해 아직 기록하지 않은 실제 발매 그룹만 추천한다. GraphDB가 응답하지 않으면
+서버는 인메모리 결과로 가장하지 않고 `GRAPHDB_UNAVAILABLE` 503을 반환한다.
+기록이 없거나 하나뿐이면 시스템은 추천을 만들어 내지 않고 기록을 더 추가하라는
+상태를 표시한다.
 
 ## 데이터 정합성 주의
 
@@ -66,7 +74,9 @@ Notion에 제목 또는 가수가 비어 있는 미완성 페이지가 있어도
 ## 배포 전 확인
 
 원격 Spring 서비스에는 Notion 토큰을 Secret Manager 같은 서버 측 비밀 저장소로
-등록하고, Vercel에는 `BACKEND_BASE_URL`, `BACKEND_BFF_SHARED_SECRET`,
+등록하고, GraphDB는 Cloud Run Direct VPC가 닿는 사설 서브넷에만 배치한다.
+`MUSIC_KG_GRAPHDB_BASE_URL`은 이 사설 주소를 가리키고
+`MUSIC_KG_GRAPHDB_REPOSITORY=music-kg-personal`을 유지한다. Vercel에는 `BACKEND_BASE_URL`, `BACKEND_BFF_SHARED_SECRET`,
 `MUSIC_KG_APP_ACCESS_TOKEN`만 서버 전용으로 설정해야 한다. 마지막 값은 32자 이상의
 무작위 접근 토큰이며, Production에서는 이 토큰을 통과한 브라우저만 개인 기록 BFF에
 접근할 수 있다. 이 저장소의 이전 fixture Preview 설정은 연결 모드 배포 증거가 아니다.

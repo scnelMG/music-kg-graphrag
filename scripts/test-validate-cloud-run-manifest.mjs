@@ -280,6 +280,10 @@ test("connected production template requires a server-side Notion secret and exp
   assert.match(template, /name: MUSIC_KG_API_CORS_ALLOWED_ORIGINS\n\s+value: \$\{VERCEL_PRODUCTION_ORIGIN\}/);
   assert.match(template, /name: NOTION_RELEASE_GROUP_MBID_FIELD\n\s+value: \$\{NOTION_RELEASE_GROUP_MBID_FIELD\}/);
   assert.match(template, /name: MUSICBRAINZ_USER_AGENT\n\s+value: "\$\{MUSICBRAINZ_USER_AGENT\}"/);
+  assert.match(template, /name: MUSIC_KG_GRAPHDB_BASE_URL\n\s+value: \$\{PERSONAL_GRAPHDB_BASE_URL\}/);
+  assert.match(template, /name: MUSIC_KG_GRAPHDB_REPOSITORY\n\s+value: music-kg-personal/);
+  assert.match(template, /run\.googleapis\.com\/network-interfaces: '\[\{"network":"\$\{PERSONAL_GRAPHDB_VPC_NETWORK\}","subnetwork":"\$\{PERSONAL_GRAPHDB_VPC_SUBNETWORK\}"\}\]'/);
+  assert.match(template, /run\.googleapis\.com\/vpc-access-egress: private-ranges-only/);
   assert.match(template, /autoscaling\.knative\.dev\/maxScale: "1"/);
   assert.match(template, /containerConcurrency: 1/);
   assert.match(template, /timeoutSeconds: 20/);
@@ -295,6 +299,10 @@ test("connected preview template quotes the operator MusicBrainz user agent", as
   // When the template is rendered for a Cloud Run deployment
   // Then the scalar remains a YAML string instead of becoming mapping syntax
   assert.match(template, /name: MUSICBRAINZ_USER_AGENT\n\s+value: "\$\{MUSICBRAINZ_USER_AGENT\}"/);
+  assert.match(template, /name: MUSIC_KG_GRAPHDB_BASE_URL\n\s+value: \$\{PERSONAL_GRAPHDB_BASE_URL\}/);
+  assert.match(template, /name: MUSIC_KG_GRAPHDB_REPOSITORY\n\s+value: music-kg-personal/);
+  assert.match(template, /run\.googleapis\.com\/network-interfaces: '\[\{"network":"\$\{PERSONAL_GRAPHDB_VPC_NETWORK\}","subnetwork":"\$\{PERSONAL_GRAPHDB_VPC_SUBNETWORK\}"\}\]'/);
+  assert.match(template, /run\.googleapis\.com\/vpc-access-egress: private-ranges-only/);
   assert.match(template, /containerConcurrency: 1/);
   assert.match(template, /timeoutSeconds: 20/);
 });
@@ -312,7 +320,10 @@ test("connected templates render only when every server-side data binding is sup
     "${NOTION_FAVOURITE_TRACK_FIELD}": "개인 최애곡",
     "${NOTION_OWNED_FIELD}": "앨범 보유",
     "${NOTION_RELEASE_GROUP_MBID_FIELD}": "MusicBrainz MBID",
-    "${MUSICBRAINZ_USER_AGENT}": "music-kg-graphrag/1.0 (operator@example.invalid)"
+    "${MUSICBRAINZ_USER_AGENT}": "music-kg-graphrag/1.0 (operator@example.invalid)",
+    "${PERSONAL_GRAPHDB_BASE_URL}": "http://10.42.0.10:7200",
+    "${PERSONAL_GRAPHDB_VPC_NETWORK}": "music-kg-private",
+    "${PERSONAL_GRAPHDB_VPC_SUBNETWORK}": "music-kg-private-seoul"
   };
   const templates = [
     {

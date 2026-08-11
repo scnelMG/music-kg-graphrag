@@ -44,6 +44,10 @@ const existingRecordSchema = z.object({
 });
 const recordsSchema = z.object({ records: z.array(existingRecordSchema) });
 const countSchema = z.object({ count: z.number().int().positive(), value: z.string().min(1) });
+const personalGraphRetrievalMethodSchema = z.enum([
+  "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+  "PERSISTENT_GRAPHDB_PERSONAL_EVIDENCE_RETRIEVAL"
+]);
 const tasteSchema = z.object({
   artists: z.array(countSchema),
   favouriteTracks: z.array(countSchema),
@@ -64,16 +68,15 @@ const graphTastePayloadSchema = z.object({
     title: z.string().min(1)
   })).default([]),
   recommendations: z.array(albumSchema.extend({
-    evidenceMethod: z.literal("PERSONAL_EVIDENCE_GRAPH_TRAVERSAL"),
+    evidenceMethod: personalGraphRetrievalMethodSchema,
     evidencePaths: z.array(z.object({ recordPageId: z.string().min(1), relation: z.enum(["RECORDED_BY", "SHARES_MUSICBRAINZ_TAG"]), value: z.string().min(1) })),
     score: z.number().int().positive()
   })),
-  retrievalMethod: z.literal("PERSONAL_EVIDENCE_GRAPH_TRAVERSAL"),
+  retrievalMethod: personalGraphRetrievalMethodSchema,
   seedArtist: z.string().min(1)
 });
 const graphTasteSchema = graphTastePayloadSchema.extend({
-  generatedByLlm: z.literal(false),
-  retrievalMethod: z.literal("PERSONAL_EVIDENCE_GRAPH_TRAVERSAL")
+  generatedByLlm: z.literal(false)
 });
 const personalInsightsSchema = z.object({ graphTaste: graphTastePayloadSchema, taste: tasteSchema });
 
@@ -94,6 +97,7 @@ function failureText(failure: Readonly<{ code?: string; message: string }>): str
     case "notion-unauthorized": return "Notion Integration 토큰 또는 데이터베이스 접근 권한을 확인해 주세요.";
     case "notion-rate-limited": return "Notion 요청이 잠시 많습니다. 잠시 뒤 다시 시도해 주세요.";
     case "catalog-rate-limited": return "MusicBrainz 요청이 잠시 제한되었습니다. 잠시 뒤 다시 검색해 주세요.";
+    case "personal-graph-unavailable": return "개인 추천 근거 그래프에 잠시 연결할 수 없습니다. 기록은 변경하지 않았으니 잠시 뒤 다시 시도해 주세요.";
     case "insufficient-history": return "아직 분석할 개인 기록이 없습니다. 첫 음반을 저장하면 취향과 추천 근거가 생깁니다.";
     case "configuration": return "서비스 연결 설정이 아직 완료되지 않았습니다. 서버의 Notion과 MusicBrainz 설정을 확인해 주세요.";
     case "unavailable": return "요청을 완료하지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
@@ -149,8 +153,7 @@ export function ConnectedMusicDesk(): React.JSX.Element {
     setGraphTaste({
       ...outcome.value.graphTaste,
       generatedByLlm: false,
-      relisten: outcome.value.graphTaste.relisten ?? [],
-      retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL"
+      relisten: outcome.value.graphTaste.relisten ?? []
     });
   }
 

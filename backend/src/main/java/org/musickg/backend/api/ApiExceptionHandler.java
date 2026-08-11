@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.musickg.backend.connected.ConnectedMusicService;
+import org.musickg.backend.connected.GraphDbPersonalGraphProjectionGateway;
 import org.musickg.backend.catalog.MusicBrainzClient;
 import org.musickg.backend.notion.NotionClient;
 
@@ -34,6 +35,14 @@ class ApiExceptionHandler {
     @ExceptionHandler(MusicBrainzClient.CatalogAccessException.class)
     ResponseEntity<ApiError> musicBrainzAccess(MusicBrainzClient.CatalogAccessException exception, HttpServletRequest request) {
         HttpStatus status = exception.retryable() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
+        return ResponseEntity.status(status).body(new ApiError(exception.getMessage(), requestId(request)));
+    }
+
+    @ExceptionHandler(GraphDbPersonalGraphProjectionGateway.GraphAccessException.class)
+    ResponseEntity<ApiError> graphDbAccess(GraphDbPersonalGraphProjectionGateway.GraphAccessException exception,
+                                           HttpServletRequest request) {
+        HttpStatus status = "GRAPHDB_UNAVAILABLE".equals(exception.getMessage())
+                ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
         return ResponseEntity.status(status).body(new ApiError(exception.getMessage(), requestId(request)));
     }
 

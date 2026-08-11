@@ -20,6 +20,14 @@ Google Secret Manager, and require an explicit Notion data-source identifier
 and property names at render time. The browser and Vercel never receive
 `NOTION_API_KEY`.
 
+They also require `PERSONAL_GRAPHDB_BASE_URL`,
+`PERSONAL_GRAPHDB_VPC_NETWORK`, and `PERSONAL_GRAPHDB_VPC_SUBNETWORK` at render
+time. Cloud Run uses Direct VPC egress for the private GraphDB endpoint, and
+the repository is fixed to the separately named `music-kg-personal`; never
+point it at the canonical fixture repository. This runtime dependency is
+intentional: a missing or unreachable private graph returns a typed 503 rather
+than silently replacing GraphRAG evidence with an in-memory approximation.
+
 Use a separate, non-personal Notion data source for Preview. This prevents a
 Preview deployment from reading or writing the records used by Production.
 Give the Preview and Production Cloud Run service accounts access only to their

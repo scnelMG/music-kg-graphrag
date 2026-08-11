@@ -76,14 +76,14 @@ describe("fixture BFF backend integration", () => {
           artist: "Miles Davis",
           artistCredits: ["Miles Davis"],
           coverUrl: "https://cover.example/kind-of-blue.jpg",
-          evidenceMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+          evidenceMethod: "PERSISTENT_GRAPHDB_PERSONAL_EVIDENCE_RETRIEVAL",
           evidencePaths: [{ recordPageId: "notion-page-1", relation: "SHARES_MUSICBRAINZ_TAG", value: "cool jazz" }],
           firstReleaseDate: "1959-08-17",
           releaseGroupMbid: "release-group-id",
           title: "Kind of Blue",
           score: 1
         }],
-        retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+        retrievalMethod: "PERSISTENT_GRAPHDB_PERSONAL_EVIDENCE_RETRIEVAL",
         seedArtist: "Miles Davis"
       }));
     }, async (baseUrl) => {
@@ -97,7 +97,7 @@ describe("fixture BFF backend integration", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject({
         generatedByLlm: false,
-        retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL"
+        retrievalMethod: "PERSISTENT_GRAPHDB_PERSONAL_EVIDENCE_RETRIEVAL"
       });
     });
   });

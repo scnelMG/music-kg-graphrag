@@ -15,10 +15,17 @@ import org.musickg.backend.notion.PersonalMusicRecordGateway;
 public final class ConnectedMusicService {
     private final MusicCatalogGateway catalog;
     private final PersonalMusicRecordGateway records;
+    private final PersonalGraphProjectionGateway graph;
 
     public ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records) {
+        this(catalog, records, new InMemoryPersonalGraphProjectionGateway());
+    }
+
+    public ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
+                                 PersonalGraphProjectionGateway graph) {
         this.catalog = catalog;
         this.records = records;
+        this.graph = graph;
     }
 
     public List<MusicCatalogGateway.Album> search(String albumTitle, String artist) {
@@ -102,13 +109,7 @@ public final class ConnectedMusicService {
     }
 
     private Discovery discover(TasteProfile profile, List<NotionClient.ExistingRecord> history) {
-        List<ArtistEvidence> artists = history.stream()
-                .map(NotionClient.ExistingRecord::artist)
-                .distinct()
-                .map(artist -> artistEvidence(history, artist))
-                .sorted(Comparator.comparing(ArtistEvidence::weight).reversed().thenComparing(ArtistEvidence::artist))
-                .limit(3)
-                .toList();
+        List<PersonalGraphProjectionGateway.ArtistEvidence> artists = graph.projectAndRetrieve(history);
         String seedArtist = artists.getFirst().artist();
         Set<String> existingReleaseGroups = history.stream()
                 .map(NotionClient.ExistingRecord::releaseGroupMbid)
@@ -122,42 +123,26 @@ public final class ConnectedMusicService {
                         || history.stream().anyMatch(record -> sameAlbum(record, candidate))
                         || !emittedReleaseGroups.add(candidate.releaseGroupMbid())) continue;
                 albums.add(new AlbumRecommendation(candidate.releaseGroupMbid(), candidate.title(), candidate.artist(),
-                        candidate.firstReleaseDate(), candidate.coverUrl(), "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL", tag.weight(),
+                        candidate.firstReleaseDate(), candidate.coverUrl(), graph.retrievalMethod(), tag.weight(),
                         List.of(new EvidencePath(tag.pageId(), "SHARES_MUSICBRAINZ_TAG", tag.tag()))));
                 break;
             }
             if (albums.size() == 5) break;
         }
-        for (ArtistEvidence artist : artists) {
+        for (PersonalGraphProjectionGateway.ArtistEvidence artist : artists) {
             for (MusicCatalogGateway.Album candidate : catalog.searchByArtist(artist.artist())) {
                 if (existingReleaseGroups.contains(candidate.releaseGroupMbid())
                         || history.stream().anyMatch(record -> sameAlbum(record, candidate))
                         || !emittedReleaseGroups.add(candidate.releaseGroupMbid())) continue;
                 albums.add(new AlbumRecommendation(candidate.releaseGroupMbid(), candidate.title(), candidate.artist(),
-                        candidate.firstReleaseDate(), candidate.coverUrl(), "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL", artist.weight(),
+                        candidate.firstReleaseDate(), candidate.coverUrl(), graph.retrievalMethod(), artist.score(),
                         artist.pageIds().stream().map(pageId -> new EvidencePath(pageId, "RECORDED_BY", artist.artist())).toList()));
                 break;
             }
             if (albums.size() == 5) break;
         }
         List<String> evidencePageIds = artists.stream().flatMap(artist -> artist.pageIds().stream()).sorted().toList();
-        return new Discovery(seedArtist, evidencePageIds, List.copyOf(albums), "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL");
-    }
-
-    private static List<String> pagesForArtist(List<NotionClient.ExistingRecord> history, String artist) {
-        return history.stream().filter(record -> record.artist().equalsIgnoreCase(artist))
-                .map(NotionClient.ExistingRecord::pageId).sorted().toList();
-    }
-
-    private static ArtistEvidence artistEvidence(List<NotionClient.ExistingRecord> history, String artist) {
-        List<NotionClient.ExistingRecord> matching = history.stream()
-                .filter(record -> record.artist().equalsIgnoreCase(artist))
-                .toList();
-        long weight = matching.stream().mapToLong(record -> 1L
-                + (record.owned() ? 2L : 0L)
-                + (record.favouriteTrack().isBlank() ? 0L : 1L)
-                + (record.sentiment().isBlank() ? 0L : 1L)).sum();
-        return new ArtistEvidence(artist, weight, matching.stream().map(NotionClient.ExistingRecord::pageId).sorted().toList());
+        return new Discovery(seedArtist, evidencePageIds, List.copyOf(albums), graph.retrievalMethod());
     }
 
     private List<TagEvidence> tagEvidence(List<NotionClient.ExistingRecord> history) {
@@ -266,8 +251,6 @@ public final class ConnectedMusicService {
             this(personalRecordCount, seedArtist, evidencePageIds, "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL", List.of(), recommendations);
         }
     }
-
-    private record ArtistEvidence(String artist, long weight, List<String> pageIds) {}
 
     private record TagEvidence(String pageId, String tag, long weight) {}
 

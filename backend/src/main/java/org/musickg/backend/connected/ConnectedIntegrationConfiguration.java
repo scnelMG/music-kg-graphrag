@@ -30,8 +30,17 @@ class ConnectedIntegrationConfiguration {
     }
 
     @Bean
-    ConnectedMusicService connectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records) {
-        return new ConnectedMusicService(catalog, records);
+    PersonalGraphProjectionGateway personalGraphProjectionGateway(RestClient.Builder builder, ObjectMapper objectMapper,
+                                                                   ConnectedServiceProperties properties) {
+        return new GraphDbPersonalGraphProjectionGateway(
+                externalClient(builder).mutate().baseUrl(properties.graphDb().endpoint()).build(), objectMapper,
+                properties.graphDb().queryEndpoint());
+    }
+
+    @Bean
+    ConnectedMusicService connectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
+                                                PersonalGraphProjectionGateway graph) {
+        return new ConnectedMusicService(catalog, records, graph);
     }
 
     private static RestClient externalClient(RestClient.Builder builder) {

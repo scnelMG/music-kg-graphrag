@@ -78,6 +78,16 @@ class ConnectedMusicApiControllerTest {
     }
 
     @Test
+    void returnsARecoverable503WhenThePrivatePersonalGraphIsUnavailable() throws Exception {
+        given(service.personalInsights()).willThrow(
+                new GraphDbPersonalGraphProjectionGateway.GraphAccessException("GRAPHDB_UNAVAILABLE"));
+
+        mvc.perform(get("/api/v1/personal-insights").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("GRAPHDB_UNAVAILABLE"));
+    }
+
+    @Test
     void exposesTasteAndRecommendationFromOnePersonalInsightsContract() throws Exception {
         var taste = new ConnectedMusicService.TasteProfile(1,
                 List.of(new ConnectedMusicService.Count("Artist", 1)),

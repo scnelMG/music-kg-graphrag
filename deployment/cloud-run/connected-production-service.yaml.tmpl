@@ -10,6 +10,8 @@ spec:
       annotations:
         autoscaling.knative.dev/maxScale: "1"
         run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/network-interfaces: '[{"network":"${PERSONAL_GRAPHDB_VPC_NETWORK}","subnetwork":"${PERSONAL_GRAPHDB_VPC_SUBNETWORK}"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
     spec:
       serviceAccountName: ${CLOUD_RUN_PRODUCTION_SERVICE_ACCOUNT}
       containerConcurrency: 1
@@ -52,6 +54,10 @@ spec:
               value: "${MUSICBRAINZ_USER_AGENT}"
             - name: MUSICBRAINZ_REQUESTS_PER_SECOND
               value: "1"
+            - name: MUSIC_KG_GRAPHDB_BASE_URL
+              value: ${PERSONAL_GRAPHDB_BASE_URL}
+            - name: MUSIC_KG_GRAPHDB_REPOSITORY
+              value: music-kg-personal
             - name: SPRING_AUTOCONFIGURE_EXCLUDE
               value: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
             - name: BACKEND_BFF_SHARED_SECRET

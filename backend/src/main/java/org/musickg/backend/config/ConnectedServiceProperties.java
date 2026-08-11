@@ -1,14 +1,16 @@
 package org.musickg.backend.config;
 
+import java.net.URI;
 import java.util.Locale;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("music-kg.connected")
-public record ConnectedServiceProperties(Mode mode, Notion notion, MusicBrainz musicBrainz) {
+public record ConnectedServiceProperties(Mode mode, Notion notion, MusicBrainz musicBrainz, GraphDb graphDb) {
     public ConnectedServiceProperties {
         mode = mode == null ? Mode.FIXTURE : mode;
         notion = notion == null ? new Notion("", "", new Notion.Fields("", "", "", "", "", "", "")) : notion;
         musicBrainz = musicBrainz == null ? new MusicBrainz("", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org") : musicBrainz;
+        graphDb = graphDb == null ? new GraphDb("", "music-kg-personal") : graphDb;
     }
 
     public void validate() {
@@ -20,6 +22,7 @@ public record ConnectedServiceProperties(Mode mode, Notion notion, MusicBrainz m
             throw new IllegalStateException("CONNECTED_MUSICBRAINZ_USER_AGENT_REQUIRED");
         }
         if (musicBrainz.requestsPerSecond() != 1) throw new IllegalStateException("MUSICBRAINZ_RATE_LIMIT_CONFIGURATION_INVALID");
+        if (!graphDb.valid()) throw new IllegalStateException("CONNECTED_GRAPHDB_CONFIGURATION_REQUIRED");
     }
 
     private static boolean blank(String value) {
@@ -44,4 +47,25 @@ public record ConnectedServiceProperties(Mode mode, Notion notion, MusicBrainz m
     }
 
     public record MusicBrainz(String userAgent, String baseUrl, int requestsPerSecond, String coverArtArchiveBaseUrl) {}
+
+    public record GraphDb(String baseUrl, String repository) {
+        public String endpoint() {
+            return baseUrl.endsWith("/") ? baseUrl + "repositories/" + repository + "/"
+                    : baseUrl + "/repositories/" + repository + "/";
+        }
+
+        public String queryEndpoint() {
+            return endpoint().substring(0, endpoint().length() - 1);
+        }
+
+        boolean valid() {
+            if (placeholder(baseUrl) || placeholder(repository) || !repository.matches("[A-Za-z0-9_-]+")) return false;
+            try {
+                String scheme = URI.create(baseUrl).getScheme();
+                return "http".equals(scheme) || "https".equals(scheme);
+            } catch (IllegalArgumentException exception) {
+                return false;
+            }
+        }
+    }
 }

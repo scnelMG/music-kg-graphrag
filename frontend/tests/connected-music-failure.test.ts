@@ -8,6 +8,7 @@ describe("connected music failure classification", () => {
     ["NOTION_CONNECTION_UNAUTHORIZED", "notion-unauthorized"],
     ["NOTION_RATE_LIMITED", "notion-rate-limited"],
     ["MUSICBRAINZ_RATE_LIMITED", "catalog-rate-limited"],
+    ["GRAPHDB_UNAVAILABLE", "personal-graph-unavailable"],
     ["INSUFFICIENT_PERSONAL_HISTORY", "insufficient-history"],
     ["BACKEND_CONFIGURATION_ERROR", "configuration"],
     ["BACKEND_UNAVAILABLE", "unavailable"]
