@@ -1,6 +1,7 @@
 package org.musickg.backend.connected;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -16,6 +17,7 @@ public final class ConnectedMusicService {
     private final MusicCatalogGateway catalog;
     private final PersonalMusicRecordGateway records;
     private final PersonalGraphProjectionGateway graph;
+    private final Map<String, String> recentlySavedPageIds = new HashMap<>();
 
     public ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records) {
         this(catalog, records, new InMemoryPersonalGraphProjectionGateway());
@@ -40,15 +42,28 @@ public final class ConnectedMusicService {
         NotionClient.Record record = new NotionClient.Record(
                 input.albumTitle(), input.artist(), input.coverUrl(), input.sentiment(), input.favouriteTrack(), input.owned(),
                 input.releaseGroupMbid(), input.artistCredits());
-        return records.list().stream()
-                .filter(existing -> sameAlbum(existing, input))
+        String identity = recordIdentity(input);
+        String recentlySavedPageId = recentlySavedPageIds.get(identity);
+        if (recentlySavedPageId != null) {
+            return saved(records.update(recentlySavedPageId, record), SaveOperation.UPDATED);
+        }
+        NotionClient.ExistingRecord existing = records.list().stream()
+                .filter(value -> sameAlbum(value, input))
                 .findFirst()
-                .map(existing -> saved(records.update(existing.pageId(), record), SaveOperation.UPDATED))
-                .orElseGet(() -> saved(records.create(record), SaveOperation.CREATED));
+                .orElse(null);
+        if (existing != null) {
+            recentlySavedPageIds.put(identity, existing.pageId());
+            return saved(records.update(existing.pageId(), record), SaveOperation.UPDATED);
+        }
+        NotionClient.SavedRecord created = records.create(record);
+        recentlySavedPageIds.put(identity, created.pageId());
+        return saved(created, SaveOperation.CREATED);
     }
 
     public synchronized SaveResult remove(String pageId) {
-        return saved(records.archive(pageId), SaveOperation.ARCHIVED);
+        NotionClient.SavedRecord archived = records.archive(pageId);
+        recentlySavedPageIds.entrySet().removeIf(entry -> entry.getValue().equals(pageId));
+        return saved(archived, SaveOperation.ARCHIVED);
     }
 
     public List<NotionClient.ExistingRecord> records() {
@@ -185,6 +200,11 @@ public final class ConnectedMusicService {
         }
         return normalized(record.albumTitle()).equals(normalized(input.albumTitle()))
                 && normalized(record.artist()).equals(normalized(input.artist()));
+    }
+
+    private static String recordIdentity(RecordInput input) {
+        if (!input.releaseGroupMbid().isBlank()) return "release-group:" + input.releaseGroupMbid();
+        return "album:" + normalized(input.albumTitle()) + "|artist:" + normalized(input.artist());
     }
 
     private static boolean sameAlbum(NotionClient.ExistingRecord record, MusicCatalogGateway.Album candidate) {

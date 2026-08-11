@@ -28,6 +28,22 @@ class ConnectedMusicServiceTest {
     }
 
     @Test
+    void updatesTheSamePageWhenNotionListHasNotYetObservedTheNewRecord() {
+        var records = new InMemoryRecords(List.of(), false);
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records);
+        var input = new ConnectedMusicService.RecordInput(
+                "release-group-id", "Existing Album", "Artist", "", "Loved", "New track", true);
+
+        var created = service.save(input);
+        var updated = service.save(input);
+
+        assertThat(created.operation()).isEqualTo(ConnectedMusicService.SaveOperation.CREATED);
+        assertThat(updated.operation()).isEqualTo(ConnectedMusicService.SaveOperation.UPDATED);
+        assertThat(updated.notionPageId()).isEqualTo(created.notionPageId());
+        assertThat(records.records()).hasSize(1);
+    }
+
+    @Test
     void keepsDifferentMusicBrainzReleaseGroupsSeparateWhenTitlesAndArtistsMatch() {
         var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
                 "page-1", "Same Album", "Same Artist", "", "마음에 쏙", "Old track", false, "first-release-group")));
@@ -261,10 +277,18 @@ class ConnectedMusicServiceTest {
 
     private static final class InMemoryRecords implements PersonalMusicRecordGateway {
         private final List<NotionClient.ExistingRecord> values;
+        private final List<NotionClient.ExistingRecord> visibleValues;
+        private final boolean listReflectsWrites;
         private int listCalls;
 
         private InMemoryRecords(List<NotionClient.ExistingRecord> values) {
+            this(values, true);
+        }
+
+        private InMemoryRecords(List<NotionClient.ExistingRecord> values, boolean listReflectsWrites) {
             this.values = new ArrayList<>(values);
+            this.visibleValues = new ArrayList<>(values);
+            this.listReflectsWrites = listReflectsWrites;
         }
 
         @Override
@@ -290,7 +314,7 @@ class ConnectedMusicServiceTest {
         @Override
         public List<NotionClient.ExistingRecord> list() {
             listCalls++;
-            return List.copyOf(values);
+            return List.copyOf(listReflectsWrites ? values : visibleValues);
         }
 
         @Override

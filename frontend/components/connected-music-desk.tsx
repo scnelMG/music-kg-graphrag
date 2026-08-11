@@ -113,6 +113,13 @@ function AlbumArt({ album }: { readonly album: AlbumArtInput }): React.JSX.Eleme
   return <img className="album-art" src={album.coverUrl} alt={`${title} 앨범 커버`} onError={() => setUnavailable(true)} />;
 }
 
+function existingRecordFor(album: Album, records: readonly ExistingRecord[]): ExistingRecord | undefined {
+  return records.find((record) => record.releaseGroupMbid === album.releaseGroupMbid
+    || (record.releaseGroupMbid.length === 0
+      && record.albumTitle.trim().toLowerCase() === album.title.trim().toLowerCase()
+      && record.artist.trim().toLowerCase() === album.artist.trim().toLowerCase()));
+}
+
 export function ConnectedMusicDesk(): React.JSX.Element {
   const [availability, setAvailability] = useState<Availability>("loading");
   const [query, setQuery] = useState("");
@@ -265,6 +272,16 @@ export function ConnectedMusicDesk(): React.JSX.Element {
     await Promise.all([loadInsights(), loadRecords()]);
   }
 
+  function selectAlbum(album: Album): void {
+    const existing = existingRecordFor(album, records);
+    setSelected(album);
+    setSentiment(existing?.sentiment ?? "");
+    setOwned(existing?.owned ?? false);
+    setSaveState("idle");
+    setSaveMessage("");
+    void loadTracks(album, existing?.favouriteTrack ?? "");
+  }
+
   async function archiveRecord(pageId: string): Promise<void> {
     const outcome = await requestBff(ky.delete(`/api/music/records/${encodeURIComponent(pageId)}`, { throwHttpErrors: false }), savedSchema);
     if (outcome.kind === "failure") {
@@ -286,15 +303,11 @@ export function ConnectedMusicDesk(): React.JSX.Element {
       releaseGroupMbid: record.releaseGroupMbid,
       title: record.albumTitle
     };
-    setSelected(album);
-    setSentiment(record.sentiment);
-    setOwned(record.owned);
-    setSaveState("idle");
-    setSaveMessage("");
-    void loadTracks(album, record.favouriteTrack);
+    selectAlbum(album);
   }
 
   const saveEnabled = availability === "ready" && selected !== null && trackState === "ready" && sentiment.length > 0 && favouriteTrack.length > 0 && saveState !== "saving";
+  const selectedExistingRecord = selected === null ? undefined : existingRecordFor(selected, records);
 
   return <main className="music-journal">
     <header className="journal-header">
@@ -319,21 +332,21 @@ export function ConnectedMusicDesk(): React.JSX.Element {
             {searchState === "loading" && <div className="loading-record"><span />MusicBrainz를 조회하고 있습니다.</div>}
             {searchState === "empty" && <p className="result-message">일치하는 앨범을 찾지 못했습니다. 표기나 가수명을 바꿔 다시 검색해 보세요.</p>}
             {searchState === "error" && <p className="result-message">{saveMessage}</p>}
-            {albums.map((album) => <button className={`candidate-row${selected?.releaseGroupMbid === album.releaseGroupMbid ? " selected" : ""}`} type="button" key={album.releaseGroupMbid} onClick={() => { setSelected(album); setSaveState("idle"); setSaveMessage(""); void loadTracks(album); }} aria-pressed={selected?.releaseGroupMbid === album.releaseGroupMbid}>
-              <span className="candidate-main"><AlbumArt album={album} /><span><strong>{album.title}</strong><small>{album.artist}{album.firstReleaseDate.length > 0 ? ` · ${album.firstReleaseDate}` : ""}</small></span></span><span className="selection-label"><ArrowRight size={16} weight="bold" aria-hidden="true" />기록하기</span>
+            {albums.map((album) => <button className={`candidate-row${selected?.releaseGroupMbid === album.releaseGroupMbid ? " selected" : ""}`} type="button" key={album.releaseGroupMbid} onClick={() => selectAlbum(album)} aria-pressed={selected?.releaseGroupMbid === album.releaseGroupMbid}>
+              <span className="candidate-main"><AlbumArt album={album} /><span><strong>{album.title}</strong><small>{album.artist}{album.firstReleaseDate.length > 0 ? ` · ${album.firstReleaseDate}` : ""}</small></span></span><span className="selection-label"><ArrowRight size={16} weight="bold" aria-hidden="true" />{existingRecordFor(album, records) === undefined ? "기록하기" : "기록 갱신"}</span>
             </button>)}
           </div>
         </section>
         <section className="listening-note" id="listening-record" aria-labelledby="record-heading">
           <p className="section-kicker">내 기록</p><h2 id="record-heading">이 앨범을 어떻게 들었나요?</h2>
-          <div className="selected-record" aria-live="polite">{selected === null ? <p>먼저 실제 검색 결과에서 앨범 하나를 골라 주세요.</p> : <><div className="selected-album"><AlbumArt album={selected} /><div><strong>{selected.title}</strong><span>{selected.artist}</span></div></div></>}</div>
+          <div className="selected-record" aria-live="polite">{selected === null ? <p>먼저 실제 검색 결과에서 앨범 하나를 골라 주세요.</p> : <><div className="selected-album"><AlbumArt album={selected} /><div><strong>{selected.title}</strong><span>{selected.artist}</span></div></div>{selectedExistingRecord !== undefined && <p className="notice" role="status">이미 Notion에 기록한 음반입니다. 저장하면 새 페이지 대신 기존 기록을 갱신합니다.</p>}</>}</div>
           <div className="field-grid">
             <label htmlFor="sentiment">개인 감상평<select id="sentiment" value={sentiment} onChange={(event) => setSentiment(event.target.value)} disabled={availability !== "ready" || sentiments.length === 0}><option value="">선택해 주세요</option>{sentiments.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
             <label htmlFor="favourite-track-select">개인 최애곡<select id="favourite-track-select" value={favouriteTrack} onChange={(event) => setFavouriteTrack(event.target.value)} disabled={trackState !== "ready"}><option value="">{trackState === "loading" ? "수록곡을 불러오는 중" : "수록곡을 선택해 주세요"}</option>{tracks.map((track) => <option key={track.recordingMbid} value={track.title}>{track.position}. {track.title}</option>)}</select></label>
           </div>
           {trackState === "error" || trackState === "empty" ? <p className="notice error" role="status"><WarningCircle size={18} weight="fill" aria-hidden="true" /><span>{trackMessage}</span></p> : null}
           <label className="owned-field" htmlFor="owned"><input id="owned" type="checkbox" checked={owned} onChange={(event) => setOwned(event.target.checked)} />앨범을 보유하고 있어요</label>
-          <button type="button" className="save-button" disabled={!saveEnabled} onClick={() => void save()}><FloppyDisk size={18} weight="fill" aria-hidden="true" />{saveState === "saving" ? "Notion에 저장 중" : "Notion에 기록 저장"}</button>
+          <button type="button" className="save-button" disabled={!saveEnabled} onClick={() => void save()}><FloppyDisk size={18} weight="fill" aria-hidden="true" />{saveState === "saving" ? "Notion에 저장 중" : selectedExistingRecord === undefined ? "Notion에 기록 저장" : "Notion 기록 갱신"}</button>
           {saveState === "success" && <p className="notice success" role="status"><CheckCircle size={18} weight="fill" aria-hidden="true" /><span>{saveMessage}</span></p>}
           {saveState === "error" && <p className="notice error" role="status"><WarningCircle size={18} weight="fill" aria-hidden="true" /><span>{saveMessage}</span></p>}
           <section className="record-list" aria-labelledby="record-list-heading">
