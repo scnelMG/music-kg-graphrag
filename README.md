@@ -1,5 +1,10 @@
 # Music Knowledge Graph & GraphRAG
 
+![Java](https://img.shields.io/badge/Java-Spring%20Boot-6DB33F?logo=springboot&logoColor=white)
+![Python](https://img.shields.io/badge/Python-Data%20Pipeline-3776AB?logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)
+![GraphDB](https://img.shields.io/badge/GraphDB-RDF%20%7C%20SPARQL-0F766E)
+
 한국어 음악 기록을 위한 개인 음악 서비스입니다. 실제 MusicBrainz에서 앨범을
 찾고, 선택한 앨범을 사용자의 Notion 데이터베이스에 기록한 뒤, 저장된 개인
 기록을 근거로 취향과 다음 앨범 후보를 보여 줍니다. 기본 테스트와 레거시
