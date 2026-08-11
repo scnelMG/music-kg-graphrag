@@ -144,8 +144,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .recommendation-row > div { display: grid; gap: var(--space-1); min-width: 0; }
 .recommendation-row span { color: var(--ink-muted); font-size: var(--type-caption); }
 .record-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
-.archive-record { min-height: 44px; border: 1px solid var(--rule-strong); background: transparent; color: var(--ink); padding-inline: var(--space-3); font: inherit; }
-.archive-record:hover { border-color: var(--accent); color: var(--accent); }
+.archive-record { min-height: var(--target-min); border: 1px solid var(--rule); background: transparent; color: var(--ink); padding-inline: var(--space-3); font: inherit; }
+.archive-record:hover { border-color: var(--action); color: var(--action); }
 .technical-disclosure { margin-top: var(--space-4); color: var(--ink-muted); font-size: .875rem; }
 .technical-disclosure[open] summary { margin-bottom: var(--space-3); color: var(--ink); }
 .evidence-answer { margin-top: var(--space-8); }

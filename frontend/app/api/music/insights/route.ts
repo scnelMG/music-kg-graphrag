@@ -9,7 +9,6 @@ const personalGraphRetrievalMethodSchema = z.enum([
 ]);
 const albumSchema = z.object({
   artist: z.string().min(1),
-  artistCredits: z.array(z.string().min(1)).min(1),
   coverUrl: z.string().url().or(z.literal("")),
   evidenceMethod: personalGraphRetrievalMethodSchema,
   evidencePaths: z.array(z.object({ recordPageId: z.string().min(1), relation: z.enum(["RECORDED_BY", "SHARES_MUSICBRAINZ_TAG"]), value: z.string().min(1) })),

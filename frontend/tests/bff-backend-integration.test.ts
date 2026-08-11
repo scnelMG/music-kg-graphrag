@@ -74,7 +74,6 @@ describe("fixture BFF backend integration", () => {
         personalRecordCount: 1,
         recommendations: [{
           artist: "Miles Davis",
-          artistCredits: ["Miles Davis"],
           coverUrl: "https://cover.example/kind-of-blue.jpg",
           evidenceMethod: "PERSISTENT_GRAPHDB_PERSONAL_EVIDENCE_RETRIEVAL",
           evidencePaths: [{ recordPageId: "notion-page-1", relation: "SHARES_MUSICBRAINZ_TAG", value: "cool jazz" }],
