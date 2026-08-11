@@ -21,7 +21,7 @@ type BackendCall =
   | { readonly kind: "received"; readonly response: Response }
   | { readonly kind: "handled"; readonly response: NextResponse };
 
-type FixtureBackendPath =
+type BackendPath =
   | "api/v1/candidates"
   | `api/v1/candidates/${string}/select`
   | `api/v1/evidence/${string}`
@@ -30,15 +30,27 @@ type FixtureBackendPath =
   | "api/v1/recommendations"
   | "api/v1/reviews";
 
+type ConnectedBackendPath =
+  | "api/v1/catalog/albums"
+  | `api/v1/catalog/albums/${string}/tracks`
+  | "api/v1/health"
+  | "api/v1/listening-records"
+  | `api/v1/listening-records/${string}`
+  | "api/v1/listening-records/form-options"
+  | "api/v1/personal-insights"
+  | "api/v1/taste-profile"
+  | "api/v1/recommendations/discover"
+  | "api/v1/graphrag/taste";
+
 const unavailableResponse = (): NextResponse => NextResponse.json({
   code: "BACKEND_UNAVAILABLE",
-  message: "The fixture backend is temporarily unavailable.",
+  message: "The music backend is temporarily unavailable.",
   retryable: true
 }, { status: 503 });
 
-export async function callFixtureBackend(
-  path: FixtureBackendPath,
-  options: { readonly body?: string; readonly method?: "GET" | "POST"; readonly searchParams?: URLSearchParams } = {}
+export async function callBackend(
+  path: BackendPath | ConnectedBackendPath,
+  options: { readonly body?: string; readonly method?: "DELETE" | "GET" | "POST"; readonly searchParams?: URLSearchParams } = {}
 ): Promise<BackendCall> {
   const config = backendConfigSchema.safeParse({
     baseUrl: process.env.BACKEND_BASE_URL,
@@ -49,7 +61,7 @@ export async function callFixtureBackend(
       kind: "handled",
       response: NextResponse.json({
         code: "BACKEND_CONFIGURATION_ERROR",
-        message: "The fixture backend is not configured.",
+        message: "The music backend is not configured.",
         retryable: false
       }, { status: 503 })
     };
@@ -68,7 +80,7 @@ export async function callFixtureBackend(
       retry: 0,
       searchParams: options.searchParams,
       throwHttpErrors: false,
-      timeout: 2_000
+      timeout: 15_000
     });
     if (response.ok) return { kind: "received", response };
     if (response.status >= 300 && response.status < 400) {
@@ -103,6 +115,8 @@ export async function callFixtureBackend(
     throw error;
   }
 }
+
+export const callFixtureBackend = callBackend;
 
 export function backendContractError(): NextResponse {
   return NextResponse.json({ code: "BACKEND_CONTRACT_ERROR", retryable: false }, { status: 502 });

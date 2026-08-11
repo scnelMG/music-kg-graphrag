@@ -2,14 +2,41 @@ package org.musickg.backend.api;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.musickg.backend.connected.ConnectedMusicService;
+import org.musickg.backend.catalog.MusicBrainzClient;
+import org.musickg.backend.notion.NotionClient;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
+    @ExceptionHandler(ConnectedMusicService.InsufficientHistoryException.class)
+    ResponseEntity<ApiError> insufficientHistory(ConnectedMusicService.InsufficientHistoryException exception,
+                                                 HttpServletRequest request) {
+        return ResponseEntity.status(409).body(new ApiError("INSUFFICIENT_PERSONAL_HISTORY", requestId(request)));
+    }
+
+    @ExceptionHandler(NotionClient.AccessException.class)
+    ResponseEntity<ApiError> notionAccess(NotionClient.AccessException exception, HttpServletRequest request) {
+        HttpStatus status = switch (exception.getMessage()) {
+            case "NOTION_RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "NOTION_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "NOTION_CONNECTION_NOT_SHARED", "NOTION_CONNECTION_UNAUTHORIZED" -> HttpStatus.CONFLICT;
+            default -> HttpStatus.BAD_GATEWAY;
+        };
+        return ResponseEntity.status(status).body(new ApiError(exception.getMessage(), requestId(request)));
+    }
+
+    @ExceptionHandler(MusicBrainzClient.CatalogAccessException.class)
+    ResponseEntity<ApiError> musicBrainzAccess(MusicBrainzClient.CatalogAccessException exception, HttpServletRequest request) {
+        HttpStatus status = exception.retryable() ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
+        return ResponseEntity.status(status).body(new ApiError(exception.getMessage(), requestId(request)));
+    }
+
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ApiError> apiError(ApiException exception, HttpServletRequest request) {
         return ResponseEntity.status(exception.status()).body(new ApiError(exception.code(), requestId(request)));

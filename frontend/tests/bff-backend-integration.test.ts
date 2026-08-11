@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { GET as getCandidates } from "../app/api/fixture/candidates/route";
 import { GET as getHealth } from "../app/api/fixture/health/route";
+import { GET as getAlbums } from "../app/api/music/albums/route";
+import { GET as getTasteGraph } from "../app/api/music/graphrag/route";
+import { GET as getPersonalInsights } from "../app/api/music/insights/route";
 
 const originalBackendBaseUrl = process.env.BACKEND_BASE_URL;
 const originalBackendSecret = process.env.BACKEND_BFF_SHARED_SECRET;
@@ -31,6 +34,154 @@ async function withBackend(
 }
 
 describe("fixture BFF backend integration", () => {
+  it("preserves a real MusicBrainz result without confirmed front artwork", async () => {
+    await withBackend((_request, response) => {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([{
+        artist: "Artist",
+        artistCredits: ["Artist"],
+        coverUrl: "",
+        firstReleaseDate: "",
+        releaseGroupMbid: "release-group-id",
+        title: "No Front Art"
+      }]));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getAlbums(new NextRequest("http://localhost/api/music/albums?q=No+Front+Art"));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ albums: [{
+        artist: "Artist",
+        artistCredits: ["Artist"],
+        coverUrl: "",
+        firstReleaseDate: "",
+        releaseGroupMbid: "release-group-id",
+        title: "No Front Art"
+      }] });
+    });
+  });
+
+  it("projects the personal graph retrieval contract without creating browser-side data", async () => {
+    // Given an authenticated connected backend that returns a traceable retrieval result
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/graphrag/taste");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        evidencePageIds: ["notion-page-1"],
+        generatedByLlm: false,
+        personalRecordCount: 1,
+        recommendations: [{
+          artist: "Miles Davis",
+          artistCredits: ["Miles Davis"],
+          coverUrl: "https://cover.example/kind-of-blue.jpg",
+          evidenceMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+          evidencePaths: [{ recordPageId: "notion-page-1", relation: "SHARES_MUSICBRAINZ_TAG", value: "cool jazz" }],
+          firstReleaseDate: "1959-08-17",
+          releaseGroupMbid: "release-group-id",
+          title: "Kind of Blue",
+          score: 1
+        }],
+        retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+        seedArtist: "Miles Davis"
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      // When the browser requests the personal graph evidence
+      const response = await getTasteGraph();
+
+      // Then it receives only the schema-validated connected result
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        generatedByLlm: false,
+        retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL"
+      });
+    });
+  });
+
+  it("loads taste and graph evidence through one connected backend request", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/personal-insights");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        graphTaste: {
+          evidencePageIds: ["notion-page-1"],
+          personalRecordCount: 1,
+          retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+          relisten: [{
+            artist: "Miles Davis",
+            coverUrl: "",
+            evidenceMethod: "PERSONAL_RECORD_RELISTEN",
+            evidencePageId: "notion-page-1",
+            favouriteTrack: "So What",
+            owned: true,
+            releaseGroupMbid: "release-group-id",
+            title: "Kind of Blue"
+          }],
+          recommendations: [],
+          seedArtist: "Miles Davis"
+        },
+        taste: {
+          artists: [{ count: 1, value: "Miles Davis" }],
+          favouriteTracks: [{ count: 1, value: "So What" }],
+          recordCount: 1,
+          sentiments: [{ count: 1, value: "Loved" }]
+        }
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getPersonalInsights();
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        graphTaste: {
+          relisten: [{
+            evidenceMethod: "PERSONAL_RECORD_RELISTEN",
+            title: "Kind of Blue"
+          }],
+          seedArtist: "Miles Davis"
+        },
+        taste: { recordCount: 1 }
+      });
+    });
+  });
+
+  it("does not abandon a real personal-insights response at the former two-second BFF cutoff", async () => {
+    await withBackend((_request, response) => {
+      setTimeout(() => {
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify({
+          graphTaste: {
+            evidencePageIds: ["notion-page-1"],
+          personalRecordCount: 1,
+          retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+            recommendations: [],
+            seedArtist: "Miles Davis"
+          },
+          taste: {
+            artists: [{ count: 1, value: "Miles Davis" }],
+            favouriteTracks: [{ count: 1, value: "So What" }],
+            recordCount: 1,
+            sentiments: [{ count: 1, value: "Loved" }]
+          }
+        }));
+      }, 2_100);
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getPersonalInsights();
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ taste: { recordCount: 1 } });
+    });
+  });
+
   it("carries the server-only shared secret to the backend", async () => {
     // Given a wire-level backend that accepts only the configured shared secret
     let receivedSecret: string | undefined;
@@ -43,7 +194,7 @@ describe("fixture BFF backend integration", () => {
         response.end(JSON.stringify({ code: "BFF_AUTH_REQUIRED", requestId: "backend-request" }));
         return;
       }
-      response.end(JSON.stringify([{ artist: "Fixture Artist", id: "fixture-album-001", source: "PUBLIC_FIXTURE", title: "Fixture Album" }]));
+      response.end(JSON.stringify([{ artist: "윤슬", id: "fixture-album-001", source: "PUBLIC_FIXTURE", title: "밤의 기록" }]));
     }, async (baseUrl) => {
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
@@ -147,7 +298,7 @@ describe("fixture BFF backend integration", () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       code: "BACKEND_UNAVAILABLE",
-      message: "The fixture backend is temporarily unavailable.",
+      message: "The music backend is temporarily unavailable.",
       retryable: true
     });
   });

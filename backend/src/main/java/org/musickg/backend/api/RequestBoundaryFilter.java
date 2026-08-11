@@ -48,7 +48,7 @@ class RequestBoundaryFilter extends OncePerRequestFilter {
             reject(response, requestId, HttpStatus.PAYLOAD_TOO_LARGE, "PAYLOAD_TOO_LARGE");
             return;
         }
-        if (request.getRequestURI().equals("/api/v1/candidates") && !rateLimiter.allow(properties.rateLimit().searchPerMinute())) {
+        if (isSearchRequest(request) && !rateLimiter.allow(properties.rateLimit().searchPerMinute())) {
             reject(response, requestId, HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED");
             return;
         }
@@ -67,6 +67,11 @@ class RequestBoundaryFilter extends OncePerRequestFilter {
         return MessageDigest.isEqual(
                 configuredSecret.getBytes(StandardCharsets.UTF_8),
                 suppliedSecrets.getFirst().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean isSearchRequest(HttpServletRequest request) {
+        return request.getRequestURI().equals("/api/v1/candidates")
+                || request.getRequestURI().equals("/api/v1/catalog/albums");
     }
 
     private void reject(HttpServletResponse response, String requestId, HttpStatus status, String code) throws IOException {

@@ -1,0 +1,70 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: music-kg-personal-api
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/cpu-throttling: "true"
+    spec:
+      serviceAccountName: ${CLOUD_RUN_PRODUCTION_SERVICE_ACCOUNT}
+      containerConcurrency: 1
+      timeoutSeconds: 20
+      containers:
+        - image: ${IMAGE_DIGEST}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MUSIC_KG_API_MODE
+              value: production
+            - name: MUSIC_KG_API_AUTH_CONFIGURATION
+              value: bff-shared-secret
+            - name: MUSIC_KG_API_CORS_ALLOWED_ORIGINS
+              value: ${VERCEL_PRODUCTION_ORIGIN}
+            - name: MUSIC_KG_CONNECTED_MODE
+              value: connected
+            - name: NOTION_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: music-kg-production-notion-api-key
+                  key: latest
+            - name: NOTION_DATA_SOURCE_ID
+              value: ${NOTION_PRODUCTION_DATA_SOURCE_ID}
+            - name: NOTION_ALBUM_TITLE_FIELD
+              value: ${NOTION_ALBUM_TITLE_FIELD}
+            - name: NOTION_ARTIST_FIELD
+              value: ${NOTION_ARTIST_FIELD}
+            - name: NOTION_COVER_FIELD
+              value: ${NOTION_COVER_FIELD}
+            - name: NOTION_SENTIMENT_FIELD
+              value: ${NOTION_SENTIMENT_FIELD}
+            - name: NOTION_FAVOURITE_TRACK_FIELD
+              value: ${NOTION_FAVOURITE_TRACK_FIELD}
+            - name: NOTION_OWNED_FIELD
+              value: ${NOTION_OWNED_FIELD}
+            - name: NOTION_RELEASE_GROUP_MBID_FIELD
+              value: ${NOTION_RELEASE_GROUP_MBID_FIELD}
+            - name: MUSICBRAINZ_USER_AGENT
+              value: "${MUSICBRAINZ_USER_AGENT}"
+            - name: MUSICBRAINZ_REQUESTS_PER_SECOND
+              value: "1"
+            - name: SPRING_AUTOCONFIGURE_EXCLUDE
+              value: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+            - name: BACKEND_BFF_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: music-kg-production-bff-secret
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 2
+            failureThreshold: 30

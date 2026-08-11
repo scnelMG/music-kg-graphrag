@@ -10,7 +10,9 @@ if (exposedBackendSecrets.some((secret) => secret !== undefined && secret.length
 }
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   devIndicators: false,
+  distDir: process.env.NEXT_DIST_DIR ?? (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),
   poweredByHeader: false,
   reactStrictMode: true
 };

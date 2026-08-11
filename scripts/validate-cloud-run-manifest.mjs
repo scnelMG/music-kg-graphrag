@@ -29,8 +29,10 @@ export async function validateCloudRunManifest(path, identityConfiguration = {})
   const serviceNames = [...manifest.matchAll(/^\s{2}name:\s*(\S+)\s*$/gm)].map((match) => match[1]);
   const serviceName = serviceNames[0];
   const expectedServiceAccount = serviceName === "music-kg-fixture-api-preview"
+    || serviceName === "music-kg-personal-api-preview"
     ? previewServiceAccount
     : serviceName === "music-kg-fixture-api"
+      || serviceName === "music-kg-personal-api"
       ? productionServiceAccount
       : undefined;
   if (expectedServiceAccount === undefined || serviceAccountNames[0] !== expectedServiceAccount) {

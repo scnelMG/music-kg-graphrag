@@ -9,14 +9,14 @@ const bffFailureSchema = z.object({
 });
 
 type BffResult<T> =
-  | { readonly kind: "failure"; readonly message: string }
+  | { readonly code?: string; readonly kind: "failure"; readonly message: string }
   | { readonly kind: "success"; readonly value: T };
 
 const fallbackMessages = {
-  BACKEND_CONFIGURATION_ERROR: "The fixture service is not configured.",
-  BACKEND_CONTRACT_ERROR: "The fixture service returned an invalid response. Please retry.",
-  BACKEND_UNAVAILABLE: "The fixture service is temporarily unavailable. Please retry.",
-  BFF_AUTH_REQUIRED: "The fixture service authentication failed."
+  BACKEND_CONFIGURATION_ERROR: "The music service is not configured.",
+  BACKEND_CONTRACT_ERROR: "The music service returned an invalid response. Please retry.",
+  BACKEND_UNAVAILABLE: "The music service is temporarily unavailable. Please retry.",
+  BFF_AUTH_REQUIRED: "The music service authentication failed."
 } as const;
 const knownFailureCodeSchema = z.enum([
   "BACKEND_CONFIGURATION_ERROR",
@@ -29,7 +29,7 @@ function displayFailure(code: string, message?: string): string {
   if (message !== undefined) return message;
   const knownCode = knownFailureCodeSchema.safeParse(code);
   const knownMessage = knownCode.success ? fallbackMessages[knownCode.data] : undefined;
-  return knownMessage === undefined ? `${code}: The fixture request could not be completed.` : `${code}: ${knownMessage}`;
+  return knownMessage === undefined ? `${code}: The music request could not be completed.` : `${code}: ${knownMessage}`;
 }
 
 export function parseBffPayload<T>(schema: z.ZodType<T>, payload: unknown): BffResult<T> {
@@ -37,7 +37,7 @@ export function parseBffPayload<T>(schema: z.ZodType<T>, payload: unknown): BffR
   if (success.success) return { kind: "success", value: success.data };
   const failure = bffFailureSchema.safeParse(payload);
   if (failure.success) {
-    return { kind: "failure", message: displayFailure(failure.data.code, failure.data.message) };
+    return { code: failure.data.code, kind: "failure", message: displayFailure(failure.data.code, failure.data.message) };
   }
   return { kind: "failure", message: fallbackMessages.BACKEND_CONTRACT_ERROR };
 }
@@ -55,7 +55,7 @@ export async function requestBff<T>(request: Promise<Response>, schema: z.ZodTyp
       return { kind: "failure", message: fallbackMessages.BACKEND_UNAVAILABLE };
     }
     if (error instanceof Error) {
-      return { kind: "failure", message: "The fixture request failed safely. Please retry." };
+      return { kind: "failure", message: "The music request failed safely. Please retry." };
     }
     throw error;
   }

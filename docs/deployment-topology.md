@@ -1,19 +1,51 @@
-# Deployment topology and GraphDB recovery
+# Deployment topology, connected personal service, and GraphDB recovery
+
+## Current production boundaries
+
+The product has two deliberately separate data planes. They must not be
+described as one runtime until an operator deploys a durable projection host.
+
+- **Connected personal service:** Notion is the source of truth for a single
+  listener's album records. The Spring API runs on Cloud Run in `connected`
+  mode and reads/writes only the shared Notion data source. MusicBrainz is a
+  live catalog dependency for album and track selection. Vercel exposes this
+  API only through its server-side BFF shared-secret boundary; browser access
+  is additionally protected by a signed, expiring access-session cookie.
+- **Personal evidence graph:** each insight request builds a bounded,
+  deterministic graph from the current Notion records and follows recorded
+  artist edges into live MusicBrainz release groups. Every recommendation
+  contains the contributing Notion page IDs and a score. It is an evidence
+  graph traversal, not an LLM answer and not a persistent GraphDB/pgvector
+  retrieval service.
+- **Canonical projection pipeline:** PostgreSQL, outbox, GraphDB, SHACL and
+  the Python projector remain a separate canonical-data/projection system.
+  PostgreSQL is authoritative only for this projection plane. It is not the
+  source of truth for the connected personal Notion service, and fixture
+  pipeline output must never be shown as a listener record or recommendation.
+
+The connected Cloud Run templates are versioned in
+`deployment/cloud-run/connected-*-service.yaml.tmpl`. They require an
+immutable image digest, user-managed runtime identity, server-only Notion/BFF
+secrets, one request at a time (MusicBrainz's 1 RPS policy), max scale one,
+CPU throttling and scale-to-zero. A Cloud Run deployment is a real external
+change and is performed only after the checked-in manifest validation and
+frontend/backend CI gates pass.
 
 The machine-readable boundary is
 [`deployment/topology-contract.json`](../deployment/topology-contract.json).
-PostgreSQL is authoritative. GraphDB is a disposable, versioned RDF
-projection reconstructed from a PostgreSQL snapshot and projection
-generation; neither Workbench edits nor GraphDB backups can become canonical.
+For the canonical projection plane, PostgreSQL is authoritative. GraphDB is a
+disposable, versioned RDF projection reconstructed from a PostgreSQL snapshot
+and projection generation; neither Workbench edits nor GraphDB backups can
+become canonical.
 
 ## External host responsibilities
 
-Vercel is intended to host only the Next.js reviewer and short same-origin BFF
-routes. The deployment templates define two separate Google Cloud Run services
-for the Spring fixture API: a dedicated preview service and a production
-service deployed from the same immutable container digest. Each template uses
-a distinct user-managed runtime service account with access only to its own
-environment's BFF secret. No remote Cloud Run deployment is evidenced yet.
+Vercel hosts the Next.js personal music journal and short same-origin BFF
+routes. The deployment templates define separate preview and production Cloud
+Run services for the connected Spring API, each with a distinct user-managed
+runtime service account and only its own environment's BFF secret. The legacy
+fixture controller remains test-only under `music-kg.connected.mode=fixture`;
+the connected production manifest sets `music-kg.connected.mode=connected`.
 PostgreSQL and GraphDB run on an
 external stateful host, and the Python worker runs on an external worker host.
 The backend and worker may join the private data network. Browser and Vercel

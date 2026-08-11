@@ -47,7 +47,7 @@ test("running BFF process renders recoverable configuration guidance when server
     retryable: false
   });
   await expect(page.getByRole("status")).toContainText("백엔드 연결 설정이 완료되지 않았습니다.");
-  await expect(page.getByText("근거 서비스 설정이 필요합니다.")).toHaveCount(2);
+  await expect(page.getByText("추천과 근거를 연결하려면 설정이 필요합니다.")).toHaveCount(1);
   await expect(page.locator("#album-search")).toBeEditable();
   expect(pageErrors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("backend-configuration-recoverable.png"), fullPage: true });
@@ -91,7 +91,7 @@ test("review desk renders a message-less 502 contract error without crashing", a
   }));
   await page.route("**/api/fixture/candidates**", (route) => route.fulfill({
     body: JSON.stringify({
-      candidates: [{ artist: "Fixture Artist", id: "fixture-album-001", source: "PUBLIC_FIXTURE", title: "Fixture Album" }],
+      candidates: [{ artist: "윤슬", id: "fixture-album-001", source: "PUBLIC_FIXTURE", title: "밤의 기록" }],
       mode: "fixture"
     }),
     contentType: "application/json",
@@ -106,7 +106,7 @@ test("review desk renders a message-less 502 contract error without crashing", a
   // When a user searches, writes a review, and submits it through a real browser
   await page.goto("/");
   await page.locator(".search-row button").click();
-  await page.getByRole("button", { name: /Fixture Album/ }).click();
+  await page.getByRole("button", { name: /밤의 기록/ }).click();
   await page.locator("#review").fill("preserve this review");
   await page.locator(".save-button").click();
 

@@ -1,119 +1,45 @@
-# Frontend Demo UI Plan
+# Frontend Review Desk: Current Surface and Next Scope
 
-Todo 1 only plans the future frontend. It does not create product screens, routes, components, or a runnable frontend app.
+이 문서는 2026-08-10 기준의 실제 프런트엔드 범위를 설명합니다. 초기
+"UI를 계획만 한다"는 문서는 더 이상 현재 상태를 설명하지 못해 교체했습니다.
 
-## Audience
+## 지금 동작하는 흐름
 
-Primary reviewers are backend, data, AI/AX, public-sector IT, and bank IT reviewers. They need to see operational judgment: source provenance, sync safety, database/graph boundaries, validation behavior, and GraphRAG grounding.
+1. 한국어 앨범/아티스트 검색어로 fixture 후보를 찾는다.
+2. 후보를 선택하면 서버 측 BFF가 선택·추천·GraphRAG 근거를 요청한다.
+3. 사용자는 평점과 짧은 메모를 입력해 fixture 리뷰를 저장한다.
+4. 추천의 점수 분해, 자연어 근거, 증거 ID는 한 화면에서 검토한다.
+5. 후보 없음, 근거 없음, 추천 장애, BFF 설정 누락, API 장애는 각각
+   한국어 복구 안내로 표시한다.
 
-## Product Posture
+브라우저는 `/api/fixture/*`만 호출합니다. BFF 공유 비밀과 백엔드 주소는
+서버 환경 변수에만 존재하며, GraphDB·외부 공급자·Notion에 직접 접속하지
+않습니다.
 
-- Portfolio data/AI backend demo UI, not a consumer music discovery app.
-- Evidence-first and dense but organized.
-- Album art is supporting metadata, not the dominant visual object.
-- Dry-run and no-evidence behavior are first-class, not hidden edge cases.
-- Evidence synthesis is a bounded capability inside the review flow, not a generic chat destination.
+## 제품 원칙
 
-## Visual Direction and Anti-Pattern Guardrails
+- 현재는 익명화 fixture 데모다. 검색 결과, 저장, 추천이 실제 개인
+  라이브러리나 Notion에 쓰였다고 말하지 않는다.
+- 추천과 GraphRAG는 채팅 제품이 아니라 선택한 음반을 검토하기 위한
+  보조 근거다.
+- 추천 점수/식별자/원본 근거는 필요한 사람만 펼쳐 볼 수 있고, 기본
+  흐름은 앨범 선택과 기록에 집중한다.
+- 화면은 한국어 우선의 음악 기록장이다. 이모지, 보라색 AI 그라데이션,
+  KPI 카드 벽, 상태 점+둥근 배지는 사용하지 않는다.
 
-- Use an editorial review-desk composition: compact context rail, one central work sheet, and a conditional evidence inspector. Avoid a default full-height left navigation plus a wall of dashboard cards.
-- Use a warm neutral palette with mineral blue as the only non-semantic accent. No purple/blue AI gradients, neon, glassmorphism, oversized music imagery, or decorative graph visualizations.
-- Use Geist for UI, Newsreader only for page-level questions/review quotations, and Geist Mono for provenance IDs, scores, timestamps, and query references. Do not use Inter.
-- Use one bold/fill icon family (`@phosphor-icons/react`, or its `react-icons` equivalent if required); no emoji and no mixed icon weights.
-- Replace left-rule callout boxes with titled inset regions, definition lists, or full-width actionable notices.
-- Replace dot-plus-pill statuses with explicit metadata cells such as `Sync: dry-run only`, square flags, or recovery sentences. Color is supplementary, never the sole state signal.
-- Use "evidence synthesis" in visible UI. Model/provider identifiers appear only in the provenance disclosure.
+## 접근성 및 반응형 계약
 
-## Korean Language Quality
+- 375px, 768px, 1280px에서 가로 스크롤 없이 동작한다.
+- 터치 대상은 최소 44px이고, 키보드 focus와 상태 안내를 제공한다.
+- 900px 이하는 순서가 보존된 단일 흐름으로 쌓인다.
+- 기술 식별자는 접을 수 있는 상세 정보에만 두고, 한국어 문장은 자연스럽게
+  줄바꿈한다.
 
-- Korean screens declare `lang="ko"` and use `Pretendard Variable` (fallback `Noto Sans KR`) for UI, `Noto Serif KR` only for editorial questions/quoted reviews, and a Korean-capable monospace fallback for IDs.
-- Preserve IDs, scores, source names, direct quotations, MusicBrainz names, and ontology terms exactly. Translate their surrounding labels, never the identifier itself.
-- Write concise, evidence-first Korean: `근거를 찾지 못했습니다. 질문 범위를 좁히거나 검토 기록을 추가하세요.` Do not use translationese, mechanical `첫째/둘째/셋째`, filler conclusions, excessive English parentheticals, decorative punctuation, or AI-style overexplaining.
-- Generated Korean answers must be claim-addressable: each factual sentence maps to visible evidence IDs. A Korean fluency pass must never rewrite evidence, numbers, named entities, or the refusal condition.
-- Visual QA includes Korean long/short labels, unbroken identifiers, 200% zoom, and mobile line wrapping. Korean sentences must use natural wrapping; IDs may wrap only as an emergency overflow behavior.
+## 다음 제품 슬라이스
 
-## Design Reference Operating Rules
+실제 MusicBrainz/커버 아트 검색, 최애곡, 영구 개인 음악 이력, Notion
+가져오기/쓰기, 취향 모델은 아직 연결하지 않았다. 다음 구현은 이 항목들을
+소스·동의·오류 복구 계약과 함께 추가해야 하며, fixture 화면이 이를 이미
+제공하는 것처럼 보이게 해서는 안 된다.
 
-- `getdesign.md` is an optional comparative library, not a replacement for this project's `DESIGN.md`. Before a new screen is implemented, the executor may inspect one relevant reference for component anatomy or spacing, then must map the useful part to existing project tokens. Do not copy a brand's logo, text, assets, or complete layout.
-- Design Spells is approved only as a source of interaction ideas for the three defined patterns: field/selection feedback, evidence-inspector expand/collapse, and confirmed save/copy feedback. Motion remains optional, keyboard-safe, and disabled or reduced under `prefers-reduced-motion`.
-- Wall of Portfolios is useful only for a later portfolio case-study review. It does not define this product UI and is not an implementation dependency.
-- Do not import 21st.dev components wholesale. Its registry can copy third-party code and dependencies into the repository; use it only after a specific component has passed dependency, accessibility, license, visual-token, and bundle-size review. There is no approved 21st.dev dependency for the first implementation slice.
-- Do not send private previews, personal review data, authenticated pages, API responses, or secrets to an external URL-to-design-audit service. The project uses local Playwright screenshots and documented visual QA instead.
-
-## Planned Flows
-
-### 1. Album Search
-
-- Enter album title and optional artist.
-- Show search state, rate-limit-safe loading state, empty state, and source error state.
-- Results expose MusicBrainz IDs, release dates, artist names, cover-art availability, and confidence/provenance.
-
-### 2. Candidate Selection
-
-- Select one canonical candidate from normalized results.
-- Show candidate details without exposing raw external API response shape.
-- Display conflicts or low-confidence matches as review-required states.
-
-### 3. Personal Review Input
-
-- Capture rating label, personal review text, favorite track or manual fallback, and ownership.
-- Preserve exact Notion-compatible labels later defined by backend/domain contracts.
-- Save flow must include draft, saving, saved, validation error, and conflict states.
-
-### 4. Notion Dry-Run Operational Record
-
-- Show the Notion create/update payload in dry-run form.
-- Highlight fields that would change and fields intentionally left untouched.
-- Show missing env, disabled writes, conflict, no-change, success, and API-error states as a labeled operational record with the exact recovery step.
-
-### 5. Knowledge Graph Evidence Path Viewing
-
-- Display graph paths as ordered readable text plus optional visual adjacency.
-- Show source identifiers, query file references, and provenance labels.
-- Support no-evidence and malformed/failed-query states.
-
-### 6. Evidence Synthesis Answer
-
-- Ask a constrained natural-language question.
-- Return answer text only when graph/vector evidence exists.
-- Show an answer claim-to-evidence map, graph paths, vector hits, explicit coverage text, and insufficient-evidence fallback.
-- Never present unsupported free-form recommendations as valid answers.
-
-## Responsive Plan
-
-| Width | Layout | Behavior |
-| --- | --- | --- |
-| 320px-639px | Mobile stack | One active task at a time; evidence panels follow active content; no horizontal scroll. |
-| 640px-1023px | Tablet split | Search/review workflow above or left, evidence/sync context beside or below depending on content width. |
-| 1024px+ | Desktop review desk | Compact context rail, central work sheet, and a conditional evidence inspector; no permanent generic dashboard sidebar. |
-
-At 200% zoom, content remains usable without horizontal scrolling. Touch targets are at least 44px by 44px.
-
-## State Matrix
-
-| Area | Required states |
-| --- | --- |
-| Search | idle, loading, results, empty, error, rate-limited |
-| Candidate selection | default, focused, selected, low-confidence, no-cover, source-conflict |
-| Review save | draft, invalid, saving, saved, conflict, error |
-| Notion dry-run | missing-env, disabled, no-change, diff-ready, conflict, API-error |
-| KG evidence | loading, paths-found, expanded, copied, no-evidence, query-error |
-| GraphRAG answer | asking, answered, partial-evidence, insufficient-evidence, provider-missing, error |
-
-## Accessibility Requirements
-
-- WCAG AA contrast minimum for text and UI boundaries.
-- Visible focus indicators on every interactive element.
-- Keyboard-only completion of all planned flows.
-- Screen-reader-readable evidence paths; graph information cannot rely on node diagrams alone.
-- Loading, save, sync, and answer updates use live-region announcements.
-- Error states include recovery instructions and preserve user input.
-- No information communicated by color alone.
-
-## Deferred Until Later Todos
-
-- React or other frontend app setup.
-- Component implementation.
-- API wiring.
-- Graph visualization implementation.
-- Product screen visual QA.
+시각 시스템과 컴포넌트 계약은 [`DESIGN.md`](../DESIGN.md)를 기준으로 한다.

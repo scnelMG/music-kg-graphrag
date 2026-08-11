@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration",
+        "music-kg.connected.mode=fixture",
         "music-kg.api.mode=fixture",
         "music-kg.api.bff-shared-secret=test-bff-secret"
 })

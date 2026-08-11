@@ -1,11 +1,11 @@
 "use client";
 
-import { CheckCircle, FloppyDisk, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react/ssr";
+import { ArrowRight, Check, CheckCircle, FloppyDisk, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react/ssr";
 import ky from "ky";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
-import { EvidencePathViewer, EvidenceSynthesisPanel, type EvidenceState, type Recommendation } from "./evidence-panels";
+import { InsightNote, type EvidenceState, type Recommendation } from "./evidence-panels";
 import { requestBff } from "../lib/review-bff-contract";
 
 type Candidate = { readonly artist: string; readonly id: string; readonly source: "PUBLIC_FIXTURE"; readonly title: string };
@@ -52,16 +52,6 @@ const recommendationSchema = z.object({
   })
 });
 
-function noticeMessage(notice: Notice): React.ReactNode {
-  const phrase = notice.tone === "success" ? "외부 쓰기" : undefined;
-  if (phrase === undefined) return notice.message;
-  const parts = notice.message.split(phrase);
-  const before = parts[0];
-  const after = parts[1];
-  if (parts.length !== 2 || before === undefined || after === undefined) return notice.message;
-  return <>{before}<span className="keep-together">{phrase}</span>{after}</>;
-}
-
 function koreanFailure(message: string): { readonly configurationRequired: boolean; readonly message: string; readonly recovery: string } {
   const normalized = message.toLowerCase();
   if (/[가-힣]/u.test(message)) {
@@ -96,14 +86,14 @@ function ResultRegion(props: {
 }): React.JSX.Element {
   const { candidates, onSelect, selectedCandidate, state } = props;
   return <div className="result-region" aria-live="polite" aria-busy={state === "loading"}>
-    <p className="result-caption">검색 결과: {candidates.length}건</p>
-    {state === "idle" && <p className="result-message">앨범 제목이나 아티스트를 입력한 뒤 후보 찾기를 눌러 주세요.</p>}
-    {state === "loading" && <div className="loading-record"><span />후보를 찾고 있습니다.</div>}
-    {state === "empty" && <p className="result-message">일치하는 공개 fixture 후보가 없습니다. 검색어를 확인해 다시 시도해 주세요.</p>}
+    <p className="result-caption">{state === "results" ? `찾은 음반 ${candidates.length}장` : "검색 결과"}</p>
+    {state === "idle" && <p className="result-message">제목이나 아티스트를 입력하면 고를 수 있는 음반을 보여드려요.</p>}
+    {state === "loading" && <div className="loading-record"><span />음반을 찾고 있습니다.</div>}
+    {state === "empty" && <p className="result-message">아직 맞는 음반을 찾지 못했습니다. 제목이나 아티스트를 조금 다르게 입력해 보세요.</p>}
     {state === "error" && <p className="result-message">검색을 완료하지 못했습니다. 위 복구 안내를 확인해 주세요.</p>}
     {candidates.map((candidate) => {
       const selected = selectedCandidate?.id === candidate.id;
-      return <button className={`candidate-row${selected ? " selected" : ""}`} type="button" key={candidate.id} onClick={() => onSelect(candidate)} aria-pressed={selected}><span><strong>{candidate.title}</strong><small>{candidate.artist}</small></span><span className="mono">{candidate.id}</span><span>{candidate.source}</span><span className="selection-label">{selected ? "선택됨" : "선택"}</span></button>;
+      return <button className={`candidate-row${selected ? " selected" : ""}`} type="button" key={candidate.id} onClick={() => onSelect(candidate)} aria-pressed={selected}><span><strong>{candidate.title}</strong><small>{candidate.artist}</small></span><span className="selection-label">{selected ? <><Check size={16} weight="bold" aria-hidden="true" />고름</> : <><ArrowRight size={16} weight="bold" aria-hidden="true" />기록하기</>}</span></button>;
     })}
   </div>;
 }
@@ -111,7 +101,7 @@ function ResultRegion(props: {
 export function ReviewDesk(): React.JSX.Element {
   const [candidates, setCandidates] = useState<readonly Candidate[]>([]);
   const [health, setHealth] = useState<HealthState>({ kind: "loading" });
-  const [query, setQuery] = useState("Fixture Album");
+  const [query, setQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [rating, setRating] = useState("5");
   const [review, setReview] = useState("");
@@ -134,6 +124,7 @@ export function ReviewDesk(): React.JSX.Element {
   }, []);
 
   async function search(): Promise<void> {
+    evidenceRequestId.current += 1;
     setSearchState("loading");
     setNotice(null);
     setSelectedCandidate(null);
@@ -156,33 +147,43 @@ export function ReviewDesk(): React.JSX.Element {
     setSelectedCandidate(candidate);
     setSaveState({ kind: "idle" });
     setSelectedEvidence({ state: "loading" });
-    const [outcome, recommendationOutcome] = await Promise.all([
-      requestBff(
-        ky.post(`/api/fixture/candidates/${encodeURIComponent(candidate.id)}/evidence`, { throwHttpErrors: false }),
-        evidenceReadySchema
-      ),
-      requestBff(ky.post("/api/fixture/recommendations", { json: { selectedCandidateId: candidate.id }, throwHttpErrors: false }), recommendationSchema)
-    ]);
+    const evidenceOutcome = requestBff(
+      ky.post(`/api/fixture/candidates/${encodeURIComponent(candidate.id)}/evidence`, { throwHttpErrors: false }),
+      evidenceReadySchema
+    );
+    const recommendationOutcome = requestBff(
+      ky.post("/api/fixture/recommendations", { json: { selectedCandidateId: candidate.id }, throwHttpErrors: false }),
+      recommendationSchema
+    );
+    const outcome = await evidenceOutcome;
     if (requestId !== evidenceRequestId.current) return;
     if (outcome.kind === "success") {
-      const recommendationMatchesSelection = recommendationOutcome.kind === "success"
-        && recommendationOutcome.value.reviewCandidateId === candidate.id;
-      const recommendation: Recommendation | undefined = recommendationMatchesSelection && recommendationOutcome.kind === "success"
-        ? {
-          ...recommendationOutcome.value.recommendation,
-          policyVersion: recommendationOutcome.value.policyVersion,
-          reviewCandidateId: recommendationOutcome.value.reviewCandidateId
-        }
-        : undefined;
-      const recommendationError = recommendationOutcome.kind === "failure"
-        ? koreanFailure(recommendationOutcome.message)
-        : recommendationMatchesSelection
-          ? undefined
-          : koreanFailure("BACKEND_CONTRACT_ERROR");
-      setSelectedEvidence({
-        ...outcome.value,
-        recommendation,
-        recommendationError: recommendationError === undefined ? undefined : `${recommendationError.message} ${recommendationError.recovery}`
+      setSelectedEvidence(outcome.value);
+      void recommendationOutcome.then((recommendationResult) => {
+        if (requestId !== evidenceRequestId.current) return;
+        const recommendationMatchesSelection = recommendationResult.kind === "success"
+          && recommendationResult.value.reviewCandidateId === candidate.id;
+        const recommendation: Recommendation | undefined = recommendationMatchesSelection && recommendationResult.kind === "success"
+          ? {
+            ...recommendationResult.value.recommendation,
+            policyVersion: recommendationResult.value.policyVersion,
+            reviewCandidateId: recommendationResult.value.reviewCandidateId
+          }
+          : undefined;
+        const recommendationError = recommendationResult.kind === "failure"
+          ? koreanFailure(recommendationResult.message)
+          : recommendationMatchesSelection
+            ? undefined
+            : koreanFailure("BACKEND_CONTRACT_ERROR");
+        setSelectedEvidence((current) => current.state === "ready"
+          ? {
+            ...current,
+            recommendation,
+            recommendationError: recommendationError === undefined
+              ? undefined
+              : `${recommendationError.message} ${recommendationError.recovery}`
+          }
+          : current);
       });
       return;
     }
@@ -205,23 +206,27 @@ export function ReviewDesk(): React.JSX.Element {
       return;
     }
     setSaveState({ kind: "success", value: outcome.value });
-    setNotice({ message: "fixture 검토 기록을 저장했습니다. 외부 쓰기는 수행하지 않았습니다.", tone: "success" });
+    setNotice({ message: "데모 기록을 저장했습니다. 외부 저장은 하지 않았습니다.", tone: "success" });
   }
 
   const visibleEvidence = evidenceState(health, selectedEvidence);
   const saveEnabled = selectedCandidate !== null && saveState.kind !== "saving";
   const healthLabel = health.kind === "loading" ? "연결 확인 중" : health.kind === "ready" ? "연결됨" : "조치 필요";
 
-  return <main className="desk-shell">
-    <header className="masthead"><div><p className="eyebrow">MUSIC KG / REVIEW DESK</p><h1>앨범 근거 검토</h1></div><dl className="environment-record" aria-label="실행 환경"><div><dt>모드</dt><dd data-testid="fixture-label">fixture only</dd></div><div><dt>백엔드 상태</dt><dd>{healthLabel}</dd></div></dl></header>
-    <nav className="task-navigation" aria-label="검토 단계"><a href="#candidate-search">1. 후보 검색</a><a href="#review-record">2. 검토 기록</a><a href="#evidence-review">3. 근거 확인</a></nav>
-    <section className="workspace" aria-label="fixture 검토 작업공간">
-      <section className="work-sheet" aria-labelledby="task-heading">
-        <section id="candidate-search"><p className="section-index">01 / 후보 검색</p><h2 id="task-heading">어떤 앨범을 검토할까요?</h2><p className="instruction">제목이나 아티스트를 입력하면 공개 fixture 후보만 찾습니다. 후보는 자동으로 <span className="keep-together">선택되지 않습니다.</span></p><div className="search-row"><label htmlFor="album-search">앨범 또는 아티스트</label><input id="album-search" value={query} onChange={(event) => setQuery(event.target.value)} /><button type="button" disabled={searchState === "loading"} onClick={() => void search()}><MagnifyingGlass size={18} weight="bold" aria-hidden="true" />{searchState === "loading" ? "검색 중" : "후보 찾기"}</button></div><ResultRegion candidates={candidates} onSelect={(candidate) => void selectCandidate(candidate)} selectedCandidate={selectedCandidate} state={searchState} /></section>
-        <section className="review-form" id="review-record" aria-labelledby="review-heading"><p className="section-index">02 / 검토 기록</p><h2 id="review-heading">선택한 후보에 검토 메모를 남깁니다.</h2><p className="selection-feedback" id="selection-feedback">{selectedCandidate === null ? "저장하려면 검색 결과에서 후보를 먼저 선택해 주세요." : <><strong>선택 후보:</strong> {selectedCandidate.title} · <span className="mono">{selectedCandidate.id}</span></>}</p><div className="field-grid"><label htmlFor="rating">평점 (1–5)<input id="rating" type="number" min="1" max="5" value={rating} onChange={(event) => setRating(event.target.value)} /></label><label htmlFor="review">검토 메모<textarea id="review" value={review} onChange={(event) => setReview(event.target.value)} placeholder="fixture 검토에 남길 메모" /></label></div><button type="button" className="save-button" disabled={!saveEnabled} aria-describedby="selection-feedback" onClick={() => void saveReview()}><FloppyDisk size={18} weight="fill" aria-hidden="true" />{saveState.kind === "saving" ? "저장 중" : "fixture에 저장"}</button>{saveState.kind === "success" && <dl className="source-record" data-testid="save-confirmation"><div><dt>저장 ID</dt><dd className="mono">{saveState.value.reviewId}</dd></div><div><dt>저장 상태</dt><dd>{saveState.value.status}</dd></div></dl>}</section>
-        {notice !== null && <p className={`notice ${notice.tone}`} role="status">{notice.tone === "success" ? <CheckCircle size={18} weight="fill" aria-hidden="true" /> : <WarningCircle size={18} weight="fill" aria-hidden="true" />}<span>{noticeMessage(notice)}</span></p>}
+  return <main className="music-journal">
+    <header className="journal-header">
+      <h1>내 음악 기록</h1>
+      <p className="journal-intro">무슨 음악을 다시 듣고 싶은지, 한 장씩 <span className="keep-together">기록해 보세요.</span></p>
+      <div className="journal-context"><p>연결 상태: <strong>{healthLabel}</strong></p><details className="demo-disclosure"><summary>데모 데이터 정보</summary><p>현재는 안전한 데모 데이터로 동작합니다. <span data-testid="fixture-label" className="mono">fixture only</span></p></details></div>
+    </header>
+    <nav className="task-navigation" aria-label="음악 기록 순서"><a href="#candidate-search">음반 찾기</a><a href="#review-record">내 기록 남기기</a><a href="#evidence-review">추천 이유 보기</a></nav>
+    <section className="journal-workspace" aria-label="음악 기록 작업공간">
+      <section className="journal-page" aria-labelledby="task-heading">
+        <section className="search-section" id="candidate-search"><p className="section-kicker">찾아보기</p><h2 id="task-heading">어떤 음반을 찾고 있나요?</h2><p className="instruction">제목이나 아티스트를 입력한 뒤 <span className="keep-together">음반을 골라 보세요.</span></p><form className="search-row" onSubmit={(event) => { event.preventDefault(); void search(); }}><label htmlFor="album-search">앨범 또는 아티스트</label><input id="album-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="예: 앨범명 또는 아티스트" /><button type="submit" disabled={searchState === "loading"}><MagnifyingGlass size={18} weight="bold" aria-hidden="true" />{searchState === "loading" ? "찾는 중" : "음반 찾기"}</button></form><ResultRegion candidates={candidates} onSelect={(candidate) => void selectCandidate(candidate)} selectedCandidate={selectedCandidate} state={searchState} /></section>
+        <section className="listening-note" id="review-record" aria-labelledby="review-heading"><p className="section-kicker">내 기록</p><h2 id="review-heading">이번엔 어떻게 들렸나요?</h2><div className="selected-record" id="selection-feedback">{selectedCandidate === null ? <p>먼저 음반을 고르면, 여기에 내 기록을 남길 수 있어요.</p> : <><p className="section-kicker">선택한 음반</p><strong>{selectedCandidate.title}</strong><span>{selectedCandidate.artist}</span></>}</div><div className="field-grid"><label htmlFor="rating">내 평점 (1–5)<input id="rating" type="number" min="1" max="5" value={rating} onChange={(event) => setRating(event.target.value)} /></label><label htmlFor="review">한 줄 메모<textarea id="review" value={review} onChange={(event) => setReview(event.target.value)} placeholder="기억하고 싶은 순간이나 최애곡을 적어 보세요." /></label></div><button type="button" className="save-button" disabled={!saveEnabled} aria-describedby="selection-feedback" onClick={() => void saveReview()}><FloppyDisk size={18} weight="fill" aria-hidden="true" />{saveState.kind === "saving" ? "저장 중" : "기록 저장"}</button>{saveState.kind === "success" && <dl className="save-record" data-testid="save-confirmation"><div><dt>기록 ID</dt><dd className="mono">{saveState.value.reviewId}</dd></div><div><dt>상태</dt><dd>데모 기록 저장 완료</dd></div></dl>}</section>
+        {notice !== null && <p className={`notice ${notice.tone}`} role="status">{notice.tone === "success" ? <CheckCircle size={18} weight="fill" aria-hidden="true" /> : <WarningCircle size={18} weight="fill" aria-hidden="true" />}<span>{notice.message}</span></p>}
       </section>
-      <section className="evidence-workspace" id="evidence-review" aria-label="근거 검토"><EvidencePathViewer evidence={visibleEvidence} /><EvidenceSynthesisPanel evidence={visibleEvidence} /></section>
+      <aside className="insight-region" aria-label="추천과 근거"><InsightNote evidence={visibleEvidence} /></aside>
     </section>
   </main>;
 }

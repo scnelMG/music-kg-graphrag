@@ -268,3 +268,86 @@ test("production template preserves the fixture no-database and low-cost runtime
     /- name: SPRING_AUTOCONFIGURE_EXCLUDE\n\s+value: org\.springframework\.boot\.autoconfigure\.jdbc\.DataSourceAutoConfiguration,org\.springframework\.boot\.autoconfigure\.flyway\.FlywayAutoConfiguration/
   );
 });
+
+test("connected production template requires a server-side Notion secret and explicit connected mode", async () => {
+  const template = await readFile(
+    join(import.meta.dirname, "..", "deployment", "cloud-run", "connected-production-service.yaml.tmpl"),
+    "utf8"
+  );
+
+  assert.match(template, /name: MUSIC_KG_CONNECTED_MODE\n\s+value: connected/);
+  assert.match(template, /name: NOTION_API_KEY\n\s+valueFrom:\n\s+secretKeyRef:\n\s+name: music-kg-production-notion-api-key/);
+  assert.match(template, /name: MUSIC_KG_API_CORS_ALLOWED_ORIGINS\n\s+value: \$\{VERCEL_PRODUCTION_ORIGIN\}/);
+  assert.match(template, /name: NOTION_RELEASE_GROUP_MBID_FIELD\n\s+value: \$\{NOTION_RELEASE_GROUP_MBID_FIELD\}/);
+  assert.match(template, /name: MUSICBRAINZ_USER_AGENT\n\s+value: "\$\{MUSICBRAINZ_USER_AGENT\}"/);
+  assert.match(template, /autoscaling\.knative\.dev\/maxScale: "1"/);
+  assert.match(template, /containerConcurrency: 1/);
+  assert.match(template, /timeoutSeconds: 20/);
+});
+
+test("connected preview template quotes the operator MusicBrainz user agent", async () => {
+  // Given an operator user agent that may contain YAML syntax such as a colon
+  const template = await readFile(
+    join(import.meta.dirname, "..", "deployment", "cloud-run", "connected-preview-service.yaml.tmpl"),
+    "utf8"
+  );
+
+  // When the template is rendered for a Cloud Run deployment
+  // Then the scalar remains a YAML string instead of becoming mapping syntax
+  assert.match(template, /name: MUSICBRAINZ_USER_AGENT\n\s+value: "\$\{MUSICBRAINZ_USER_AGENT\}"/);
+  assert.match(template, /containerConcurrency: 1/);
+  assert.match(template, /timeoutSeconds: 20/);
+});
+
+test("connected templates render only when every server-side data binding is supplied", async () => {
+  // Given the personal-service templates and environment-specific Notion data sources
+  const directory = await mkdtemp(join(tmpdir(), "music-kg-cloud-run-"));
+  const digest = `us-docker.pkg.dev/project/repo/backend@sha256:${"b".repeat(64)}`;
+  const commonBindings = {
+    "${IMAGE_DIGEST}": digest,
+    "${NOTION_ALBUM_TITLE_FIELD}": "앨범명",
+    "${NOTION_ARTIST_FIELD}": "가수",
+    "${NOTION_COVER_FIELD}": "앨범커버",
+    "${NOTION_SENTIMENT_FIELD}": "개인 감상평",
+    "${NOTION_FAVOURITE_TRACK_FIELD}": "개인 최애곡",
+    "${NOTION_OWNED_FIELD}": "앨범 보유",
+    "${NOTION_RELEASE_GROUP_MBID_FIELD}": "MusicBrainz MBID",
+    "${MUSICBRAINZ_USER_AGENT}": "music-kg-graphrag/1.0 (operator@example.invalid)"
+  };
+  const templates = [
+    {
+      path: join(import.meta.dirname, "..", "deployment", "cloud-run", "connected-preview-service.yaml.tmpl"),
+      bindings: {
+        "${CLOUD_RUN_PREVIEW_SERVICE_ACCOUNT}": previewServiceAccount,
+        "${VERCEL_PREVIEW_ORIGIN}": "https://preview.example.invalid",
+        "${NOTION_PREVIEW_DATA_SOURCE_ID}": "preview-data-source"
+      }
+    },
+    {
+      path: join(import.meta.dirname, "..", "deployment", "cloud-run", "connected-production-service.yaml.tmpl"),
+      bindings: {
+        "${CLOUD_RUN_PRODUCTION_SERVICE_ACCOUNT}": productionServiceAccount,
+        "${VERCEL_PRODUCTION_ORIGIN}": "https://music.example.invalid",
+        "${NOTION_PRODUCTION_DATA_SOURCE_ID}": "production-data-source"
+      }
+    }
+  ];
+
+  try {
+    // When an operator renders each template with no client-side Notion credential
+    for (const [index, template] of templates.entries()) {
+      let rendered = await readFile(template.path, "utf8");
+      for (const [placeholder, value] of Object.entries({ ...commonBindings, ...template.bindings })) {
+        rendered = rendered.replaceAll(placeholder, value);
+      }
+      const manifest = join(directory, `connected-${index}.yaml`);
+      await writeFile(manifest, rendered, "utf8");
+
+      // Then the wrapper validator accepts the immutable, fully bound manifest
+      assert.deepEqual(await validateCloudRunManifest(manifest, validIdentityConfiguration), { kind: "valid" });
+      assert.doesNotMatch(rendered, /NOTION_API_KEY\n\s+value:/);
+    }
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+});

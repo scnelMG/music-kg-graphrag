@@ -13,7 +13,7 @@ class ProductionConfigurationTest {
         assertThatThrownBy(() -> new SpringApplicationBuilder(MusicKgApplication.class)
                 .web(WebApplicationType.NONE)
                 .properties("spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration")
-                .run("--music-kg.api.mode=production", "--music-kg.api.cors.allowed-origins=*"))
+                .run("--music-kg.connected.mode=fixture", "--music-kg.api.mode=production", "--music-kg.api.cors.allowed-origins=*"))
                 .hasRootCauseMessage("PRODUCTION_AUTH_CONFIGURATION_REQUIRED");
     }
 
@@ -23,6 +23,7 @@ class ProductionConfigurationTest {
                 .web(WebApplicationType.NONE)
                 .properties("spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration")
                 .run(
+                        "--music-kg.connected.mode=fixture",
                         "--music-kg.api.mode=production",
                         "--music-kg.api.auth-configuration=oauth2",
                         "--music-kg.api.bff-shared-secret=production-secret",
@@ -36,6 +37,7 @@ class ProductionConfigurationTest {
                 .web(WebApplicationType.NONE)
                 .properties("spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration")
                 .run(
+                        "--music-kg.connected.mode=fixture",
                         "--music-kg.api.mode=production",
                         "--music-kg.api.auth-configuration=oauth2",
                         "--music-kg.api.cors.allowed-origins=https://review.example.test"))

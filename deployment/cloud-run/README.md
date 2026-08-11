@@ -1,10 +1,46 @@
-# Cloud Run fixture API deployment
+# Legacy Cloud Run fixture API deployment
 
-These templates keep Spring outside Vercel and keep both shared secrets in
-Google Secret Manager. They are templates, not proof that a service exists.
+These templates are for the isolated fixture API only. They are not a deployment
+contract for the active Notion-connected personal service. The connected service
+uses the separately named `connected-production-service.yaml.tmpl` and
+`connected-preview-service.yaml.tmpl` templates. It must use a server-side
+Notion secret and the Vercel private-access boundary in
+[`docs/connected-service-setup.md`](../../docs/connected-service-setup.md).
+They keep Spring outside Vercel and keep both shared secrets in Google Secret Manager.
+They are templates, not proof that a service exists.
 Only deploy after an operator supplies an active Google Cloud account, project,
 region, Artifact Registry repository, two Secret Manager secrets, and the two
 approved Vercel origins.
+
+## Connected personal service contract
+
+The connected templates are intentionally separate from the fixture templates.
+They run `MUSIC_KG_CONNECTED_MODE=connected`, read the Notion API key only from
+Google Secret Manager, and require an explicit Notion data-source identifier
+and property names at render time. The browser and Vercel never receive
+`NOTION_API_KEY`.
+
+Use a separate, non-personal Notion data source for Preview. This prevents a
+Preview deployment from reading or writing the records used by Production.
+Give the Preview and Production Cloud Run service accounts access only to their
+matching BFF and Notion secrets. The templates retain scale-to-zero, `maxScale`
+of one, CPU throttling, and the no-JDBC Spring exclusions.
+
+For Vercel, set these values as server-only variables in the matching
+environment: `BACKEND_BASE_URL`, `BACKEND_BFF_SHARED_SECRET`, and
+`MUSIC_KG_APP_ACCESS_TOKEN`. The last value is a random access token of at
+least 32 characters; it enables the private operator access screen in the
+production frontend. Do not store it, the Notion API key, or either BFF secret
+in source control or expose them as `NEXT_PUBLIC_*` variables.
+
+Before a connected deployment, render the templates with `IMAGE_DIGEST`, the
+matching Vercel origin, Cloud Run service account, Notion data-source ID,
+Notion field names, and a MusicBrainz User-Agent. Run
+`node scripts/test-validate-cloud-run-manifest.mjs` and deploy only the fully
+rendered file through `scripts/deploy-cloud-run-service.mjs`. Creating the
+Notion secrets, granting Secret Manager access, and replacing a Cloud Run
+service are external state changes; they have not been performed by this
+repository check.
 
 The backend Dockerfile pins its Java 21 build and runtime stages to immutable
 official Eclipse Temurin manifests. Their source records are the Docker Hub

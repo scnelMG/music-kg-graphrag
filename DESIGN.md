@@ -1,195 +1,109 @@
 # Music KG GraphRAG Design System
 
-## 1. Atmosphere & Identity
+## Product position
 
-The interface is an evidence review desk for technical reviewers, not an "AI dashboard" or consumer music app. It should read like a carefully typeset research workspace: calm paper-like surfaces, high-information source records, and one clear task in focus. The memorable interaction is opening an answer and seeing its evidence trail unfold as an ordered reading path, not as a glowing chatbot response.
+이 서비스는 개인 음악 기록을 위한 **근거가 보이는 음악 기록장**이다. 첫 화면의
+목표는 사용자가 실제 앨범을 찾고, 선택하고, 자신의 감상을 Notion에 남기도록
+돕는 것이다. 추천과 그래프 탐색 근거는 선택을 뒷받침하며 채팅 제품의 전면
+장식이 아니다.
 
-Design read: an operational portfolio/demo for backend, data, AI/AX, public-sector IT, and bank IT reviewers, with an editorial utilitarian language. The direction uses the user-supplied Gesso and Select references only as a prompt for considered creative intent and restraint; it does not copy either site's layout, words, assets, or brand treatment.
+연결 모드에서 앨범 검색은 MusicBrainz, 개인 기록의 원본은 사용자가 공유한
+Notion 데이터베이스다. 연결할 수 없는 데이터는 결과·커버·기록·추천으로
+꾸미지 않으며, 사용자가 해결할 수 있는 상태와 다음 행동을 명시한다.
 
-### Non-negotiable visual guardrails
+## 디자인 원칙
 
-- Do not use emoji, sparkle/brain/robot metaphors, AI-purple/blue gradients, neon, glass cards, generic three-card marketing grids, or decorative graph nodes.
-- Do not use a text box distinguished only by a left border. Use a titled inset region, a table row, or a full-width notice with an explicit action instead.
-- Do not use the common dot-plus-rounded-pill status pattern. Present state as an inline `label: value` metadata cell, a compact square flag, or a sentence with a specific recovery action.
-- Keep "AI" out of product chrome. The user-facing term is **evidence synthesis**; model/provider details belong in a collapsible provenance record.
-- Use one consistent filled/bold icon family, preferably `@phosphor-icons/react`. If project constraints require `react-icons`, use its Phosphor set. Do not mix weights or fall back to emoji.
-- When Korean is enabled, Korean is a first-class interface language, not English copy with particles added afterward. Preserve identifiers, numerical values, source names, direct quotations, and ontology terms exactly; write the surrounding sentence natively in Korean.
+- 분위기는 따뜻한 음악 기록장이다. 종이 같은 여백, 잉크색 본문, 광물성
+  청색 행동색과 선택된 음반의 절제된 버건디 표식을 사용한다.
+- 정보는 한 장의 작업면에 모은다. KPI 카드 벽, 대시보드 사이드바, 과도한
+  테두리 상자, 보라색/파란색 AI 그라데이션, 챗봇 크롬, 이모지는 사용하지 않는다.
+- 기본 경로는 한국어로 짧고 직접적으로 쓴다. 기술 식별자·점수·근거 ID는
+  필요한 사람이 펼쳐 보는 상세 정보에만 둔다.
+- 상태는 문장과 아이콘으로 설명한다. 색, 점이 붙은 상태 배지, 둥근 pill만으로
+  상태를 전달하지 않는다.
 
-## 2. Color
+## 토큰
 
-### Palette
-
-| Role | Token | Light | Dark | Usage |
-| --- | --- | --- | --- | --- |
-| Surface/primary | `--surface-primary` | `#f7f5f0` | `#161715` | App background |
-| Surface/secondary | `--surface-secondary` | `#fffefb` | `#1d1e1b` | Panels and grouped regions |
-| Surface/elevated | `--surface-elevated` | `#efede6` | `#272824` | Popovers and selected evidence panels |
-| Text/primary | `--text-primary` | `#1c1d1a` | `#f4f2ec` | Headings and primary content |
-| Text/secondary | `--text-secondary` | `#4e5049` | `#c9c8c0` | Explanatory content |
-| Text/muted | `--text-muted` | `#74766d` | `#9fa198` | Metadata and timestamps |
-| Border/default | `--border-default` | `#d8d6ce` | `#44463f` | Panel borders |
-| Border/subtle | `--border-subtle` | `#e8e6df` | `#30322d` | Dividers |
-| Accent/primary | `--accent-primary` | `#315e72` | `#91c6d8` | Primary action, selected evidence, links |
-| Accent/hover | `--accent-hover` | `#204655` | `#c0e5ef` | Hover and active evidence states |
-| Status/success | `--status-success` | `#137333` | `#57c785` | Successful save/sync validation |
-| Status/warning | `--status-warning` | `#a15c00` | `#f2b84b` | Dry-run and weak-evidence states |
-| Status/error | `--status-error` | `#b3261e` | `#ff8a80` | Validation and sync errors |
-| Status/info | `--status-info` | `#0b57d0` | `#8ab4f8` | Informational notices |
-
-### Rules
-
-- Use warm monochrome surfaces with mineral blue as the only non-semantic accent. Semantic success/warning/error colors are not brand accents.
-- Avoid AI-purple gradients, neon-only styling, consumer music palettes, decorative album-art dominance, and mood-board visuals.
-- Color never carries state alone; pair color with text labels, icons, or structural changes.
-- All text/background pairs must meet WCAG AA contrast, targeting AAA for body text where feasible.
-
-## 3. Typography
-
-| Level | Size | Weight | Line Height | Tracking | Usage |
-| --- | --- | --- | --- | --- | --- |
-| Display | `2rem` | 700 | 1.15 | 0 | App title or demo page title only |
-| H1 | `1.5rem` | 700 | 1.25 | 0 | Primary workspace heading |
-| H2 | `1.25rem` | 650 | 1.3 | 0 | Panel headings |
-| H3 | `1rem` | 650 | 1.4 | 0 | Card and row group headings |
-| Body | `1rem` | 400 | 1.55 | 0 | Default text |
-| Body/sm | `0.875rem` | 400 | 1.5 | 0 | Secondary details |
-| Caption | `0.75rem` | 550 | 1.4 | 0 | Labels, source tags, timestamps |
-| Mono | `0.875rem` | 500 | 1.5 | 0 | IDs, query snippets, evidence paths |
-
-Font stack:
-
-- Primary: `"Geist", "Helvetica Neue", Arial, sans-serif`
-- Editorial: `"Newsreader", Georgia, serif` for page-level questions and quoted review excerpts only
-- Mono: `"Geist Mono", "SFMono-Regular", Consolas, monospace`
-
-Locale stacks:
-
-- Korean UI: `"Pretendard Variable", "Noto Sans KR", sans-serif`
-- Korean editorial: `"Noto Serif KR", serif` for page-level questions and quoted review excerpts only
-- Korean identifiers: `"IBM Plex Mono KR", "D2Coding", monospace`
-
-Korean typesetting rules:
-
-- Set `lang="ko"` for Korean screens; use `word-break: keep-all` with `overflow-wrap: anywhere` only for unbroken IDs and URLs. Do not insert manual line breaks into Korean sentences.
-- Keep source IDs, score values, model names, MusicBrainz names, and quoted review text untransformed. Provide Korean labels around them instead of inventing translated identifiers.
-- Prefer short declarative UI copy in one consistent polite-neutral register: `검토 저장`, `근거를 찾지 못했습니다`, `입력한 내용은 그대로 남아 있습니다.` Do not use exclamation marks, "결론적으로", "시사하는 바", or translationese such as `~을 통해` when a direct verb is available.
-- Do not imitate naturalness with slang or arbitrary variation. Generated Korean answers may vary sentence rhythm, but every factual clause must remain traceable to the attached evidence IDs.
-
-Body text must never render below 14px. Display text is reserved for true page-level headings, not compact panels.
-
-## 4. Spacing & Layout
-
-All spacing derives from a 4px base unit.
-
-| Token | Value | Usage |
+| 역할 | 토큰 | 값 |
 | --- | --- | --- |
-| `--space-1` | 4px | Tight icon-label spacing |
-| `--space-2` | 8px | Compact row gaps |
-| `--space-3` | 12px | Input and chip padding |
-| `--space-4` | 16px | Default panel padding |
-| `--space-5` | 20px | Dense section gap |
-| `--space-6` | 24px | Comfortable panel gap |
-| `--space-8` | 32px | Major group separation |
-| `--space-10` | 40px | Page-level rhythm |
+| Canvas | `--canvas` | `#f5f1e9` |
+| Paper | `--paper` | `#fffdf8` |
+| Paper muted | `--paper-muted` | `#ece6db` |
+| Ink | `--ink` | `#24211d` |
+| Ink muted | `--ink-muted` | `#665f56` |
+| Rule | `--rule` | `#d9d0c3` |
+| Action | `--action` | `#315e72` |
+| Action pressed | `--action-pressed` | `#204655` |
+| Selection | `--selection` | `#8b3f35` |
+| Success | `--success` | `#25663b` |
+| Warning | `--warning` | `#9a5a12` |
+| Error | `--error` | `#aa332b` |
+| Focus | `--focus` | `#005f9e` |
 
-Layout strategy:
+색은 상태의 유일한 신호가 아니다. 선택·저장·오류는 텍스트와 구조로도
+구별된다.
 
-- Mobile stack: one-column task flow with source/evidence panels beneath the active task.
-- Tablet split: primary action column plus contextual evidence column.
-- Desktop review desk: a central work sheet for search/review beside a contextual evidence workspace. It must not default to a permanent generic left sidebar.
-- Reviewer task navigation is an inline, wrapping sequence above the workspace. The work sheet and evidence workspace share the desktop canvas; tablet and zoomed layouts stack the active task above evidence so labels retain natural Korean phrase boundaries.
-- No horizontal scrolling at 320px width or 200% zoom.
-- Interactive targets must be at least 44px by 44px with an 8px minimum gap where adjacent.
+## 타이포그래피와 간격
 
-## 5. Components
+- UI: `Pretendard Variable`, `Noto Sans KR`, `Geist`, sans-serif
+- 편집적 문장/인용: `Noto Serif KR`, Georgia, serif
+- opt-in 기술 식별자: `IBM Plex Mono KR`, `Geist Mono`, Consolas, monospace
 
-### TaskNavigation
+간격은 4px 배수(`--space-1`~`--space-14`)를 사용한다. 제목은 한 페이지에
+하나만 두고, 세리프체는 소개 문장과 증거 답변처럼 읽기 중심의 부분에만 쓴다.
 
-- **Structure**: three text links for candidate search, review record, and evidence review; presented inline on wide screens and stacked on mobile.
-- **Variants**: wrapping desktop/tablet sequence, stacked mobile sequence.
-- **States**: default, hover, focus, current anchor.
-- **Accessibility**: a named navigation landmark with full Korean task labels and 44px targets; never an icon-only or permanently bordered generic rail.
+## 화면 구성
 
-### WorkSheet
+### Journal header
 
-- **Structure**: a single active task with an editorial page title, a short factual instruction, its form/list, and a footer action area.
-- **Variants**: search, candidate review, saved review, no-result, configuration-required.
-- **States**: default, focus, dirty, saving, saved, error.
-- **Accessibility**: semantic heading order; errors remain adjacent to their field and preserve entered text.
+서비스 이름, 한 문장 가치 제안, 개인 데이터 연결 상태 안내를 둔다. 설정 오류는
+행동 가능한 복구 문장으로 표시한다.
 
-### SearchPanel
+### Listening search
 
-- **Structure**: album search input, source scope selector, submit action, result summary.
-- **Variants**: idle, loading, results, empty, rate-limited, error.
-- **States**: default, hover, active, focus, disabled, loading, empty, error.
-- **Accessibility**: validation text is programmatically associated with input; loading and result count use live region announcements.
+앨범/아티스트 검색어와 검색 버튼을 제공한다. 유휴·로딩·결과·없음·오류 상태를
+입력 가까이에 표시한다.
 
-### CandidateList
+### Record row and selected record
 
-- **Structure**: structured result rows with title, artist, source IDs, cover availability, confidence marker.
-- **Variants**: compact, evidence-expanded, selected.
-- **States**: default, hover, active, focus, selected, no-cover, conflict.
-- **Accessibility**: selectable rows expose selected state; source IDs remain copyable text.
+후보는 앨범명·아티스트·사람이 읽을 수 있는 선택 힌트로 표현한다. 원본 ID는
+행에 노출하지 않는다. 선택된 음반은 개인 메모 위의 명확한 맥락이 된다.
 
-### ReviewForm
+### Listening note
 
-- **Structure**: rating label, personal review, favorite track/manual fallback, ownership input.
-- **Variants**: draft, saved, invalid, conflict.
-- **States**: default, focus, dirty, saving, saved, error.
-- **Accessibility**: exact rating labels are visible text, not color-only chips; errors preserve typed input.
+최애곡, 감상, 보유 여부를 작성한다. 유효성 오류, 저장 중, Notion 저장 확인,
+오류를 인접한 live region으로 알린다. 저장 확인은 생성 또는 갱신된 실제 기록을
+명확히 말한다.
 
-### OperationalRecord
+### Insight note
 
-- **Structure**: a compact definition list for environment, dry-run result, last attempt, and next available action; the diff opens inline below it.
-- **Variants**: dry-run-clean, dry-run-conflict, missing-env, disabled.
-- **States**: loading, success, warning, error, no-changes.
-- **Accessibility**: each state is written in plain language with recovery guidance, never conveyed by a dot, hue, or generic badge alone.
+한 개의 근거 영역에서 추천, 자연어 답변, 회복 상태, 선택적 provenance를
+순서대로 보여 준다. 근거가 없으면 답변을 만들지 않고 이유와 다음 행동을
+표시한다.
 
-### EvidencePathViewer
+## 반응형·접근성
 
-- **Structure**: graph path list, source IDs, SPARQL query reference, provenance labels.
-- **Variants**: path-list, query-preview, no-evidence.
-- **States**: collapsed, expanded, focused, copied, empty, error.
-- **Accessibility**: graph paths are readable as ordered text, not only visual nodes.
-- **Data integrity**: candidate IDs and candidate source labels may be shown before graph evidence exists, but they must be identified as candidate metadata. Paths, source IDs, SPARQL references, and provenance render only when supplied by a typed evidence payload.
+- 문서가 세로 스크롤을 소유하며, 주 작업 영역에 중첩 스크롤을 만들지 않는다.
+- 데스크톱은 검색/기록과 읽기 노트의 2열, 900px 이하는 같은 DOM 순서의
+  단일 열이다.
+- 375px 및 200% zoom에서 가로 스크롤이 없어야 한다. 한국어는 자연스럽게
+  줄바꿈하고, 긴 기술 ID는 상세 정보에서만 비상 줄바꿈한다.
+- 모든 조작은 44px 이상의 대상, 보이는 3px focus outline, 키보드 접근,
+  polite live announcement를 제공한다.
+- `prefers-reduced-motion`에서는 불필요한 변환·부드러운 스크롤을 제거한다.
 
-### EvidenceSynthesisPanel
+## 구현 품질 기준
 
-- **Structure**: answer, claim-to-evidence map, graph paths, vector hits, and an insufficient-evidence explanation.
-- **Variants**: answered, partial-evidence, insufficient-evidence, provider-missing.
-- **States**: asking, answered, no-evidence, error.
-- **Accessibility**: answer updates use polite live regions; citations are keyboard reachable.
-- **Korean copy**: use a short evidence-led answer, then `근거` as a plain section label. If evidence is insufficient, state what is missing and the next safe action; never pad the answer with generic summaries.
-- **Data integrity**: no answer or claim is synthesized client-side. Answer, claims, evaluation, and provenance render only when explicitly present; otherwise the panel uses the no-evidence, configuration-required, or error variant.
+- 실제 DOM과 의미론적 `main`, `header`, `nav`, `section`, `article`, `form`,
+  `button`, `details`를 사용한다. 스크린샷·canvas로 UI를 흉내 내지 않는다.
+- 외부 참고는 Gesso의 일관된 디자인 사양, Select Craft의 절제된 상태 전환,
+  WCAG 2.2의 focus/target-size 기준을 참고하되 브랜드·레이아웃을 복제하지 않는다.
+- 새 화면은 desktop, tablet, mobile에서 실제 브라우저로 확인하고 Korean CJK
+  줄바꿈과 에러·복구 경로를 함께 검증한다.
 
-## 6. Motion & Interaction
+## 현재 제외 범위
 
-| Type | Duration | Easing | Usage |
-| --- | --- | --- | --- |
-| Micro | 100ms | ease-out | Button press and row selection |
-| Standard | 180ms | ease-in-out | Panel expand/collapse |
-| Feedback | 150ms | ease-out | Save/sync status change |
-
-Rules:
-
-- Motion must communicate state, hierarchy, or feedback. No decorative loops, chatbot typing theatrics, or ambient visual effects.
-- The micro-interaction budget is three patterns only: input focus and valid selection, evidence-inspector expand/collapse, and saved/copied confirmation. Each uses the token durations below and transform/opacity only.
-- Do not use easter eggs, confetti, parallax, cursor-following effects, or animation that implies a result was saved, synchronized, or verified before the backend confirms it.
-- Respect `prefers-reduced-motion` by removing non-essential transitions.
-- Loading states use skeleton rows or inline progress text, not generic spinners.
-- Error format: what happened plus the recovery action.
-- The flow must define empty, loading, error, no-evidence, and missing-config states before product screens are built.
-
-## 7. Depth & Surface
-
-Depth strategy: borders plus tonal shifts, with a faint paper-grain texture at low opacity only if it remains readable and respects reduced-transparency preferences.
-
-| Level | Treatment | Usage |
-| --- | --- | --- |
-| Base | `--surface-primary` | Page background |
-| Panel | `1px solid var(--border-default)` on `--surface-secondary` | Primary work regions |
-| Evidence | `1px solid var(--accent-primary)` on `--surface-elevated` | Selected evidence or active path |
-| Conflict | `1px solid var(--status-warning)` | Dry-run conflict or weak evidence |
-| Error | `1px solid var(--status-error)` | Blocking validation issue |
-
-Cards stay at 8px radius or less. Avoid cards inside cards; repeated rows and panels should use dividers, table-like lists, or unframed layouts when possible. A status is a labeled datum, not a pill.
+외부 LLM 문장 생성, 벡터 검색, GraphDB 직접 질의는 연결 모드의 범위가 아니다.
+개인 취향·추천은 Notion 기록에서 출발해 실제 MusicBrainz 발매 그룹을 탐색하는
+결정론적 근거 경로로만 표현한다. fixture는 회귀 테스트에만 남고 사용자 화면의
+실제 데이터인 것처럼 나타나지 않는다.

@@ -18,7 +18,7 @@ final class RecommendationFixtureFacts {
 
     static List<GraphFact> graphFacts() {
         return List.of(
-                graph(candidate("release-group:world-of-sleepers", "release-group:world-of-sleepers", "World of Sleepers",
+                graph(candidate("release-group:world-of-sleepers", "release-group:world-of-sleepers", "잠든 세계의 밤",
                                 "artist:carbon-based-lifeforms", false, "0.95", "0.92", "0.88", "0.80", "0.75"),
                         "genre:folktronica", "evidence:preference-path-001"),
                 graph(candidate("release-group:dive", "release-group:dive", "Dive", "artist:tycho", false,
@@ -35,7 +35,7 @@ final class RecommendationFixtureFacts {
     static List<LexicalFact> lexicalFacts() {
         return List.of(
                 lexical(candidate("release:world-of-sleepers-deluxe", "release-group:world-of-sleepers",
-                                "World of Sleepers Deluxe", "artist:carbon-based-lifeforms", false,
+                                "잠든 세계의 밤 확장판", "artist:carbon-based-lifeforms", false,
                                 "0.70", "0.65", "0.75", "0.60", "0.60"),
                         "tag:folktronica", "evidence:similar-candidate-001"),
                 lexical(candidate("release-group:immunity", "release-group:immunity", "Immunity", "artist:jon-hopkins", false,

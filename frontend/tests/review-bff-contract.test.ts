@@ -20,6 +20,15 @@ describe("review desk BFF response contract", () => {
     if (result.kind === "failure") expect(result.message).toContain(expectedText);
   });
 
+  it("preserves a typed backend code for connected-mode recovery UI", () => {
+    // Given the Notion boundary says that the selected data source was not shared
+    // When the connected music desk parses that BFF response
+    const result = parseBffPayload(healthSchema, { code: "NOTION_CONNECTION_NOT_SHARED", requestId: "request-1" });
+
+    // Then the UI can choose the exact recovery instruction instead of a generic retry
+    expect(result).toMatchObject({ code: "NOTION_CONNECTION_NOT_SHARED", kind: "failure" });
+  });
+
   it("returns a display-safe failure when the response violates every known contract", () => {
     // Given malformed JSON-compatible data from the BFF boundary
     // When the review desk parses it
@@ -28,7 +37,7 @@ describe("review desk BFF response contract", () => {
     // Then it reports the browser-facing contract failure without asserting a type
     expect(result).toEqual({
       kind: "failure",
-      message: "The fixture service returned an invalid response. Please retry."
+      message: "The music service returned an invalid response. Please retry."
     });
   });
 

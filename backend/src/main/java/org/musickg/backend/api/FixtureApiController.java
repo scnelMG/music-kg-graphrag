@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Set;
 import org.musickg.backend.recommendation.RecommendationService;
 import org.springframework.http.HttpStatus;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1")
+@ConditionalOnProperty(prefix = "music-kg.connected", name = "mode", havingValue = "fixture", matchIfMissing = true)
 @Tag(name = "Fixture-safe music evidence API")
 @ApiResponses({
         @ApiResponse(responseCode = "400", description = "Fixed request error", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)), headers = @Header(name = "X-Request-Id", description = "Request correlation ID")),
@@ -51,7 +53,7 @@ class FixtureApiController {
     @GetMapping("/candidates")
     @Operation(summary = "Search deterministic fixture candidates")
     List<Candidate> candidates(@RequestParam(defaultValue = "") String q) {
-        Candidate fixture = new Candidate("fixture-album-001", "Fixture Album", "Fixture Artist", "PUBLIC_FIXTURE");
+        Candidate fixture = new Candidate("fixture-album-001", "밤의 기록", "윤슬", "PUBLIC_FIXTURE");
         String normalizedQuery = q.trim().toLowerCase(java.util.Locale.ROOT);
         if (normalizedQuery.isEmpty()
                 || fixture.title().toLowerCase(java.util.Locale.ROOT).contains(normalizedQuery)
@@ -99,7 +101,7 @@ class FixtureApiController {
     @ApiResponses(@ApiResponse(responseCode = "404", description = "EVIDENCE_NOT_FOUND", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiError.class)), headers = @Header(name = "X-Request-Id", description = "Request correlation ID")))
     Evidence evidence(@PathVariable String evidenceId) {
         if (!"fixture-evidence-001".equals(evidenceId)) throw new ApiException("EVIDENCE_NOT_FOUND", HttpStatus.NOT_FOUND);
-        return new Evidence(evidenceId, "fixture-album-001", "Fixture evidence only");
+        return new Evidence(evidenceId, "fixture-album-001", "선택한 음반과 이어지는 청취 단서입니다.");
     }
 
     @PostMapping("/graphrag")
@@ -111,7 +113,7 @@ class FixtureApiController {
         if (!QUESTION_CLASSES.contains(request.questionClass())) {
             throw new ApiException("UNSUPPORTED_QUESTION_CLASS", HttpStatus.BAD_REQUEST);
         }
-        return new GraphRagAnswer(request.questionClass(), List.of("fixture-evidence-001"), "Fixture evidence answer");
+        return new GraphRagAnswer(request.questionClass(), List.of("fixture-evidence-001"), "선택한 음반은 현재 기록과 이어져 있어요.");
     }
 
     record Health(String status, String mode) {}

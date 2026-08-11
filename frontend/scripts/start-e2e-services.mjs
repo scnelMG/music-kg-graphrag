@@ -87,7 +87,8 @@ try {
     env: {
       ...process.env,
       BACKEND_BASE_URL: backendOutage ? "http://127.0.0.1:1" : `http://127.0.0.1:${backendPort}`,
-      BACKEND_BFF_SHARED_SECRET: secret
+      BACKEND_BFF_SHARED_SECRET: secret,
+      NEXT_DIST_DIR: ".next-e2e"
     },
     stdio: "inherit"
   });
