@@ -1,7 +1,5 @@
 # Music Knowledge Graph & GraphRAG
 
-<p align="center">음악 메타데이터 지식 그래프 · GraphRAG · Spring Boot · PostgreSQL · GraphDB</p>
-
 ![Java](https://img.shields.io/badge/Java-Spring%20Boot-6DB33F?logo=springboot&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-Data%20Pipeline-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)
