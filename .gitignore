@@ -29,3 +29,10 @@ artifacts/
 sbom/
 
 .vercel
+
+# Ephemeral local verification caches. Durable QA receipts live under .omo/evidence.
+.tmp/
+.tmp-*/
+pipeline/.tmp-*/
+frontend/.next-*/
+frontend/.next-build.lock

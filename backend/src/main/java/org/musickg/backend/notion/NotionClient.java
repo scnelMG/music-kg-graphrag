@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -152,7 +153,7 @@ public final class NotionClient implements PersonalMusicRecordGateway {
     private SavedRecord parseSavedRecord(String response) {
         try {
             JsonNode body = objectMapper.readTree(response);
-            String pageId = body.path("id").asText();
+            String pageId = canonicalPageId(body.path("id").asText());
             String lastEdited = body.path("last_edited_time").asText();
             if (pageId.isBlank() || lastEdited.isBlank()) throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR");
             return new SavedRecord(pageId, Instant.parse(lastEdited));
@@ -189,7 +190,7 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             List<ExistingRecord> records = new ArrayList<>();
             for (JsonNode result : resultNodes) {
                 JsonNode properties = result.path("properties");
-                String pageId = result.path("id").asText();
+            String pageId = canonicalPageId(result.path("id").asText());
                 var fields = configuration.fields();
                 String albumTitle = firstText(properties.path(fields.albumTitle()).path("title"));
                 List<String> artistCredits = names(properties.path(fields.artist()).path("multi_select"));
@@ -216,7 +217,7 @@ public final class NotionClient implements PersonalMusicRecordGateway {
         try {
             JsonNode results = objectMapper.readTree(response).path("results");
             if (!results.isArray() || results.isEmpty()) return Optional.empty();
-            String pageId = results.get(0).path("id").asText();
+            String pageId = canonicalPageId(results.get(0).path("id").asText());
             return blank(pageId) ? Optional.empty() : Optional.of(pageId);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
@@ -225,6 +226,11 @@ public final class NotionClient implements PersonalMusicRecordGateway {
 
     private static String firstText(JsonNode values) {
         return values.isArray() && !values.isEmpty() ? values.get(0).path("plain_text").asText() : "";
+    }
+
+    private static String canonicalPageId(String value) {
+        String compact = value.replace("-", "");
+        return compact.matches("(?i)[0-9a-f]{32}") ? compact.toLowerCase(Locale.ROOT) : value;
     }
 
     private static Instant parseInstant(String value) {

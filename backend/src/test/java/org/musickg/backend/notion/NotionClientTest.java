@@ -127,6 +127,33 @@ class NotionClientTest {
     }
 
     @Test
+    void normalizesNotionUuidPageIdsWhenFindingAnExistingReleaseGroup() throws Exception {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = new NotionClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.Notion("secret-token", "data-source-id", FIELDS));
+        String response = new ObjectMapper().writeValueAsString(Map.of(
+                "results", List.of(Map.of(
+                        "id", "12345678-1234-1234-1234-123456789012",
+                        "last_edited_time", "2026-08-10T00:00:00.000Z",
+                        "properties", Map.of(
+                                FIELDS.albumTitle(), Map.of("title", List.of(Map.of("plain_text", "Kind of Blue"))),
+                                FIELDS.artist(), Map.of("multi_select", List.of(Map.of("name", "Miles Davis"))),
+                                FIELDS.cover(), Map.of("files", List.of()),
+                                FIELDS.sentiment(), Map.of("select", Map.of("name", "Loved")),
+                                FIELDS.favouriteTrack(), Map.of("rich_text", List.of(Map.of("plain_text", "So What"))),
+                                FIELDS.owned(), Map.of("checkbox", true),
+                                FIELDS.releaseGroupMbid(), Map.of("rich_text", List.of(Map.of("plain_text", "release-group-id")))))),
+                "has_more", false));
+        server.expect(requestTo("https://api.notion.com/v1/data_sources/data-source-id/query"))
+                .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
+
+        var record = client.findByReleaseGroupMbid("release-group-id");
+
+        assertThat(record).hasValueSatisfying(value -> assertThat(value.pageId()).isEqualTo("12345678123412341234123456789012"));
+        server.verify();
+    }
+
+    @Test
     void ignoresIncompleteNotionPagesInsteadOfFailingEveryPersonalInsight() throws Exception {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
