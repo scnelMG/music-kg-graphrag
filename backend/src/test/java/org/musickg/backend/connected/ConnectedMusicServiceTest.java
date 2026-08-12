@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.musickg.backend.catalog.MusicCatalogGateway;
 import org.musickg.backend.notion.NotionClient;
@@ -40,6 +41,20 @@ class ConnectedMusicServiceTest {
         assertThat(created.operation()).isEqualTo(ConnectedMusicService.SaveOperation.CREATED);
         assertThat(updated.operation()).isEqualTo(ConnectedMusicService.SaveOperation.UPDATED);
         assertThat(updated.notionPageId()).isEqualTo(created.notionPageId());
+        assertThat(records.records()).hasSize(1);
+    }
+
+    @Test
+    void updatesTheExistingPageByReleaseGroupMbidWhenAFreshServiceCannotUseAnInMemorySaveCache() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-1", "Existing Album", "Artist", "", "Loved", "Old track", false, "release-group-id")), false);
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records);
+
+        var result = service.save(new ConnectedMusicService.RecordInput(
+                "release-group-id", "Existing Album", "Artist", "", "Loved", "New track", true));
+
+        assertThat(result.operation()).isEqualTo(ConnectedMusicService.SaveOperation.UPDATED);
+        assertThat(result.notionPageId()).isEqualTo("page-1");
         assertThat(records.records()).hasSize(1);
     }
 
@@ -287,7 +302,7 @@ class ConnectedMusicServiceTest {
 
         private InMemoryRecords(List<NotionClient.ExistingRecord> values, boolean listReflectsWrites) {
             this.values = new ArrayList<>(values);
-            this.visibleValues = new ArrayList<>(values);
+            this.visibleValues = new ArrayList<>(listReflectsWrites ? values : List.of());
             this.listReflectsWrites = listReflectsWrites;
         }
 
@@ -315,6 +330,11 @@ class ConnectedMusicServiceTest {
         public List<NotionClient.ExistingRecord> list() {
             listCalls++;
             return List.copyOf(listReflectsWrites ? values : visibleValues);
+        }
+
+        @Override
+        public Optional<NotionClient.ExistingRecord> findByReleaseGroupMbid(String releaseGroupMbid) {
+            return values.stream().filter(value -> value.releaseGroupMbid().equals(releaseGroupMbid)).findFirst();
         }
 
         @Override

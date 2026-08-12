@@ -47,6 +47,13 @@ public final class ConnectedMusicService {
         if (recentlySavedPageId != null) {
             return saved(records.update(recentlySavedPageId, record), SaveOperation.UPDATED);
         }
+        if (!input.releaseGroupMbid().isBlank()) {
+            NotionClient.ExistingRecord matchedByMbid = records.findByReleaseGroupMbid(input.releaseGroupMbid()).orElse(null);
+            if (matchedByMbid != null) {
+                recentlySavedPageIds.put(identity, matchedByMbid.pageId());
+                return saved(records.update(matchedByMbid.pageId(), record), SaveOperation.UPDATED);
+            }
+        }
         NotionClient.ExistingRecord existing = records.list().stream()
                 .filter(value -> sameAlbum(value, input))
                 .findFirst()

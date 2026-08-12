@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.concurrent.locks.LockSupport;
 import org.musickg.backend.config.ConnectedServiceProperties;
@@ -104,6 +105,28 @@ public final class NotionClient implements PersonalMusicRecordGateway {
         return snapshot;
     }
 
+    @Override
+    public Optional<ExistingRecord> findByReleaseGroupMbid(String releaseGroupMbid) {
+        if (blank(releaseGroupMbid) || blank(configuration.fields().releaseGroupMbid())) return Optional.empty();
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("page_size", 1);
+        request.put("filter", Map.of(
+                "property", configuration.fields().releaseGroupMbid(),
+                "rich_text", Map.of("equals", releaseGroupMbid)));
+        String response = request(() -> client.post()
+                .uri("https://api.notion.com/v1/data_sources/" + configuration.dataSourceId() + "/query")
+                .header("Authorization", authorizationHeader())
+                .header("Notion-Version", NOTION_VERSION)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(String.class));
+        Optional<ExistingRecord> parsedRecord = parsePage(response).records().stream().findFirst();
+        if (parsedRecord.isPresent()) return parsedRecord;
+        return pageId(response).map(pageId -> new ExistingRecord(
+                pageId, "", "", "", "", "", false, releaseGroupMbid, List.of(), Instant.EPOCH));
+    }
+
     public List<String> sentimentOptions() {
         String response = request(() -> client.get()
                 .uri("https://api.notion.com/v1/data_sources/{dataSourceId}", configuration.dataSourceId())
@@ -184,6 +207,17 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             String cursor = body.path("has_more").asBoolean(false) ? body.path("next_cursor").asText() : null;
             if (cursor != null && cursor.isBlank()) throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR");
             return new Page(List.copyOf(records), cursor);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
+        }
+    }
+
+    private Optional<String> pageId(String response) {
+        try {
+            JsonNode results = objectMapper.readTree(response).path("results");
+            if (!results.isArray() || results.isEmpty()) return Optional.empty();
+            String pageId = results.get(0).path("id").asText();
+            return blank(pageId) ? Optional.empty() : Optional.of(pageId);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
         }

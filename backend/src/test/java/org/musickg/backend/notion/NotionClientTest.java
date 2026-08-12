@@ -106,6 +106,27 @@ class NotionClientTest {
     }
 
     @Test
+    void findsOneExistingRecordByItsMusicBrainzReleaseGroupWithoutReadingTheWholeHistory() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = new NotionClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.Notion("secret-token", "data-source-id", FIELDS));
+
+        server.expect(requestTo("https://api.notion.com/v1/data_sources/data-source-id/query"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"page_size":1,"filter":{"property":"MusicBrainz MBID","rich_text":{"equals":"release-group-id"}}}
+                        """))
+                .andRespond(withSuccess("""
+                        {"results":[{"id":"page-id","last_edited_time":"2026-08-10T00:00:00.000Z","properties":{"?⑤쾾紐?":{"title":[{"plain_text":"Kind of Blue"}]},"媛??":{"multi_select":[{"name":"Miles Davis"}]},"?⑤쾾而ㅻ쾭":{"files":[]},"媛쒖씤 媛먯긽??":{"select":{"name":"Loved"}},"媛쒖씤 理쒖븷怨?":{"rich_text":[{"plain_text":"So What"}]},"?⑤쾾 蹂댁쑀":{"checkbox":true},"MusicBrainz MBID":{"rich_text":[{"plain_text":"release-group-id"}]}}}],"has_more":false}
+                        """, MediaType.APPLICATION_JSON));
+
+        var record = client.findByReleaseGroupMbid("release-group-id");
+
+        assertThat(record).hasValueSatisfying(value -> assertThat(value.pageId()).isEqualTo("page-id"));
+        server.verify();
+    }
+
+    @Test
     void ignoresIncompleteNotionPagesInsteadOfFailingEveryPersonalInsight() throws Exception {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
