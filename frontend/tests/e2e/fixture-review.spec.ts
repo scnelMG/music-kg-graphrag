@@ -71,6 +71,39 @@ test("Given a large personal history, when the desk opens, then records and insi
   expect(insightsRequested).toBe(1);
 });
 
+test("Given the personal form connection initially fails, when the listener retries records, then recording becomes available again", async ({ page }) => {
+  let formOptionRequests = 0;
+  await routeConnectedWorkspace(page);
+  await page.unroute("**/api/music/form-options");
+  await page.route("**/api/music/form-options", (route) => {
+    formOptionRequests += 1;
+    if (formOptionRequests === 1) {
+      return route.fulfill({
+        body: JSON.stringify({ code: "BACKEND_UNAVAILABLE", message: "temporary" }),
+        contentType: "application/json",
+        status: 503
+      });
+    }
+    return route.fulfill({
+      body: JSON.stringify({ sentiments: ["Loved", "Reflective"] }),
+      contentType: "application/json",
+      status: 200
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "기록 다시 불러오기" })).toBeVisible();
+
+  await page.getByRole("button", { name: "기록 다시 불러오기" }).click();
+
+  await expect(page.getByText("개인 기록 연결됨", { exact: true })).toBeVisible();
+  await page.locator("#album-search").fill(albumFixture.title);
+  await page.locator("form.search-row button").click();
+  await page.getByText(albumFixture.title, { exact: true }).first().click();
+  await expect(page.locator("#sentiment")).toBeEnabled();
+  expect(formOptionRequests).toBe(2);
+});
+
 test("Given no selected album, when the connected desk opens, then record fields stay hidden until a real result is chosen", async ({ page }) => {
   await routeConnectedWorkspace(page);
 

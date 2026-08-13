@@ -8,9 +8,21 @@ import { albumFixture, routeConnectedWorkspace, trackFixture, type RecordFixture
 const evidenceDirectory = process.env.RECORD_WORKFLOW_EVIDENCE_DIR;
 
 async function capture(page: Page, fileName: string, testInfo: TestInfo): Promise<void> {
+  const ordinaryCapture = fileName !== "record-workflow-focus-375.png";
+  if (ordinaryCapture) {
+    await page.locator("#main-content").focus();
+    await expect(page.locator("#main-content")).toBeFocused();
+    await expect(page.locator(".skip-link")).not.toBeFocused();
+    await page.waitForTimeout(200);
+    await page.locator(".skip-link").evaluate((element) => { element.style.visibility = "hidden"; });
+  }
   const path = evidenceDirectory === undefined ? testInfo.outputPath(fileName) : join(evidenceDirectory, fileName);
   if (evidenceDirectory !== undefined) await mkdir(evidenceDirectory, { recursive: true });
-  await page.screenshot({ path, fullPage: true });
+  try {
+    await page.screenshot({ path, fullPage: true });
+  } finally {
+    if (ordinaryCapture) await page.locator(".skip-link").evaluate((element) => { element.style.removeProperty("visibility"); });
+  }
 }
 
 test("keeps the selected-record and archive-confirmation workflow legible at review widths", async ({ page }, testInfo) => {

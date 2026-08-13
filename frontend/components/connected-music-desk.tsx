@@ -300,6 +300,26 @@ export function ConnectedMusicDesk(): React.JSX.Element {
     await Promise.all([loadRecords(), loadInsights()]);
   }
 
+  async function loadPersonalWorkspace(): Promise<void> {
+    setAvailability("loading");
+    const optionsOutcome = await requestBff(
+      ky.get("/api/music/form-options", { throwHttpErrors: false }),
+      formOptionsSchema
+    );
+    if (optionsOutcome.kind === "failure") {
+      setAvailability("error");
+      const message = failureText(optionsOutcome);
+      setInsightState("error");
+      setInsightMessage(message);
+      setRecordState("error");
+      setRecordMessage(message);
+      return;
+    }
+    setSentiments(optionsOutcome.value.sentiments);
+    setAvailability("ready");
+    await reloadPersonalWorkspace();
+  }
+
   async function refreshPersonalWorkspace(): Promise<void> {
     const outcome = await requestBff(
       ky.post("/api/music/sync", { throwHttpErrors: false }),
@@ -317,7 +337,7 @@ export function ConnectedMusicDesk(): React.JSX.Element {
       return;
     }
     setSyncState(outcome.value);
-    await reloadPersonalWorkspace();
+    await loadPersonalWorkspace();
   }
 
   async function loadTracks(album: Album, existingFavouriteTrack = ""): Promise<void> {
@@ -353,20 +373,7 @@ export function ConnectedMusicDesk(): React.JSX.Element {
 
   useEffect(() => {
     if (ownerAccess !== "owner") return;
-    void requestBff(ky.get("/api/music/form-options", { throwHttpErrors: false }), formOptionsSchema).then(async (optionsOutcome) => {
-      if (optionsOutcome.kind === "failure") {
-        setAvailability("error");
-        const message = failureText(optionsOutcome);
-        setInsightState("error");
-        setInsightMessage(message);
-        setRecordState("error");
-        setRecordMessage(message);
-        return;
-      }
-      setSentiments(optionsOutcome.value.sentiments);
-      setAvailability("ready");
-      await reloadPersonalWorkspace();
-    });
+    void loadPersonalWorkspace();
   }, [ownerAccess]);
 
   function clearSearch(): void {
@@ -567,7 +574,7 @@ export function ConnectedMusicDesk(): React.JSX.Element {
             </button>)}
           </div>
         </section>
-        {ownerAccess === "owner" ? <ListeningRecordSection archiveCandidate={archiveCandidate} archivedRecord={archivedRecord} availability={availability} favouriteTrack={favouriteTrack} loadingMoreRecords={loadingMoreRecords} nextRecordCursor={nextRecordCursor} onArchive={archiveRecord} onCancelArchive={() => setArchiveCandidate(null)} onFavouriteTrackChange={setFavouriteTrack} onLoadMoreRecords={loadMoreRecords} onOwnedChange={setOwned} onReloadRecords={loadRecords} onRequestArchive={setArchiveCandidate} onRestore={restoreRecord} onSave={save} onSentimentChange={setSentiment} onSelectRecord={editRecord} owned={owned} recordMessage={recordMessage} records={records} recordState={recordState} saveEnabled={saveEnabled} saveMessage={saveMessage} saveState={saveState} selected={selected} selectedExistingRecord={selectedExistingRecord} sentiment={sentiment} sentiments={sentiments} trackMessage={trackMessage} trackState={trackState} tracks={tracks} /> : <><section className="catalog-album-detail" aria-live="polite"><p className="section-kicker">수록곡 확인</p>{selected === null ? <p>앨범을 고르면 MusicBrainz 수록곡을 여기에서 확인할 수 있습니다.</p> : <><h3>{selected.title}</h3><p>{selected.artist}</p>{trackState === "loading" && <p>수록곡을 불러오는 중입니다.</p>}{trackState === "error" && <p>{trackMessage}</p>}{trackState === "empty" && <p>확인 가능한 수록곡이 없습니다.</p>}{trackState === "ready" && <ol className="catalog-track-list">{tracks.map((track) => <li key={track.recordingMbid}>{track.title}</li>)}</ol>}</>}</section><section className="owner-access-note" aria-label="개인 기록 안내"><p className="section-kicker">개인 기록</p><h3>내 Notion 기록과 추천은 소유자만 볼 수 있습니다.</h3><p>공개 검색으로 앨범과 수록곡을 확인할 수 있습니다. 개인 기록을 관리하려면 소유자 확인을 완료하세요.</p><a className="owner-access-link" href="/owner">소유자 확인으로 이동</a></section></>}
+        {ownerAccess === "owner" ? <ListeningRecordSection archiveCandidate={archiveCandidate} archivedRecord={archivedRecord} availability={availability} favouriteTrack={favouriteTrack} loadingMoreRecords={loadingMoreRecords} nextRecordCursor={nextRecordCursor} onArchive={archiveRecord} onCancelArchive={() => setArchiveCandidate(null)} onFavouriteTrackChange={setFavouriteTrack} onLoadMoreRecords={loadMoreRecords} onOwnedChange={setOwned} onReloadRecords={loadPersonalWorkspace} onRequestArchive={setArchiveCandidate} onRestore={restoreRecord} onSave={save} onSentimentChange={setSentiment} onSelectRecord={editRecord} owned={owned} recordMessage={recordMessage} records={records} recordState={recordState} saveEnabled={saveEnabled} saveMessage={saveMessage} saveState={saveState} selected={selected} selectedExistingRecord={selectedExistingRecord} sentiment={sentiment} sentiments={sentiments} trackMessage={trackMessage} trackState={trackState} tracks={tracks} /> : <><section className="catalog-album-detail" aria-live="polite"><p className="section-kicker">수록곡 확인</p>{selected === null ? <p>앨범을 고르면 MusicBrainz 수록곡을 여기에서 확인할 수 있습니다.</p> : <><h3>{selected.title}</h3><p>{selected.artist}</p>{trackState === "loading" && <p>수록곡을 불러오는 중입니다.</p>}{trackState === "error" && <p>{trackMessage}</p>}{trackState === "empty" && <p>확인 가능한 수록곡이 없습니다.</p>}{trackState === "ready" && <ol className="catalog-track-list">{tracks.map((track) => <li key={track.recordingMbid}>{track.title}</li>)}</ol>}</>}</section><section className="owner-access-note" aria-label="개인 기록 안내"><p className="section-kicker">개인 기록</p><h3>내 Notion 기록과 추천은 소유자만 볼 수 있습니다.</h3><p>공개 검색으로 앨범과 수록곡을 확인할 수 있습니다. 개인 기록을 관리하려면 소유자 확인을 완료하세요.</p><a className="owner-access-link" href="/owner">소유자 확인으로 이동</a></section></>}
       </section>
       {ownerAccess === "owner" ? <aside className="insight-region" id="personal-insights" aria-label="개인 취향과 추천">
         <section className="insight-note" aria-live="polite"><header className="insight-heading"><div><p className="section-kicker">내 취향의 흐름</p><h2>추천과 근거</h2></div><button className="insight-refresh" type="button" disabled={insightState === "loading"} onClick={() => void refreshPersonalWorkspace()}>{insightState === "loading" ? "불러오는 중" : "내 기록 새로 고침"}</button></header>
