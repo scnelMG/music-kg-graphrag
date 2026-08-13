@@ -31,9 +31,25 @@ sbom/
 
 .vercel
 
-# Ephemeral local verification caches. Durable QA receipts live under .omo/evidence.
+# Ephemeral local verification caches.
 .tmp/
 .tmp-*/
 pipeline/.tmp-*/
 frontend/.next-*/
 frontend/.next-build.lock
+
+# Local agent plans and detailed execution receipts are retained on the machine,
+# while reviewed quality summaries live in docs/quality.
+.omo/drafts/
+.omo/evidence/
+.omo/lazycodex-executor-verify/
+.omo/plans/*.md
+.omo/ulw-research/
+frontend/.agents/
+frontend/.omo/
+pipeline/.omo/
+deployment/evidence/
+docs/superpowers/
+.qa-*
+qa-task8-*.json
+task8-review-pytest-*/

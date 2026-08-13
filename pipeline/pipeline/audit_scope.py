@@ -30,7 +30,18 @@ FORBIDDEN_SCOPE: Final = (
     (f"WORKER_IN_{'VERCEL'}", re.compile(r"\bWORKER_IN" + r"_VERCEL\b")),
 )
 EXCLUDED_PARTS: Final = frozenset(
-    {".git", ".omo", ".tmp", ".venv", "build", "node_modules", "tests"},
+    {
+        ".git",
+        ".next",
+        ".omo",
+        ".tmp",
+        ".venv",
+        "build",
+        "node_modules",
+        "playwright-report",
+        "test-results",
+        "tests",
+    },
 )
 
 
@@ -38,14 +49,16 @@ def _source_files(root: Path) -> tuple[Path, ...]:
     source_names = ("backend", "frontend", "pipeline", "scripts", "deployment")
     roots = tuple(path for name in source_names if (path := root / name).is_dir())
     selected = roots or (root,)
-    return tuple(
-        path
-        for source_root in selected
-        for path in source_root.rglob("*")
-        if path.is_file()
-        and path.suffix.lower() in SOURCE_SUFFIXES
-        and not EXCLUDED_PARTS.intersection(path.parts)
-    )
+    files: list[Path] = []
+    for source_root in selected:
+        for directory, directories, filenames in source_root.walk():
+            directories[:] = [name for name in directories if name not in EXCLUDED_PARTS]
+            files.extend(
+                directory / filename
+                for filename in filenames
+                if (directory / filename).suffix.lower() in SOURCE_SUFFIXES
+            )
+    return tuple(files)
 
 
 def main(arguments: Sequence[str] | None = None) -> ExitCode:

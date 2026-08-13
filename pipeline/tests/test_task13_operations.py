@@ -150,6 +150,34 @@ def test_scope_audit_rejects_all_named_forbidden_scope_classes(tmp_path: Path) -
     ]
 
 
+def test_scope_audit_ignores_generated_next_build_artifacts(tmp_path: Path) -> None:
+    # Given
+    source = tmp_path / "source"
+    generated = source / "frontend" / ".next"
+    generated.mkdir(parents=True)
+    _ = (generated / "generated.js").write_text("GENERAL_CHATBOT = true\n", encoding="utf-8")
+    backend = source / "backend"
+    backend.mkdir()
+    checked = backend / "service.java"
+    _ = checked.write_text("final class Service {}\n", encoding="utf-8")
+
+    output = tmp_path / "scope.json"
+
+    # When
+    completed = _run_module(
+        "pipeline.audit_scope",
+        "--source",
+        str(source),
+        "--output",
+        str(output),
+    )
+
+    # Then
+    report = _read_json(output)
+    assert completed.returncode == 0
+    assert report["status"] == "PASS"
+
+
 @pytest.mark.parametrize(
     ("module", "extra_arguments", "expected_code"),
     [

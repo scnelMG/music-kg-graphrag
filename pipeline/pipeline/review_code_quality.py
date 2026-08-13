@@ -53,7 +53,7 @@ def _files(source: Path) -> tuple[Path, ...]:
         for path in root.rglob("*")
         if path.is_file()
         and path.suffix.lower() in SUFFIXES
-        and not _excluded(path)
+        and not _excluded(path.relative_to(root))
     )
 
 
