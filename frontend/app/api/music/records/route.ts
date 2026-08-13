@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
+import { requireOwnerSession } from "../../../../lib/owner-session";
+import { productionWriteConfirmationRequired } from "../../../../lib/personal-write-intent";
+import { issueRecordHandle } from "../../../../lib/record-handle";
 
 const recordRequestSchema = z.object({
   albumTitle: z.string().min(1),
@@ -31,9 +34,23 @@ const existingRecordSchema = z.object({
   releaseGroupMbid: z.string(),
   sentiment: z.string()
 });
+const recordsPageSchema = z.object({
+  nextCursor: z.string().min(1).nullable(),
+  records: z.array(existingRecordSchema)
+});
+const recordPageQuerySchema = z.object({
+  cursor: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(24).default(12)
+});
 
-export async function GET(): Promise<NextResponse> {
-  const result = await callBackend("api/v1/listening-records");
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const ownerSession = requireOwnerSession(request);
+  if (ownerSession !== null) return ownerSession;
+  const query = recordPageQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+  if (!query.success) return NextResponse.json({ code: "MALFORMED_REQUEST", retryable: false }, { status: 400 });
+  const searchParams = new URLSearchParams({ limit: String(query.data.limit) });
+  if (query.data.cursor !== undefined) searchParams.set("cursor", query.data.cursor);
+  const result = await callBackend("api/v1/listening-records/page", { searchParams });
   if (result.kind === "handled") return result.response;
   let payload: unknown;
   try {
@@ -42,11 +59,23 @@ export async function GET(): Promise<NextResponse> {
     if (error instanceof SyntaxError) return backendContractError();
     throw error;
   }
-  const records = z.array(existingRecordSchema).safeParse(payload);
-  return records.success ? NextResponse.json({ records: records.data }) : backendContractError();
+  const records = recordsPageSchema.safeParse(payload);
+  const secret = process.env.BACKEND_BFF_SHARED_SECRET;
+  if (!records.success || secret === undefined || secret.length === 0) return backendContractError();
+  return NextResponse.json({
+    nextCursor: records.data.nextCursor,
+    records: records.data.records.map(({ pageId, ...record }) => ({
+      ...record,
+      recordHandle: issueRecordHandle(pageId, secret)
+    }))
+  });
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const ownerSession = requireOwnerSession(request);
+  if (ownerSession !== null) return ownerSession;
+  const confirmation = productionWriteConfirmationRequired(request);
+  if (confirmation !== null) return confirmation;
   let raw: unknown;
   try {
     raw = await request.json();
@@ -66,5 +95,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     throw error;
   }
   const saved = savedSchema.safeParse(payload);
-  return saved.success ? NextResponse.json(saved.data, { status: 201 }) : backendContractError();
+  return saved.success
+    ? NextResponse.json({ notionLastEditedAt: saved.data.notionLastEditedAt, operation: saved.data.operation }, { status: 201 })
+    : backendContractError();
 }

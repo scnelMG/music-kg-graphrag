@@ -1,165 +1,331 @@
 import { expect, test } from "@playwright/test";
-import { writeFile } from "node:fs/promises";
 
-function redactSameOriginRequests(requests: readonly string[]): readonly string[] {
-  return requests.map((request) => {
-    const url = new URL(request);
-    return `${url.origin}${url.pathname}`;
+import { albumFixture, routeConnectedWorkspace, trackFixture, type RecordFixture } from "./connected-workspace-fixtures";
+
+test("Given more than twelve Notion records, when the listener opens record management, then later pages load only on request", async ({ page }) => {
+  const records: readonly RecordFixture[] = Array.from({ length: 13 }, (_, index) => ({
+    albumTitle: `Album ${index + 1}`,
+    artist: "Artist One",
+    artistCredits: ["Artist One"],
+    coverUrl: "",
+    favouriteTrack: "Track One",
+    lastEditedAt: "2026-08-12T00:00:00.000Z",
+    owned: false,
+    recordHandle: `notion-record-${index + 1}`,
+    releaseGroupMbid: `release-group-${index + 1}`,
+    sentiment: "Loved"
+  }));
+  await routeConnectedWorkspace(page, { records: records.slice(0, 12) });
+  await page.unroute("**/api/music/records");
+  await page.route((url) => url.pathname === "/api/music/records", (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    return route.fulfill({
+      body: JSON.stringify({ nextCursor: cursor === null ? "record-cursor-12" : null, records: cursor === null ? records.slice(0, 12) : records.slice(12) }),
+      contentType: "application/json",
+      status: 200
+    });
   });
-}
-
-test("searches and saves an explicitly labelled fixture review without external requests", async ({ page }, testInfo) => {
-  const requests: string[] = [];
-  page.on("request", (request) => requests.push(request.url()));
 
   await page.goto("/");
-  await expect(page.getByTestId("fixture-label")).toHaveText("fixture only");
-  const appOrigin = new URL(page.url()).origin;
-  await expect(page.getByRole("button", { name: "기록 저장" })).toBeDisabled();
-  await page.locator("#album-search").fill("밤의 기록");
-  await page.getByRole("button", { name: "음반 찾기" }).click();
-  await expect(page.getByText("밤의 기록", { exact: true })).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: /밤의 기록/ }).click();
-  await expect(page.getByText("선택한 음반은 현재 기록과 이어져 있어요.", { exact: true })).toBeVisible();
-  await expect(page.getByText("fixture-evidence-001", { exact: true })).toHaveCount(1);
-  await page.getByText("근거 경로 자세히 보기", { exact: true }).click();
-  await expect(page.locator(".path-list").getByText("fixture-evidence-001", { exact: true })).toBeVisible();
-  await page.locator("#review").fill("fixture 검토 기록");
-  await page.getByRole("button", { name: "기록 저장" }).click();
-  await expect(page.getByRole("status")).toContainText("외부 저장은 하지 않았습니다.");
-  await expect(page.getByTestId("save-confirmation")).toContainText("fixture-review-001");
-  await expect(page.getByTestId("save-confirmation")).toContainText("데모 기록 저장 완료");
-  expect(requests.every((url) => url.startsWith(`${appOrigin}/`))).toBe(true);
-  expect(requests.some((url) => /graphdb|musicbrainz|coverartarchive|openai/i.test(url))).toBe(false);
-  await writeFile(testInfo.outputPath("same-origin-network-trace.redacted.json"), `${JSON.stringify({ requests: redactSameOriginRequests(requests) }, null, 2)}\n`);
+
+  await expect(page.locator(".record-entry")).toHaveCount(12);
+  await expect(page.getByRole("button", { name: "다음 기록 더 보기" })).toBeVisible();
+
+  await page.getByRole("button", { name: "다음 기록 더 보기" }).click();
+
+  await expect(page.locator(".record-entry")).toHaveCount(13);
+  await expect(page.getByRole("button", { name: "다음 기록 더 보기" })).toHaveCount(0);
 });
 
-test("keeps the currently selected candidate's evidence when an earlier request finishes last", async ({ page }, testInfo) => {
-  let releaseFirstEvidence: (() => void) | undefined;
-  const firstEvidence = new Promise<void>((resolve) => {
-    releaseFirstEvidence = resolve;
-  });
-
-  // Given two candidates with an intentionally delayed first evidence response
-  await page.route("**/api/fixture/health", (route) => route.fulfill({
-    body: JSON.stringify({ mode: "fixture", status: "ok" }),
-    contentType: "application/json",
-    status: 200
-  }));
-  await page.route((url) => url.pathname === "/api/fixture/candidates", (route) => route.fulfill({
-    body: JSON.stringify({
-      candidates: [
-        { artist: "Artist A", id: "candidate-a", source: "PUBLIC_FIXTURE", title: "Candidate A" },
-        { artist: "Artist B", id: "candidate-b", source: "PUBLIC_FIXTURE", title: "Candidate B" }
-      ],
-      mode: "fixture"
-    }),
-    contentType: "application/json",
-    status: 200
-  }));
-  await page.route("**/api/fixture/candidates/*/evidence", async (route) => {
-    const candidateId = route.request().url().split("/").at(-2);
-    if (candidateId === "candidate-a") await firstEvidence;
+test("Given a large personal history, when the desk opens, then records and insights load in parallel", async ({ page }) => {
+  let insightsRequested = 0;
+  let recordsRequested = false;
+  let releaseRecords: (() => void) | undefined;
+  const pendingRecords = new Promise<void>((resolve) => { releaseRecords = resolve; });
+  await routeConnectedWorkspace(page);
+  await page.unroute("**/api/music/insights");
+  await page.unroute("**/api/music/records");
+  await page.route("**/api/music/insights", async (route) => {
+    insightsRequested += 1;
     await route.fulfill({
       body: JSON.stringify({
-        answer: `Evidence for ${candidateId}`,
-        claims: [{ evidenceIds: [`evidence-${candidateId}`], text: `Claim for ${candidateId}` }],
-        records: [{ id: `evidence-${candidateId}`, subjectId: candidateId, summary: `Claim for ${candidateId}` }],
-        selectionStatus: "FIXTURE_SELECTED",
-        state: "ready"
+        graphTaste: { evidencePageIds: ["notion-record-one"], personalRecordCount: 1, recommendations: [], relisten: [], retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL", seedArtist: "Artist One" },
+        taste: { artists: [], favouriteTracks: [], recordCount: 1, sentiments: [] }
       }),
       contentType: "application/json",
       status: 200
     });
   });
-
-  await page.goto("/");
-  await page.locator(".search-row button").click();
-  await page.getByRole("button", { name: /Candidate A/ }).click();
-
-  // When the user selects B before A's delayed evidence response completes
-  await page.getByRole("button", { name: /Candidate B/ }).click();
-  await expect(page.getByRole("button", { name: /Candidate B/ })).toHaveAttribute("aria-pressed", "true");
-  releaseFirstEvidence?.();
-
-  // Then A's late result cannot overwrite evidence that belongs to the visible B selection
-  await expect(page.getByText("Evidence for candidate-b", { exact: true })).toBeVisible();
-  await expect(page.getByText("Evidence for candidate-a", { exact: true })).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath("out-of-order-evidence-fixed.png"), fullPage: true });
-});
-
-test("does not restore a cleared selection when an earlier evidence request finishes", async ({ page }) => {
-  let releaseEvidence: (() => void) | undefined;
-  const pendingEvidence = new Promise<void>((resolve) => {
-    releaseEvidence = resolve;
+  await page.route("**/api/music/records", async (route) => {
+    recordsRequested = true;
+    await pendingRecords;
+    await route.fulfill({ body: JSON.stringify({ nextCursor: null, records: [] }), contentType: "application/json", status: 200 });
   });
-  let searchCount = 0;
 
-  await page.route("**/api/fixture/health", (route) => route.fulfill({ body: JSON.stringify({ mode: "fixture", status: "ok" }), contentType: "application/json", status: 200 }));
-  await page.route((url) => url.pathname === "/api/fixture/candidates", (route) => {
-    searchCount += 1;
-    return route.fulfill({
-      body: JSON.stringify({ candidates: searchCount === 1 ? [{ artist: "Artist A", id: "candidate-a", source: "PUBLIC_FIXTURE", title: "Candidate A" }] : [], mode: "fixture" }),
-      contentType: "application/json",
-      status: 200
-    });
+  await page.goto("/");
+  await expect.poll(() => recordsRequested).toBe(true);
+  await expect.poll(() => insightsRequested).toBe(1);
+
+  releaseRecords?.();
+  await expect(page.getByText("아직 저장된 기록이 없습니다.")).toBeVisible();
+  expect(insightsRequested).toBe(1);
+});
+
+test("Given no selected album, when the connected desk opens, then record fields stay hidden until a real result is chosen", async ({ page }) => {
+  await routeConnectedWorkspace(page);
+
+  await page.goto("/");
+
+  await expect(page.locator("#sentiment")).toHaveCount(0);
+  await expect(page.locator("#favourite-track-select")).toHaveCount(0);
+  await expect(page.locator("#owned")).toHaveCount(0);
+  await expect(page.locator(".save-button")).toHaveCount(0);
+  await expect(page.getByText("검색 결과에서 앨범 하나를 고르면 감상과 수록곡을 입력할 수 있습니다.")).toBeVisible();
+
+  await page.locator("#album-search").fill(albumFixture.title);
+  await page.locator("form.search-row button").click();
+  await expect(page).toHaveURL(/\?q=/);
+  await page.getByText(albumFixture.title, { exact: true }).first().click();
+
+  await expect(page.locator("#sentiment")).toBeVisible();
+  await expect(page.locator("#favourite-track-select")).toBeVisible();
+  await expect(page.locator("#owned")).toBeVisible();
+  await expect(page.locator(".save-button")).toBeVisible();
+});
+
+test("Given a shared search link, when the connected desk opens, then it restores and executes the query", async ({ page }) => {
+  let requestedQuery = "";
+  await routeConnectedWorkspace(page);
+  await page.route((url) => url.pathname === "/api/music/albums", async (route) => {
+    requestedQuery = new URL(route.request().url()).searchParams.get("q") ?? "";
+    await route.fulfill({ body: JSON.stringify({ albums: [albumFixture] }), contentType: "application/json", status: 200 });
   });
-  await page.route("**/api/fixture/candidates/candidate-a/evidence", async (route) => {
-    await pendingEvidence;
-    await route.fulfill({ body: JSON.stringify({ answer: "Late answer", claims: [{ evidenceIds: ["late-evidence"], text: "Late claim" }], records: [{ id: "late-evidence", subjectId: "candidate-a", summary: "Late claim" }], selectionStatus: "FIXTURE_SELECTED", state: "ready" }), contentType: "application/json", status: 200 });
+
+  await page.goto(`/?q=${encodeURIComponent(albumFixture.title)}`);
+
+  await expect(page.locator("#album-search")).toHaveValue(albumFixture.title);
+  await expect(page.locator("#album-search")).toHaveAttribute("name", "q");
+  await expect(page.locator("#album-search")).toHaveAttribute("autocomplete", "off");
+  await expect(page.locator("#album-search")).toHaveAttribute("inputmode", "search");
+  await expect(page.getByText(albumFixture.title, { exact: true }).first()).toBeVisible();
+  expect(requestedQuery).toBe(albumFixture.title);
+});
+
+test("Given a MusicBrainz album, when a listener selects its track and sentiment, then the record is created through the connected BFF", async ({ page }) => {
+  let saved = false;
+  const savedRecord: RecordFixture = {
+    albumTitle: albumFixture.title,
+    artist: albumFixture.artist,
+    artistCredits: albumFixture.artistCredits,
+    coverUrl: albumFixture.coverUrl,
+    favouriteTrack: trackFixture.title,
+    lastEditedAt: "2026-08-12T00:00:00.000Z",
+    owned: true,
+    recordHandle: "notion-record-one",
+    releaseGroupMbid: albumFixture.releaseGroupMbid,
+    sentiment: "Loved"
+  };
+  await routeConnectedWorkspace(page);
+  await page.route("**/api/music/records", async (route) => {
+    if (route.request().method() === "POST") {
+      const payload: unknown = route.request().postDataJSON();
+      expect(payload).toMatchObject({ albumTitle: albumFixture.title, favouriteTrack: trackFixture.title, sentiment: "Loved" });
+      expect(route.request().headers()["x-music-kg-write-confirmed"]).toBe("true");
+      saved = true;
+      await route.fulfill({ body: JSON.stringify({ notionLastEditedAt: savedRecord.lastEditedAt, notionPageId: savedRecord.recordHandle, operation: "CREATED" }), contentType: "application/json", status: 201 });
+      return;
+    }
+    await route.fulfill({ body: JSON.stringify({ records: saved ? [savedRecord] : [] }), contentType: "application/json", status: 200 });
   });
-  await page.route("**/api/fixture/recommendations", (route) => route.fulfill({ body: JSON.stringify({ policyVersion: "fixture-policy-v1", recommendation: { candidateId: "candidate-a", evidenceIds: ["late-evidence"], score: { diversity: 0, metadataRelevance: 0, novelty: 0, pathStrength: 0, personalEvidence: 0 }, title: "Candidate A", totalScore: 0 }, reviewCandidateId: "candidate-a" }), contentType: "application/json", status: 200 }));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "음반 찾기" }).click();
-  await page.getByRole("button", { name: /Candidate A/ }).click();
-  await page.locator("#album-search").fill("different search");
-  await page.getByRole("button", { name: "음반 찾기" }).click();
-  await expect(page.getByTestId("insight-empty")).toBeVisible();
+  await page.locator("#album-search").fill(albumFixture.title);
+  await page.locator("form.search-row button").click();
+  await page.getByText(albumFixture.title, { exact: true }).first().click();
+  await page.locator("#sentiment").selectOption("Loved");
+  await page.locator("#favourite-track-select").selectOption(trackFixture.title);
+  await page.locator("#owned").check();
+  await expect(page.locator(".save-button")).toBeEnabled();
 
-  releaseEvidence?.();
-  await page.waitForTimeout(250);
-  await expect(page.getByTestId("graphrag-answer")).toHaveCount(0);
-  await expect(page.locator(".selected-record")).toContainText("먼저 음반을 고르면");
+  await page.locator(".save-button").click();
+  await expect(page.getByRole("alertdialog")).toContainText("이 기록을 Notion에 저장할까요?");
+  await expect(page.getByRole("button", { name: "Notion에 저장하기" })).toBeFocused();
+  expect(saved).toBe(false);
+  await page.getByRole("button", { name: "Notion에 저장하기" }).click();
+
+  await expect(page.locator(".record-list")).toContainText(albumFixture.title);
+  await expect(page.locator(".record-list")).toContainText(trackFixture.title);
+  await expect(page.locator(".notice.success").filter({ hasText: "Notion 음악 감상 데이터베이스에 새 기록을 저장했습니다." })).toBeFocused();
 });
 
-test("keeps the form usable and reports a typed invalid rating", async ({ page }) => {
+test("Given an existing Notion record, when its MusicBrainz release group is selected, then the form is prefilled for an update", async ({ page }) => {
+  const existingRecord: RecordFixture = {
+    albumTitle: albumFixture.title,
+    artist: albumFixture.artist,
+    artistCredits: albumFixture.artistCredits,
+    coverUrl: albumFixture.coverUrl,
+    favouriteTrack: trackFixture.title,
+    lastEditedAt: "2026-08-11T00:00:00.000Z",
+    owned: true,
+    recordHandle: "notion-record-one",
+    releaseGroupMbid: albumFixture.releaseGroupMbid,
+    sentiment: "Reflective"
+  };
+  await routeConnectedWorkspace(page, { records: [existingRecord] });
+
   await page.goto("/");
-  await page.locator("#album-search").fill("밤의 기록");
-  await page.getByRole("button", { name: "음반 찾기" }).click();
-  await page.getByRole("button", { name: /밤의 기록/ }).click();
-  await page.getByLabel("내 평점 (1–5)").fill("6");
-  await page.getByLabel("한 줄 메모").fill("입력은 남아 있어야 합니다.");
-  await page.getByRole("button", { name: "기록 저장" }).click();
-  await expect(page.getByRole("status")).toContainText("평점은 1에서 5 사이의 정수여야 합니다.");
-  await expect(page.getByLabel("한 줄 메모")).toHaveValue("입력은 남아 있어야 합니다.");
+  await page.locator("#album-search").fill(albumFixture.title);
+  await page.locator("form.search-row button").click();
+  await page.getByText(albumFixture.title, { exact: true }).first().click();
+
+  await expect(page.locator("#sentiment")).toHaveValue(existingRecord.sentiment);
+  await expect(page.locator("#favourite-track-select")).toHaveValue(existingRecord.favouriteTrack);
+  await expect(page.locator("#owned")).toBeChecked();
 });
 
-test("shows the backend-confirmed fixture review identifier after saving", async ({ page }) => {
-  // Given a selected fixture candidate and a valid review
+test("Given a selected album with a delayed track request, when a new search clears the selection, then the late track response cannot restore it", async ({ page }) => {
+  let releaseTracks: (() => void) | undefined;
+  const pendingTracks = new Promise<void>((resolve) => { releaseTracks = resolve; });
+  await routeConnectedWorkspace(page);
+  await page.unroute((url) => url.pathname === "/api/music/albums");
+  await page.route(`**/api/music/albums/${albumFixture.releaseGroupMbid}/tracks`, async (route) => {
+    await pendingTracks;
+    await route.fulfill({ body: JSON.stringify({ tracks: [trackFixture] }), contentType: "application/json", status: 200 });
+  });
+  await page.route((url) => url.pathname === "/api/music/albums", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q");
+    const albums = query === "second" ? [] : [albumFixture];
+    return route.fulfill({ body: JSON.stringify({ albums }), contentType: "application/json", status: 200 });
+  });
+
   await page.goto("/");
-  await page.locator("#album-search").fill("밤의 기록");
-  await page.getByRole("button", { name: "음반 찾기" }).click();
-  await expect(page.getByText("밤의 기록", { exact: true })).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: /밤의 기록/ }).click();
-  await page.locator("#review").fill("fixture 저장 확인");
+  await page.locator("#album-search").fill("first");
+  await page.locator("form.search-row button").click();
+  await page.getByText(albumFixture.title, { exact: true }).first().click();
+  await page.locator("#album-search").fill("second");
+  await page.locator("form.search-row button").click();
+  await expect(page.locator(".candidate-row")).toHaveCount(0);
 
-  // When the review is saved through the real BFF and fixture backend
-  await page.getByRole("button", { name: "기록 저장" }).click();
-
-  // Then the returned identifier and typed status are observable in the UI
-  await expect(page.getByTestId("save-confirmation")).toContainText("fixture-review-001");
-  await expect(page.getByTestId("save-confirmation")).toContainText("데모 기록 저장 완료");
+  releaseTracks?.();
+  await expect(page.locator("#favourite-track-select")).toHaveCount(0);
+  await expect(page.locator(".selected-record")).not.toContainText(albumFixture.title);
 });
 
-test("adapter-disabled mode renders a recoverable state without fixture candidates", async ({ page }) => {
-  test.skip(process.env.FIXTURE_ADAPTER_MODE !== "disabled", "requires the deterministic disabled fixture-adapter mode");
+test("Given a stored Notion record, when the listener cancels archive confirmation, then Notion is unchanged", async ({ page }) => {
+  let archiveRequests = 0;
+  const existingRecord: RecordFixture = {
+    albumTitle: albumFixture.title,
+    artist: albumFixture.artist,
+    artistCredits: albumFixture.artistCredits,
+    coverUrl: albumFixture.coverUrl,
+    favouriteTrack: trackFixture.title,
+    lastEditedAt: "2026-08-11T00:00:00.000Z",
+    owned: false,
+    recordHandle: "notion-record-one",
+    releaseGroupMbid: albumFixture.releaseGroupMbid,
+    sentiment: "Loved"
+  };
+  await routeConnectedWorkspace(page, { records: [existingRecord] });
+  await page.route(/\/api\/music\/records(?:\/.*)?(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === "DELETE") archiveRequests += 1;
+    await route.fulfill({ body: JSON.stringify({ records: [existingRecord] }), contentType: "application/json", status: 200 });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Notion에서 보관" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText(existingRecord.albumTitle);
+  await page.getByRole("button", { name: "보관하지 않기" }).click();
+
+  expect(archiveRequests).toBe(0);
+  await expect(page.locator(".record-list")).toContainText(existingRecord.albumTitle);
+});
+
+test("Given a stored Notion record, when the listener confirms archive, then the refreshed archive no longer lists it", async ({ page }) => {
+  let archived = false;
+  const existingRecord: RecordFixture = {
+    albumTitle: albumFixture.title,
+    artist: albumFixture.artist,
+    artistCredits: albumFixture.artistCredits,
+    coverUrl: albumFixture.coverUrl,
+    favouriteTrack: trackFixture.title,
+    lastEditedAt: "2026-08-11T00:00:00.000Z",
+    owned: false,
+    recordHandle: "notion-record-one",
+    releaseGroupMbid: albumFixture.releaseGroupMbid,
+    sentiment: "Loved"
+  };
+  await routeConnectedWorkspace(page);
+  await page.route(/\/api\/music\/records(?:\/.*)?(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === "DELETE") {
+      archived = true;
+      await route.fulfill({ body: JSON.stringify({ notionLastEditedAt: existingRecord.lastEditedAt, notionPageId: existingRecord.recordHandle, operation: "ARCHIVED" }), contentType: "application/json", status: 200 });
+      return;
+    }
+    await route.fulfill({ body: JSON.stringify({ records: archived ? [] : [existingRecord] }), contentType: "application/json", status: 200 });
+  });
+
+  await page.goto("/");
+  await expect(page.locator(".record-list")).toContainText(existingRecord.albumTitle);
+  await page.getByRole("button", { name: "Notion에서 보관" }).click();
+  await page.getByRole("button", { name: "보관하기" }).click();
+  await expect(page.locator(".record-list .record-entry")).toHaveCount(0);
+  await expect(page.locator(".notice.success").filter({ hasText: `${existingRecord.albumTitle} 기록을 보관했습니다.` })).toBeFocused();
+});
+
+test("Given a newly archived Notion record, when the listener chooses undo, then the record is restored", async ({ page }) => {
+  let archived = false;
+  let restoreRequests = 0;
+  const existingRecord: RecordFixture = {
+    albumTitle: albumFixture.title,
+    artist: albumFixture.artist,
+    artistCredits: albumFixture.artistCredits,
+    coverUrl: albumFixture.coverUrl,
+    favouriteTrack: trackFixture.title,
+    lastEditedAt: "2026-08-11T00:00:00.000Z",
+    owned: false,
+    recordHandle: "notion-record-one",
+    releaseGroupMbid: albumFixture.releaseGroupMbid,
+    sentiment: "Loved"
+  };
+  await routeConnectedWorkspace(page);
+  await page.route(/\/api\/music\/records(?:\/.*)?(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.method() === "DELETE") {
+      archived = true;
+      await route.fulfill({ body: JSON.stringify({ notionLastEditedAt: existingRecord.lastEditedAt, notionPageId: existingRecord.recordHandle, operation: "ARCHIVED" }), contentType: "application/json", status: 200 });
+      return;
+    }
+    if (request.method() === "POST" && request.url().endsWith("/restore")) {
+      restoreRequests += 1;
+      archived = false;
+      await route.fulfill({ body: JSON.stringify({ notionLastEditedAt: existingRecord.lastEditedAt, notionPageId: existingRecord.recordHandle, operation: "RESTORED" }), contentType: "application/json", status: 200 });
+      return;
+    }
+    await route.fulfill({ body: JSON.stringify({ records: archived ? [] : [existingRecord] }), contentType: "application/json", status: 200 });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Notion에서 보관" }).click();
+  await page.getByRole("button", { name: "보관하기" }).click();
+  await page.getByRole("button", { name: "보관 취소" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("이 기록을 Notion에 복원할까요?");
+  await expect(page.getByRole("button", { name: "Notion에서 복원하기" })).toBeFocused();
+  expect(restoreRequests).toBe(0);
+  await page.getByRole("button", { name: "Notion에서 복원하기" }).click();
+
+  await expect(page.locator(".record-list")).toContainText(existingRecord.albumTitle);
+  await expect(page.locator(".notice.success").filter({ hasText: "Notion 기록을 복원했습니다." })).toBeFocused();
+  expect(restoreRequests).toBe(1);
+});
+
+test("Given unavailable private insights, when the desk opens, then the public search stays visible without fabricated recommendations", async ({ page }) => {
+  await routeConnectedWorkspace(page);
+  await page.route("**/api/music/insights", (route) => route.fulfill({ body: JSON.stringify({ code: "BACKEND_UNAVAILABLE", retryable: true }), contentType: "application/json", status: 503 }));
 
   await page.goto("/");
 
-  await expect(page.getByTestId("external-backend-unavailable")).toBeVisible();
-  await expect(page.getByTestId("external-backend-unavailable")).toContainText("EXTERNAL_BACKEND_UNAVAILABLE");
-  await expect(page.getByTestId("external-backend-unavailable")).toContainText("fixture 어댑터를 다시 활성화");
-  await expect(page.getByText("밤의 기록", { exact: true })).not.toBeVisible();
-  await expect(page.getByRole("button", { name: "앨범 찾기" })).toHaveCount(0);
+  await expect(page.locator("#album-search")).toBeEditable();
+  await expect(page.locator("form.search-row button")).toBeEnabled();
+  await expect(page.locator(".record-list .record-entry")).toHaveCount(0);
+  await expect(page.locator(".recommendation-note")).toHaveCount(0);
 });

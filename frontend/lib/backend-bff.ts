@@ -12,6 +12,14 @@ const apiErrorSchema = z.object({
   requestId: z.string().min(1)
 });
 
+const retryableDependencyCodes = new Set([
+  "GRAPHDB_UNAVAILABLE",
+  "MUSICBRAINZ_RATE_LIMITED",
+  "NOTION_RATE_LIMITED"
+]);
+
+export const backendRequestTimeoutMilliseconds = 25_000;
+
 function clientErrorMessage(code: string): string {
   if (code === "INVALID_RATING") return "평점은 1에서 5 사이의 정수여야 합니다.";
   return "요청을 처리하지 못했습니다. 입력을 확인한 뒤 다시 시도해 주세요.";
@@ -34,10 +42,15 @@ type ConnectedBackendPath =
   | "api/v1/catalog/albums"
   | `api/v1/catalog/albums/${string}/tracks`
   | "api/v1/health"
+  | "api/v1/ready"
   | "api/v1/listening-records"
+  | "api/v1/listening-records/page"
   | `api/v1/listening-records/${string}`
   | "api/v1/listening-records/form-options"
   | "api/v1/personal-insights"
+  | "api/v1/personal-insights/explanation"
+  | "api/v1/personal-sync"
+  | "api/v1/personal-sync/reconcile"
   | "api/v1/taste-profile"
   | "api/v1/recommendations/discover"
   | "api/v1/graphrag/taste";
@@ -80,13 +93,12 @@ export async function callBackend(
       retry: 0,
       searchParams: options.searchParams,
       throwHttpErrors: false,
-      timeout: 15_000
+      timeout: backendRequestTimeoutMilliseconds
     });
     if (response.ok) return { kind: "received", response };
     if (response.status >= 300 && response.status < 400) {
       return { kind: "handled", response: backendContractError() };
     }
-    if (response.status >= 500) return { kind: "handled", response: unavailableResponse() };
     let errorPayload: unknown;
     try {
       errorPayload = await response.json();
@@ -96,9 +108,22 @@ export async function callBackend(
     }
     const parsedError = apiErrorSchema.safeParse(errorPayload);
     if (!parsedError.success) {
+      if (response.status >= 500) return { kind: "handled", response: unavailableResponse() };
       return {
         kind: "handled",
         response: NextResponse.json({ code: "BACKEND_CONTRACT_ERROR", retryable: false }, { status: 502 })
+      };
+    }
+    if (response.status >= 500) {
+      return {
+        kind: "handled",
+        response: retryableDependencyCodes.has(parsedError.data.code)
+          ? NextResponse.json({
+            code: parsedError.data.code,
+            message: "The music backend is temporarily unavailable.",
+            retryable: true
+          }, { status: 503 })
+          : unavailableResponse()
       };
     }
     return {

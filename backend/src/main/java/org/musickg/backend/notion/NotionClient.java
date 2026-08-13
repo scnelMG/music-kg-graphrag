@@ -12,6 +12,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.LockSupport;
 import org.musickg.backend.config.ConnectedServiceProperties;
 import org.springframework.http.MediaType;
@@ -26,6 +28,7 @@ public final class NotionClient implements PersonalMusicRecordGateway {
     private final RestClient client;
     private final ObjectMapper objectMapper;
     private final ConnectedServiceProperties.Notion configuration;
+    private final ConcurrentMap<RecordPageRequest, CachedRecordPage> cachedRecordPages = new ConcurrentHashMap<>();
     private volatile CachedRecords cachedRecords;
 
     public NotionClient(RestClient client, ObjectMapper objectMapper, ConnectedServiceProperties.Notion configuration) {
@@ -80,15 +83,49 @@ public final class NotionClient implements PersonalMusicRecordGateway {
         return saved;
     }
 
-    public List<ExistingRecord> list() {
+    @Override
+    public SavedRecord restore(String pageId) {
+        if (blank(pageId)) throw new IllegalArgumentException("NOTION_PAGE_ID_REQUIRED");
+        String response = request(() -> client.patch()
+                .uri("https://api.notion.com/v1/pages/{pageId}", pageId)
+                .header("Authorization", authorizationHeader())
+                .header("Notion-Version", NOTION_VERSION)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("in_trash", false))
+                .retrieve()
+                .body(String.class));
+        SavedRecord saved = parseSavedRecord(response);
+        invalidateRecords();
+        return saved;
+    }
+
+    public synchronized List<ExistingRecord> list() {
         CachedRecords cached = cachedRecords;
         if (cached != null && !cached.expired()) return cached.records();
         List<ExistingRecord> records = new ArrayList<>();
         String cursor = null;
         do {
+            RecordPage page = listPage(100, cursor);
+            records.addAll(page.records());
+            cursor = page.nextCursor();
+        } while (cursor != null);
+        List<ExistingRecord> snapshot = List.copyOf(records);
+        cachedRecords = new CachedRecords(snapshot, System.nanoTime() + Duration.ofSeconds(30).toNanos());
+        return snapshot;
+    }
+
+    @Override
+    public synchronized List<ExistingRecord> changedSince(Instant after) {
+        if (after == null) throw new IllegalArgumentException("NOTION_CHANGE_CHECKPOINT_REQUIRED");
+        Map<String, ExistingRecord> changed = new LinkedHashMap<>();
+        String cursor = null;
+        do {
             Map<String, Object> request = new LinkedHashMap<>();
             request.put("page_size", 100);
             if (cursor != null) request.put("start_cursor", cursor);
+            request.put("filter", Map.of(
+                    "timestamp", "last_edited_time",
+                    "last_edited_time", Map.of("after", after.toString())));
             String response = request(() -> client.post()
                     .uri("https://api.notion.com/v1/data_sources/" + configuration.dataSourceId() + "/query")
                     .header("Authorization", authorizationHeader())
@@ -97,13 +134,35 @@ public final class NotionClient implements PersonalMusicRecordGateway {
                     .body(request)
                     .retrieve()
                     .body(String.class));
-            Page page = parsePage(response);
-            records.addAll(page.records());
+            RecordPage page = parsePage(response);
+            for (ExistingRecord record : page.records()) {
+                changed.merge(record.pageId(), record, (current, candidate) ->
+                        candidate.lastEditedAt().isAfter(current.lastEditedAt()) ? candidate : current);
+            }
             cursor = page.nextCursor();
         } while (cursor != null);
-        List<ExistingRecord> snapshot = List.copyOf(records);
-        cachedRecords = new CachedRecords(snapshot, System.nanoTime() + Duration.ofSeconds(30).toNanos());
-        return snapshot;
+        return List.copyOf(changed.values());
+    }
+
+    @Override
+    public synchronized RecordPage listPage(int pageSize, String cursor) {
+        RecordPageRequest page = new RecordPageRequest(Math.clamp(pageSize, 1, 100), blank(cursor) ? null : cursor);
+        CachedRecordPage cached = cachedRecordPages.get(page);
+        if (cached != null && !cached.expired()) return cached.page();
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("page_size", page.pageSize());
+        if (page.cursor() != null) request.put("start_cursor", page.cursor());
+        String response = request(() -> client.post()
+                .uri("https://api.notion.com/v1/data_sources/" + configuration.dataSourceId() + "/query")
+                .header("Authorization", authorizationHeader())
+                .header("Notion-Version", NOTION_VERSION)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(String.class));
+        RecordPage records = parsePage(response);
+        cachedRecordPages.put(page, new CachedRecordPage(records, System.nanoTime() + Duration.ofSeconds(30).toNanos()));
+        return records;
     }
 
     @Override
@@ -145,8 +204,8 @@ public final class NotionClient implements PersonalMusicRecordGateway {
                 if (!blank(name)) values.add(name);
             }
             return List.copyOf(values);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
+        } catch (JsonProcessingException | IllegalStateException exception) {
+            throw new AccessException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
         }
     }
 
@@ -157,8 +216,8 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             String lastEdited = body.path("last_edited_time").asText();
             if (pageId.isBlank() || lastEdited.isBlank()) throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR");
             return new SavedRecord(pageId, Instant.parse(lastEdited));
-        } catch (JsonProcessingException | java.time.format.DateTimeParseException exception) {
-            throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
+        } catch (JsonProcessingException | java.time.format.DateTimeParseException | IllegalStateException exception) {
+            throw new AccessException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
         }
     }
 
@@ -182,7 +241,7 @@ public final class NotionClient implements PersonalMusicRecordGateway {
         throw new AccessException("NOTION_UNAVAILABLE");
     }
 
-    private Page parsePage(String response) {
+    private RecordPage parsePage(String response) {
         try {
             JsonNode body = objectMapper.readTree(response);
             JsonNode resultNodes = body.path("results");
@@ -207,9 +266,9 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             }
             String cursor = body.path("has_more").asBoolean(false) ? body.path("next_cursor").asText() : null;
             if (cursor != null && cursor.isBlank()) throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR");
-            return new Page(List.copyOf(records), cursor);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
+            return new RecordPage(List.copyOf(records), cursor);
+        } catch (JsonProcessingException | IllegalStateException exception) {
+            throw new AccessException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
         }
     }
 
@@ -220,7 +279,7 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             String pageId = canonicalPageId(results.get(0).path("id").asText());
             return blank(pageId) ? Optional.empty() : Optional.of(pageId);
         } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
+            throw new AccessException("NOTION_RESPONSE_CONTRACT_ERROR", exception);
         }
     }
 
@@ -329,16 +388,32 @@ public final class NotionClient implements PersonalMusicRecordGateway {
         public AccessException(String code) {
             super(code);
         }
+
+        public AccessException(String code, Throwable cause) {
+            super(code, cause);
+        }
     }
 
-    private record Page(List<ExistingRecord> records, String nextCursor) {}
+    public record RecordPage(List<ExistingRecord> records, String nextCursor) {
+        public RecordPage {
+            records = List.copyOf(records);
+            nextCursor = blank(nextCursor) ? null : nextCursor;
+        }
+    }
 
     private record CachedRecords(List<ExistingRecord> records, long expiresAtNanos) {
         private boolean expired() { return System.nanoTime() >= expiresAtNanos; }
     }
 
+    private record RecordPageRequest(int pageSize, String cursor) {}
+
+    private record CachedRecordPage(RecordPage page, long expiresAtNanos) {
+        private boolean expired() { return System.nanoTime() >= expiresAtNanos; }
+    }
+
     private void invalidateRecords() {
         cachedRecords = null;
+        cachedRecordPages.clear();
     }
 
     private static boolean blank(String value) {

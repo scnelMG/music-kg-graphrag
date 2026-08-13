@@ -63,6 +63,14 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-pe
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-connected-service.ps1
 ```
 
+### Personal-data boundary
+
+The catalog search is public, but a listener's Notion history, taste profile, graph-backed
+recommendations, and record mutations are private. Production must set the server-only
+`MUSIC_KG_OWNER_SESSION_REQUIRED=true`, `MUSIC_KG_OWNER_SETUP_TOKEN`, and
+`MUSIC_KG_OWNER_SESSION_SECRET` variables. The owner creates an HttpOnly session at `/owner`;
+no Notion ID, provider credential, or setup token is sent in browser responses.
+
 연결 모드 설정과 Notion의 한 번뿐인 공유 절차는
 [`docs/connected-service-setup.md`](docs/connected-service-setup.md)를 따르세요.
 로컬 검증 명령은 계속 아래와 같습니다.
@@ -72,6 +80,11 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-co
 pnpm --dir frontend typecheck
 pnpm --dir frontend test
 ```
+
+For a safe connected-service readiness check and a dedicated-Notion E2E procedure, use [Connected Service Test Runbook](docs/connected-e2e-runbook.md). The E2E runner refuses production data-source IDs by design.
+
+The current measured quality results, GraphRAG evaluation boundaries, and resolved
+test-environment failures are recorded in [Connected Service Verification](docs/quality/connected-service-verification-2026-08-12.md).
 
 파이프라인 개발 의존성을 설치한 뒤에는 다음을 실행합니다.
 

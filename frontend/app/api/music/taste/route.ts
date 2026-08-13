@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
+import { requireOwnerSession } from "../../../../lib/owner-session";
 
 const countSchema = z.object({ count: z.number().int().positive(), value: z.string().min(1) });
 const profileSchema = z.object({
@@ -11,7 +12,9 @@ const profileSchema = z.object({
   sentiments: z.array(countSchema)
 });
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const ownerSession = requireOwnerSession(request);
+  if (ownerSession !== null) return ownerSession;
   const result = await callBackend("api/v1/taste-profile");
   if (result.kind === "handled") return result.response;
   let payload: unknown;

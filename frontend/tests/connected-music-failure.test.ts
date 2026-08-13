@@ -10,6 +10,7 @@ describe("connected music failure classification", () => {
     ["MUSICBRAINZ_RATE_LIMITED", "catalog-rate-limited"],
     ["GRAPHDB_UNAVAILABLE", "personal-graph-unavailable"],
     ["INSUFFICIENT_PERSONAL_HISTORY", "insufficient-history"],
+    ["OWNER_SESSION_REQUIRED", "owner-session-required"],
     ["BACKEND_CONFIGURATION_ERROR", "configuration"],
     ["BACKEND_UNAVAILABLE", "unavailable"]
   ] as const)("classifies %s without interpreting upstream details", (message, expected) => {

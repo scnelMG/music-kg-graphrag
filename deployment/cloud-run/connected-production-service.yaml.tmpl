@@ -15,7 +15,7 @@ spec:
     spec:
       serviceAccountName: ${CLOUD_RUN_PRODUCTION_SERVICE_ACCOUNT}
       containerConcurrency: 1
-      timeoutSeconds: 20
+      timeoutSeconds: 30
       containers:
         - image: ${IMAGE_DIGEST}
           ports:
@@ -29,6 +29,8 @@ spec:
               value: ${VERCEL_PRODUCTION_ORIGIN}
             - name: MUSIC_KG_CONNECTED_MODE
               value: connected
+            - name: MUSIC_KG_LLM_ENABLED
+              value: "false"
             - name: NOTION_API_KEY
               valueFrom:
                 secretKeyRef:

@@ -1,10 +1,13 @@
 package org.musickg.backend.connected;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import org.musickg.backend.catalog.MusicCatalogGateway;
 import org.musickg.backend.notion.NotionClient;
+import org.springframework.http.ResponseEntity;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,73 +23,124 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(prefix = "music-kg.connected", name = "mode", havingValue = "connected")
 class ConnectedMusicApiController {
     private final ConnectedMusicService service;
+    private final ConnectedOperationMetrics metrics;
 
-    ConnectedMusicApiController(ConnectedMusicService service) {
+    ConnectedMusicApiController(ConnectedMusicService service, ConnectedOperationMetrics metrics) {
         this.service = service;
+        this.metrics = metrics;
     }
 
     @GetMapping("/health")
     Health health() {
-        return new Health("ok", "connected");
+        return metrics.observe("health", () -> new Health("ok", "connected"));
+    }
+
+    @GetMapping("/ready")
+    ResponseEntity<ConnectedMusicService.ServiceReadiness> readiness() {
+        return metrics.observe("readiness", () -> {
+            ConnectedMusicService.ServiceReadiness readiness = service.readiness();
+            return readiness.ready() ? ResponseEntity.ok(readiness) : ResponseEntity.status(503).body(readiness);
+        });
     }
 
     @GetMapping("/catalog/albums")
     List<MusicCatalogGateway.Album> albums(@RequestParam @NotBlank String q) {
-        return service.search(q);
+        return metrics.observe("catalog.search", () -> service.search(q));
     }
 
     @GetMapping("/catalog/albums/{releaseGroupMbid}/tracks")
     List<MusicCatalogGateway.Track> tracks(@PathVariable @NotBlank String releaseGroupMbid) {
-        return service.tracks(releaseGroupMbid);
+        return metrics.observe("catalog.tracks", () -> service.tracks(releaseGroupMbid));
     }
 
     @GetMapping("/listening-records")
     List<NotionClient.ExistingRecord> records() {
-        return service.records();
+        return metrics.observe("records.list", service::records);
+    }
+
+    @GetMapping("/listening-records/page")
+    NotionClient.RecordPage recordsPage(@RequestParam(defaultValue = "12") @Min(1) @Max(24) int limit,
+                                        @RequestParam(required = false) String cursor) {
+        return metrics.observe("records.page", () -> service.recordsPage(limit, cursor));
     }
 
     @GetMapping("/listening-records/form-options")
     FormOptions formOptions() {
-        return new FormOptions(service.sentimentOptions());
+        return metrics.observe("records.formOptions", () -> new FormOptions(service.sentimentOptions()));
     }
 
     @PostMapping("/listening-records")
     ConnectedMusicService.SaveResult save(@Valid @RequestBody SaveRequest request) {
-        return service.save(new ConnectedMusicService.RecordInput(
+        return metrics.observe("records.save", () -> service.save(new ConnectedMusicService.RecordInput(
                 request.releaseGroupMbid(), request.albumTitle(), request.artist(), request.coverUrl(),
-                request.sentiment(), request.favouriteTrack(), request.owned(), request.artistCredits()));
+                request.sentiment(), request.favouriteTrack(), request.owned(), request.artistCredits())));
     }
 
     @DeleteMapping("/listening-records/{pageId}")
     ConnectedMusicService.SaveResult archive(@PathVariable @NotBlank String pageId) {
-        return service.remove(pageId);
+        return metrics.observe("records.archive", () -> service.remove(pageId));
+    }
+
+    @PostMapping("/listening-records/{pageId}/restore")
+    ConnectedMusicService.SaveResult restore(@PathVariable @NotBlank String pageId) {
+        return metrics.observe("records.restore", () -> service.restore(pageId));
     }
 
     @GetMapping("/taste-profile")
     ConnectedMusicService.TasteProfile tasteProfile() {
-        return service.tasteProfile();
+        return metrics.observe("taste.profile", service::tasteProfile);
     }
 
     @GetMapping("/recommendations/discover")
-    ConnectedMusicService.Discovery discover() {
-        return service.discover();
+    PublicDiscovery discover() {
+        return metrics.observe("recommendations.discover", () -> {
+            ConnectedMusicService.Discovery discovery = service.discover();
+            return new PublicDiscovery(
+                    discovery.seedArtist(),
+                    discovery.albums().stream().map(ConnectedMusicApiController::publicRecommendation).toList(),
+                    discovery.retrievalMethod());
+        });
     }
 
     @GetMapping("/graphrag/taste")
-    GraphRagTaste graphRagTaste() {
-        ConnectedMusicService.GraphTaste graphTaste = service.graphTaste();
-        return new GraphRagTaste(
-                graphTaste.retrievalMethod(),
-                false,
-                graphTaste.personalRecordCount(),
-                graphTaste.seedArtist(),
-                graphTaste.evidencePageIds(),
-                graphTaste.recommendations());
+    PublicGraphRagTaste graphRagTaste() {
+        return metrics.observe("graphrag.taste", () -> {
+            ConnectedMusicService.GraphTaste graphTaste = service.graphTaste();
+            return publicGraphTaste(graphTaste);
+        });
     }
 
     @GetMapping("/personal-insights")
-    ConnectedMusicService.PersonalInsights personalInsights() {
-        return service.personalInsights();
+    PublicPersonalInsights personalInsights() {
+        return metrics.observe("personal.insights", () -> {
+            ConnectedMusicService.PersonalInsights insights = service.personalInsights();
+            return new PublicPersonalInsights(insights.taste(), publicGraphTaste(insights.graphTaste()), insights.syncState());
+        });
+    }
+
+    @PostMapping("/personal-insights/explanation")
+    ConnectedMusicService.GraphRagExplanation explainPersonalTaste() {
+        return metrics.observe("personal.insights.explanation", service::explainPersonalTaste);
+    }
+
+    @GetMapping("/personal-sync")
+    PersonalGraphSyncService.SyncState personalGraphSyncState() {
+        return metrics.observe("personal.sync.status", service::personalGraphSyncState);
+    }
+
+    @PostMapping("/personal-sync")
+    PersonalGraphSyncService.SyncState refreshPersonalGraph() {
+        return metrics.observe("personal.sync.refresh", service::refreshPersonalGraph);
+    }
+
+    @PostMapping("/personal-sync/reconcile")
+    PersonalGraphSyncService.SyncState reconcilePersonalGraph() {
+        return metrics.observe("personal.sync.reconcile", service::reconcilePersonalGraph);
+    }
+
+    @GetMapping("/operations")
+    List<ConnectedOperationMetrics.OperationMetric> operations() {
+        return metrics.snapshot();
     }
 
     record SaveRequest(@NotBlank String releaseGroupMbid, @NotBlank String albumTitle, @NotBlank String artist,
@@ -101,7 +155,42 @@ class ConnectedMusicApiController {
 
     record Health(String status, String mode) {}
 
-    record GraphRagTaste(String retrievalMethod, boolean generatedByLlm, long personalRecordCount,
-                         String seedArtist, List<String> evidencePageIds,
-                         List<ConnectedMusicService.AlbumRecommendation> recommendations) {}
+    private static PublicGraphRagTaste publicGraphTaste(ConnectedMusicService.GraphTaste graphTaste) {
+        return new PublicGraphRagTaste(
+                graphTaste.retrievalMethod(),
+                false,
+                graphTaste.personalRecordCount(),
+                graphTaste.seedArtist(),
+                graphTaste.relisten().stream().map(recommendation -> new PublicRelistenRecommendation(
+                        recommendation.title(), recommendation.artist(), recommendation.releaseGroupMbid(),
+                        recommendation.coverUrl(), recommendation.favouriteTrack(), recommendation.owned(),
+                        recommendation.evidenceMethod())).toList(),
+                graphTaste.recommendations().stream().map(ConnectedMusicApiController::publicRecommendation).toList());
+    }
+
+    private static PublicAlbumRecommendation publicRecommendation(ConnectedMusicService.AlbumRecommendation recommendation) {
+        return new PublicAlbumRecommendation(
+                recommendation.title(), recommendation.artist(), recommendation.releaseGroupMbid(),
+                recommendation.firstReleaseDate(), recommendation.coverUrl(), recommendation.score(),
+                recommendation.evidenceMethod(), recommendation.evidencePaths().stream().map(path ->
+                        new PublicEvidencePath(path.relation(), path.value())).toList());
+    }
+
+    record PublicPersonalInsights(ConnectedMusicService.TasteProfile taste, PublicGraphRagTaste graphTaste,
+                                  PersonalGraphSyncService.SyncState syncState) {}
+
+    record PublicGraphRagTaste(String retrievalMethod, boolean generatedByLlm, long personalRecordCount,
+                               String seedArtist, List<PublicRelistenRecommendation> relisten,
+                               List<PublicAlbumRecommendation> recommendations) {}
+
+    record PublicDiscovery(String seedArtist, List<PublicAlbumRecommendation> albums, String retrievalMethod) {}
+
+    record PublicRelistenRecommendation(String title, String artist, String releaseGroupMbid, String coverUrl,
+                                        String favouriteTrack, boolean owned, String evidenceMethod) {}
+
+    record PublicAlbumRecommendation(String title, String artist, String releaseGroupMbid, String firstReleaseDate,
+                                     String coverUrl, long score, String evidenceMethod,
+                                     List<PublicEvidencePath> evidencePaths) {}
+
+    record PublicEvidencePath(String relation, String value) {}
 }

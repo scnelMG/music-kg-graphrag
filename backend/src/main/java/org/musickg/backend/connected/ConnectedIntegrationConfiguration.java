@@ -6,6 +6,7 @@ import java.time.Duration;
 import org.musickg.backend.catalog.MusicBrainzClient;
 import org.musickg.backend.catalog.MusicCatalogGateway;
 import org.musickg.backend.config.ConnectedServiceProperties;
+import org.musickg.backend.config.GroundedLlmProperties;
 import org.musickg.backend.notion.NotionClient;
 import org.musickg.backend.notion.PersonalMusicRecordGateway;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -38,9 +39,19 @@ class ConnectedIntegrationConfiguration {
     }
 
     @Bean
+    GroundedExplanationGenerator groundedExplanationGenerator(RestClient.Builder builder, ObjectMapper objectMapper,
+                                                               GroundedLlmProperties properties) {
+        if (!properties.configured()) return GroundedExplanationGenerator.disabled();
+        return new OpenAiCompatibleGroundedExplanationGenerator(
+                externalClient(builder).mutate().baseUrl(properties.baseUrl()).build(), objectMapper,
+                properties.apiKey(), properties.model());
+    }
+
+    @Bean
     ConnectedMusicService connectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
-                                                PersonalGraphProjectionGateway graph) {
-        return new ConnectedMusicService(catalog, records, graph);
+                                                PersonalGraphProjectionGateway graph,
+                                                GroundedExplanationGenerator explanationGenerator) {
+        return new ConnectedMusicService(catalog, records, graph, java.time.Clock.systemUTC(), explanationGenerator);
     }
 
     private static RestClient externalClient(RestClient.Builder builder) {

@@ -106,6 +106,26 @@ class NotionClientTest {
     }
 
     @Test
+    void readsOnlyTheRequestedNotionRecordPageWithItsCursor() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = new NotionClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.Notion("secret-token", "data-source-id", FIELDS));
+
+        server.expect(requestTo("https://api.notion.com/v1/data_sources/data-source-id/query"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("{\"page_size\":12,\"start_cursor\":\"cursor-12\"}"))
+                .andRespond(withSuccess("""
+                        {"results":[{"id":"page-id","last_edited_time":"2026-08-10T00:00:00.000Z","properties":{"앨범명":{"title":[{"plain_text":"Kind of Blue"}]},"가수":{"multi_select":[{"name":"Miles Davis"}]},"앨범커버":{"files":[]},"개인 감상평":{"select":{"name":"애착 앨범"}},"개인 최애곡":{"rich_text":[{"plain_text":"So What"}]},"앨범 보유":{"checkbox":true}}}],"has_more":true,"next_cursor":"cursor-24"}
+                        """, MediaType.APPLICATION_JSON));
+
+        var page = client.listPage(12, "cursor-12");
+
+        assertThat(page.records()).extracting(NotionClient.ExistingRecord::pageId).containsExactly("page-id");
+        assertThat(page.nextCursor()).isEqualTo("cursor-24");
+        server.verify();
+    }
+
+    @Test
     void findsOneExistingRecordByItsMusicBrainzReleaseGroupWithoutReadingTheWholeHistory() {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();

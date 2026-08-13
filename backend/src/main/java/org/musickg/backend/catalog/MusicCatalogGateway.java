@@ -21,6 +21,10 @@ public interface MusicCatalogGateway {
         throw new UnsupportedOperationException("MUSICBRAINZ_TRACK_LOOKUP_UNSUPPORTED");
     }
 
+    default void verifyReadiness() {
+        search("music-kg-readiness-probe");
+    }
+
     record Album(String releaseGroupMbid, String title, String artist, String firstReleaseDate, String coverUrl,
                  List<String> artistCredits) {
         public Album(String releaseGroupMbid, String title, String artist, String firstReleaseDate, String coverUrl) {

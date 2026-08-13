@@ -31,7 +31,7 @@ function Invoke-Docker {
     }
 }
 
-$existing = (& docker ps --all --filter "name=^/$ContainerName$" --format "{{.Names}}" 2>$null).Trim()
+$existing = ((& docker ps --all --filter "name=^/$ContainerName$" --format "{{.Names}}" 2>$null | Out-String).Trim())
 if ($LASTEXITCODE -ne 0) {
     throw "PERSONAL_GRAPHDB_DOCKER_UNAVAILABLE"
 }

@@ -1,6 +1,9 @@
-# Vercel fixture-preview configuration
+# Legacy Vercel fixture-preview configuration
 
-The Vercel project root directory is `frontend`. Do not deploy the repository root, backend, worker, GraphDB, or any real data integration. This configuration prepares protected preview deployments only; it does not authorize or perform a deployment.
+This document describes only the isolated regression fixture preview. It is not the
+active personal music service and must not be used to deploy Notion-connected data.
+The active browser path is `/api/music/*`; its production setup is documented in
+[`docs/connected-service-setup.md`](../docs/connected-service-setup.md).
 
 | Variable | Local | Preview | Production | Exposure rule |
 | --- | --- | --- | --- | --- |
@@ -8,7 +11,7 @@ The Vercel project root directory is `frontend`. Do not deploy the repository ro
 | `BACKEND_BASE_URL` | local fixture API URL | dedicated preview Cloud Run URL | production Cloud Run URL | Server-only; used only by same-origin BFF routes |
 | `BACKEND_BFF_SHARED_SECRET` | local placeholder | Vercel encrypted preview secret | Vercel encrypted production secret | Server-only; never `NEXT_PUBLIC_`; scope separately by environment |
 
-Preview protections: enable Vercel Deployment Protection before assigning a preview URL, and restrict project membership to reviewers who may access fixture output. Vercel Production must track `main`; it may expose only the public fixture mode until the later authentication and real-data gates have passed. Do not place credentials, Notion configuration, provider keys, GraphDB connection strings, or personal-review data in any Vercel variable.
+Preview protections: enable Vercel Deployment Protection before assigning a preview URL, and restrict project membership to reviewers who may access fixture output. Do not place credentials, Notion configuration, provider keys, GraphDB connection strings, or personal-review data in this fixture configuration.
 
 ## Local checks
 

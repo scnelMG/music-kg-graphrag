@@ -2,11 +2,12 @@ package org.musickg.backend.api;
 
 import jakarta.annotation.PostConstruct;
 import org.musickg.backend.config.ConnectedServiceProperties;
+import org.musickg.backend.config.GroundedLlmProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties({ApiProperties.class, ConnectedServiceProperties.class})
+@EnableConfigurationProperties({ApiProperties.class, ConnectedServiceProperties.class, GroundedLlmProperties.class})
 class ApiSafetyConfiguration {
     private final ApiProperties properties;
     private final ConnectedServiceProperties connectedProperties;

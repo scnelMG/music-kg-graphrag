@@ -2,6 +2,7 @@ package org.musickg.backend.connected;
 
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -20,7 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(properties = {"music-kg.connected.mode=connected", "music-kg.api.bff-shared-secret=connected-test-secret"}, controllers = ConnectedMusicApiController.class)
-@Import(ConnectedMusicApiControllerTest.PropertiesConfiguration.class)
+@Import({ConnectedMusicApiControllerTest.PropertiesConfiguration.class, ConnectedOperationMetrics.class})
 class ConnectedMusicApiControllerTest {
     @Autowired
     private MockMvc mvc;
@@ -48,6 +49,44 @@ class ConnectedMusicApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sentiments[0]").value("애착 앨범"))
                 .andExpect(jsonPath("$.sentiments[1]").value("마음에 쏙"));
+    }
+
+    @Test
+    void returnsOnlyTheRequestedPageOfPersonalNotionRecords() throws Exception {
+        given(service.recordsPage(12, "next-cursor")).willReturn(new NotionClient.RecordPage(List.of(
+                new NotionClient.ExistingRecord("page-1", "Kind of Blue", "Miles Davis", "", "Loved", "So What", true)),
+                "following-cursor"));
+
+        mvc.perform(get("/api/v1/listening-records/page").header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .param("limit", "12").param("cursor", "next-cursor"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.records[0].pageId").value("page-1"))
+                .andExpect(jsonPath("$.nextCursor").value("following-cursor"));
+    }
+
+    @Test
+    void reports503ReadinessWithTypedDependencyStatusWhenGraphDbCannotBeReached() throws Exception {
+        given(service.readiness()).willReturn(new ConnectedMusicService.ServiceReadiness(false, List.of(
+                new ConnectedMusicService.DependencyReadiness("notion", true, "READY"),
+                new ConnectedMusicService.DependencyReadiness("musicbrainz", true, "READY"),
+                new ConnectedMusicService.DependencyReadiness("graphdb", false, "GRAPHDB_UNAVAILABLE"))));
+
+        mvc.perform(get("/api/v1/ready").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.ready").value(false))
+                .andExpect(jsonPath("$.components[2].code").value("GRAPHDB_UNAVAILABLE"));
+    }
+
+    @Test
+    void restoresOnlyTheRequestedArchivedNotionRecord() throws Exception {
+        given(service.restore("page-1")).willReturn(new ConnectedMusicService.SaveResult(
+                "page-1", "2026-08-12T00:00:00Z", ConnectedMusicService.SaveOperation.RESTORED));
+
+        mvc.perform(post("/api/v1/listening-records/page-1/restore")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notionPageId").value("page-1"))
+                .andExpect(jsonPath("$.operation").value("RESTORED"));
     }
 
     @Test
@@ -100,7 +139,7 @@ class ConnectedMusicApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.taste.recordCount").value(1))
                 .andExpect(jsonPath("$.graphTaste.seedArtist").value("Artist"))
-                .andExpect(jsonPath("$.graphTaste.evidencePageIds[0]").value("page-1"));
+                .andExpect(jsonPath("$.graphTaste.evidencePageIds").doesNotExist());
     }
 
     @Test
@@ -111,7 +150,71 @@ class ConnectedMusicApiControllerTest {
         mvc.perform(get("/api/v1/graphrag/taste").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.retrievalMethod").value("PERSONAL_EVIDENCE_GRAPH_TRAVERSAL"))
-                .andExpect(jsonPath("$.generatedByLlm").value(false));
+                .andExpect(jsonPath("$.generatedByLlm").value(false))
+                .andExpect(jsonPath("$.evidencePageIds").doesNotExist());
+    }
+
+    @Test
+    void doesNotExposePrivateNotionPageIdsFromDiscovery() throws Exception {
+        var recommendation = new ConnectedMusicService.AlbumRecommendation("release-group", "Album", "Artist",
+                "2024-01-01", "", "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL", 1,
+                List.of(new ConnectedMusicService.EvidencePath("page-1", "RECORDED_BY", "Artist")));
+        given(service.discover()).willReturn(new ConnectedMusicService.Discovery("Artist", List.of("page-1"),
+                List.of(recommendation)));
+
+        mvc.perform(get("/api/v1/recommendations/discover").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.albums[0].evidencePaths[0].relation").value("RECORDED_BY"))
+                .andExpect(jsonPath("$.evidencePageIds").doesNotExist())
+                .andExpect(jsonPath("$.albums[0].evidencePaths[0].recordPageId").doesNotExist());
+    }
+
+    @Test
+    void exposesOnlyPublicCitationsForAnExplicitGroundedExplanation() throws Exception {
+        given(service.explainPersonalTaste()).willReturn(new ConnectedMusicService.GraphRagExplanation(
+                ConnectedMusicService.ExplanationStatus.GENERATED, "실제 기록을 근거로 한 설명입니다.",
+                List.of(new ConnectedMusicService.ExplanationCitation("E1", "Recorded Album", "Artist", "RECORDED_BY"))));
+
+        mvc.perform(post("/api/v1/personal-insights/explanation").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("GENERATED"))
+                .andExpect(jsonPath("$.citations[0].label").value("E1"))
+                .andExpect(jsonPath("$.citations[0].recordTitle").value("Recorded Album"))
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasKey("pageId"))));
+    }
+
+    @Test
+    void exposesOnlyAggregatePersonalGraphSynchronizationState() throws Exception {
+        var state = new PersonalGraphSyncService.SyncState(
+                PersonalGraphSyncService.Status.CURRENT, java.time.Instant.parse("2026-08-13T00:00:00Z"), 3, false);
+        given(service.personalGraphSyncState()).willReturn(state);
+        given(service.refreshPersonalGraph()).willReturn(state);
+        given(service.reconcilePersonalGraph()).willReturn(state);
+
+        mvc.perform(get("/api/v1/personal-sync").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CURRENT"))
+                .andExpect(jsonPath("$.changedRecordCount").value(3))
+                .andExpect(jsonPath("$.lastSuccessfulAt").value("2026-08-13T00:00:00Z"));
+        mvc.perform(post("/api/v1/personal-sync").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stale").value(false));
+        mvc.perform(post("/api/v1/personal-sync/reconcile").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.changedRecordCount").value(3));
+    }
+
+    @Test
+    void exposesOnlyAggregatedOperationMetricsAfterAConnectedRequest() throws Exception {
+        given(service.search("Kind of Blue")).willReturn(List.of());
+
+        mvc.perform(get("/api/v1/catalog/albums").header("X-Music-Kg-Bff-Secret", "connected-test-secret").param("q", "Kind of Blue"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/operations").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.operation == 'catalog.search')].successCount").value(1))
+                .andExpect(jsonPath("$[?(@.operation == 'catalog.search')].failureCount").value(0));
     }
 
     @TestConfiguration

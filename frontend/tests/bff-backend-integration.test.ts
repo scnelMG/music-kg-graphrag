@@ -4,12 +4,19 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { GET as getCandidates } from "../app/api/fixture/candidates/route";
 import { GET as getHealth } from "../app/api/fixture/health/route";
+import { GET as getConnectedHealth } from "../app/api/music/health/route";
 import { GET as getAlbums } from "../app/api/music/albums/route";
 import { GET as getTasteGraph } from "../app/api/music/graphrag/route";
 import { GET as getPersonalInsights } from "../app/api/music/insights/route";
+import { POST as postGroundedExplanation } from "../app/api/music/insights/explanation/route";
+import { GET as getPersonalSync, POST as postPersonalSync } from "../app/api/music/sync/route";
 
 const originalBackendBaseUrl = process.env.BACKEND_BASE_URL;
 const originalBackendSecret = process.env.BACKEND_BFF_SHARED_SECRET;
+
+function personalRequest(path: string, method = "GET"): NextRequest {
+  return new NextRequest(`http://localhost${path}`, { method });
+}
 
 afterEach(() => {
   process.env.BACKEND_BASE_URL = originalBackendBaseUrl;
@@ -34,6 +41,31 @@ async function withBackend(
 }
 
 describe("fixture BFF backend integration", () => {
+  it("forwards an explicit grounded explanation request without exposing the BFF secret", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/personal-insights/explanation");
+      expect(request.headers["x-music-kg-bff-secret"]).toBe("server-only-secret");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        answer: "기록의 최애곡과 감상을 근거로 다음 앨범을 골랐습니다.",
+        citations: [{ artist: "Artist", label: "E1", recordTitle: "Recorded Album", relation: "RECORDED_BY" }],
+        status: "GENERATED"
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await postGroundedExplanation(personalRequest("/api/music/insights/explanation", "POST"));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        answer: "기록의 최애곡과 감상을 근거로 다음 앨범을 골랐습니다.",
+        citations: [{ artist: "Artist", label: "E1", recordTitle: "Recorded Album", relation: "RECORDED_BY" }],
+        status: "GENERATED"
+      });
+    });
+  });
+
   it("preserves a real MusicBrainz result without confirmed front artwork", async () => {
     await withBackend((_request, response) => {
       response.setHeader("content-type", "application/json");
@@ -90,14 +122,16 @@ describe("fixture BFF backend integration", () => {
       process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
 
       // When the browser requests the personal graph evidence
-      const response = await getTasteGraph();
+      const response = await getTasteGraph(personalRequest("/api/music/graphrag"));
 
-      // Then it receives only the schema-validated connected result
+      // Then it receives only the schema-validated public result, never the private Notion page ID.
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toMatchObject({
+      const body = await response.json();
+      expect(body).toMatchObject({
         generatedByLlm: false,
         retrievalMethod: "PERSISTENT_GRAPHDB_PERSONAL_EVIDENCE_RETRIEVAL"
       });
+      expect(JSON.stringify(body)).not.toContain("notion-page-1");
     });
   });
 
@@ -106,15 +140,19 @@ describe("fixture BFF backend integration", () => {
       expect(request.url).toBe("/api/v1/personal-insights");
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({
+        syncState: {
+          changedRecordCount: 0,
+          lastSuccessfulAt: "2026-08-13T00:00:00Z",
+          stale: false,
+          status: "CURRENT"
+        },
         graphTaste: {
-          evidencePageIds: ["notion-page-1"],
           personalRecordCount: 1,
           retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
           relisten: [{
             artist: "Miles Davis",
             coverUrl: "",
             evidenceMethod: "PERSONAL_RECORD_RELISTEN",
-            evidencePageId: "notion-page-1",
             favouriteTrack: "So What",
             owned: true,
             releaseGroupMbid: "release-group-id",
@@ -134,10 +172,12 @@ describe("fixture BFF backend integration", () => {
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
 
-      const response = await getPersonalInsights();
+      const response = await getPersonalInsights(personalRequest("/api/music/insights"));
 
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toMatchObject({
+      const body = await response.json();
+      expect(body).toMatchObject({
+        syncState: { stale: false, status: "CURRENT" },
         graphTaste: {
           relisten: [{
             evidenceMethod: "PERSONAL_RECORD_RELISTEN",
@@ -147,6 +187,53 @@ describe("fixture BFF backend integration", () => {
         },
         taste: { recordCount: 1 }
       });
+      expect(JSON.stringify(body)).not.toContain("notion-page-1");
+    });
+  });
+
+  it("proxies aggregate personal graph synchronization through the server-only BFF", async () => {
+    let requestCount = 0;
+    await withBackend((request, response) => {
+      requestCount += 1;
+      expect(request.method).toBe(requestCount === 1 ? "GET" : "POST");
+      expect(request.url).toBe(requestCount === 1 ? "/api/v1/personal-sync" : "/api/v1/personal-sync/reconcile");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        changedRecordCount: 2,
+        lastSuccessfulAt: "2026-08-13T00:00:00Z",
+        stale: false,
+        status: "CURRENT"
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const status = await getPersonalSync(personalRequest("/api/music/sync"));
+      const refreshed = await postPersonalSync(personalRequest("/api/music/sync", "POST"));
+
+      expect(status.status).toBe(200);
+      expect(refreshed.status).toBe(200);
+      await expect(refreshed.json()).resolves.toMatchObject({
+        changedRecordCount: 2,
+        stale: false,
+        status: "CURRENT"
+      });
+    });
+  });
+
+  it("accepts the deployed connected health contract before the browser enables the workspace", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/health");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ mode: "connected", status: "ok" }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getConnectedHealth();
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ mode: "connected", status: "ok" });
     });
   });
 
@@ -174,7 +261,7 @@ describe("fixture BFF backend integration", () => {
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
 
-      const response = await getPersonalInsights();
+      const response = await getPersonalInsights(personalRequest("/api/music/insights"));
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject({ taste: { recordCount: 1 } });
@@ -299,6 +386,26 @@ describe("fixture BFF backend integration", () => {
       code: "BACKEND_UNAVAILABLE",
       message: "The music backend is temporarily unavailable.",
       retryable: true
+    });
+  });
+
+  it("preserves a typed GraphDB outage code without forwarding upstream details", async () => {
+    await withBackend((_request, response) => {
+      response.statusCode = 503;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ code: "GRAPHDB_UNAVAILABLE", requestId: "backend-request" }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getPersonalInsights(personalRequest("/api/music/insights"));
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        code: "GRAPHDB_UNAVAILABLE",
+        message: "The music backend is temporarily unavailable.",
+        retryable: true
+      });
     });
   });
 

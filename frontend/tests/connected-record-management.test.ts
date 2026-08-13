@@ -4,14 +4,18 @@ import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { GET as getTracks } from "../app/api/music/albums/[releaseGroupMbid]/tracks/route";
+import { POST as restoreRecord } from "../app/api/music/records/[pageId]/restore/route";
 import { GET as getRecords, POST as saveRecord } from "../app/api/music/records/route";
+import { issueRecordHandle } from "../lib/record-handle";
 
 const originalBackendBaseUrl = process.env.BACKEND_BASE_URL;
 const originalBackendSecret = process.env.BACKEND_BFF_SHARED_SECRET;
+const originalVercelEnvironment = process.env.VERCEL_ENV;
 
 afterEach(() => {
   process.env.BACKEND_BASE_URL = originalBackendBaseUrl;
   process.env.BACKEND_BFF_SHARED_SECRET = originalBackendSecret;
+  process.env.VERCEL_ENV = originalVercelEnvironment;
 });
 
 async function withBackend(
@@ -48,31 +52,55 @@ describe("connected personal record BFF", () => {
     });
   });
 
-  it("returns the current Notion-backed record list without synthesizing rows", async () => {
+  it("loads one bounded Notion record page without exposing its Notion page id", async () => {
     await withBackend((request, response) => {
-      expect(request.url).toBe("/api/v1/listening-records");
+      expect(request.url).toBe("/api/v1/listening-records/page?limit=12");
       response.setHeader("content-type", "application/json");
-      response.end(JSON.stringify([{
-        albumTitle: "Recorded album",
-        artist: "Recorded artist",
-        artistCredits: ["Recorded artist", "Collaborator"],
-        coverUrl: "",
-        favouriteTrack: "Recorded track",
-        lastEditedAt: "2026-08-11T00:00:00.000Z",
-        owned: true,
-        pageId: "notion-page-id",
-        releaseGroupMbid: "release-group-id",
-        sentiment: "Loved"
-      }]));
+      response.end(JSON.stringify({
+        nextCursor: "next-notion-cursor",
+        records: [{
+          albumTitle: "Recorded album",
+          artist: "Recorded artist",
+          artistCredits: ["Recorded artist", "Collaborator"],
+          coverUrl: "",
+          favouriteTrack: "Recorded track",
+          lastEditedAt: "2026-08-11T00:00:00.000Z",
+          owned: true,
+          pageId: "notion-page-id",
+          releaseGroupMbid: "release-group-id",
+          sentiment: "Loved"
+        }]
+      }));
     }, async (baseUrl) => {
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
 
-      const response = await getRecords();
+      const response = await getRecords(new NextRequest("http://localhost/api/music/records"));
 
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toMatchObject({ records: [{ pageId: "notion-page-id", artistCredits: ["Recorded artist", "Collaborator"] }] });
+      const body = await response.json();
+      expect(body).toMatchObject({
+        nextCursor: "next-notion-cursor",
+        records: [{ artistCredits: ["Recorded artist", "Collaborator"] }]
+      });
+      expect(JSON.stringify(body)).not.toContain("notion-page-id");
+      expect(body.records[0].recordHandle).toEqual(expect.any(String));
     });
+  });
+
+  it("rejects an unconfirmed production write before it can reach Notion", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.BACKEND_BASE_URL = "http://127.0.0.1:1";
+    process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
+
+    const response = await saveRecord(new NextRequest("http://localhost/api/music/records", {
+      body: JSON.stringify({ albumTitle: "Collaborative album", artist: "Primary artist", artistCredits: ["Primary artist", "Collaborator"], coverUrl: "", favouriteTrack: "Actual track", owned: false, releaseGroupMbid: "release-group-id", sentiment: "Loved" }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    }));
+
+    expect(response.status).toBe(428);
+    await expect(response.json()).resolves.toEqual({ code: "WRITE_CONFIRMATION_REQUIRED", retryable: false });
   });
 
   it("forwards every selected artist credit when it saves a collaborative album", async () => {
@@ -86,16 +114,44 @@ describe("connected personal record BFF", () => {
         response.end(JSON.stringify({ notionLastEditedAt: "2026-08-11T00:00:00.000Z", notionPageId: "notion-page-id", operation: "CREATED" }));
       });
     }, async (baseUrl) => {
+      process.env.VERCEL_ENV = "production";
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
 
       const response = await saveRecord(new NextRequest("http://localhost/api/music/records", {
         body: JSON.stringify({ albumTitle: "Collaborative album", artist: "Primary artist", artistCredits: ["Primary artist", "Collaborator"], coverUrl: "", favouriteTrack: "Actual track", owned: false, releaseGroupMbid: "release-group-id", sentiment: "Loved" }),
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-music-kg-write-confirmed": "true" },
         method: "POST"
       }));
 
       expect(response.status).toBe(201);
+    });
+  });
+
+  it("restores only the requested Notion record after an archive undo", async () => {
+    await withBackend((request, response) => {
+      expect(request.method).toBe("POST");
+      expect(request.url).toBe("/api/v1/listening-records/notion-page-id/restore");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        notionLastEditedAt: "2026-08-12T00:00:00.000Z",
+        notionPageId: "notion-page-id",
+        operation: "RESTORED"
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
+
+      const recordHandle = issueRecordHandle("notion-page-id", "test-only-secret");
+      const response = await restoreRecord(
+        new NextRequest(`http://localhost/api/music/records/${recordHandle}/restore`, { method: "POST" }),
+        { params: Promise.resolve({ pageId: recordHandle }) }
+      );
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body).toMatchObject({ operation: "RESTORED" });
+      expect(JSON.stringify(body)).not.toContain("notion-page-id");
     });
   });
 });

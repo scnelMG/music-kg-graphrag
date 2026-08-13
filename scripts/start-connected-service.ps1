@@ -23,6 +23,19 @@ if (-not (Test-Path -LiteralPath $environmentPath -PathType Leaf)) {
     [System.Environment]::SetEnvironmentVariable($pair[0].Trim(), $pair[1].Trim(), "Process")
 }
 
+foreach ($mapping in @(
+        @{ Primary = "MUSIC_KG_GRAPHDB_BASE_URL"; Fallback = "GRAPHDB_BASE_URL" })) {
+    $primary = [System.Environment]::GetEnvironmentVariable($mapping.Primary, "Process")
+    if (-not [string]::IsNullOrWhiteSpace($primary)) { continue }
+    $fallback = [System.Environment]::GetEnvironmentVariable($mapping.Fallback, "Process")
+    if (-not [string]::IsNullOrWhiteSpace($fallback)) {
+        [System.Environment]::SetEnvironmentVariable($mapping.Primary, $fallback, "Process")
+    }
+}
+if ([string]::IsNullOrWhiteSpace([System.Environment]::GetEnvironmentVariable("MUSIC_KG_GRAPHDB_REPOSITORY", "Process"))) {
+    [System.Environment]::SetEnvironmentVariable("MUSIC_KG_GRAPHDB_REPOSITORY", "music-kg-personal", "Process")
+}
+
 $requiredNames = @(
     "NOTION_API_KEY",
     "NOTION_DATA_SOURCE_ID",

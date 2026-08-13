@@ -3,7 +3,10 @@ import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
 
-const healthSchema = z.object({ mode: z.literal("connected"), status: z.literal("ok") });
+const connectedHealthSchema = z.object({
+  mode: z.literal("connected"),
+  status: z.literal("ok")
+});
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +20,6 @@ export async function GET(): Promise<NextResponse> {
     if (error instanceof SyntaxError) return backendContractError();
     throw error;
   }
-  const health = healthSchema.safeParse(payload);
+  const health = connectedHealthSchema.safeParse(payload);
   return health.success ? NextResponse.json(health.data) : backendContractError();
 }

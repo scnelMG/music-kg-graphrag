@@ -33,6 +33,8 @@ jobs:
       - run: pnpm --dir frontend test
       - run: pnpm --dir frontend build
       - run: node scripts/test-validate-cloud-run-manifest.mjs
+      - run: pwsh -NoLogo -NoProfile -File scripts/test-run-connected-smoke.ps1
+      - run: pwsh -NoLogo -NoProfile -File scripts/test-run-connected-notion-e2e.ps1
       - run: bash backend/gradlew -p backend test --no-daemon
       - run: uv run --directory pipeline --group dev pytest tests
       - run: docker compose config

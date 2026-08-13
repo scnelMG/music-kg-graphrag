@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 public final class MusicBrainzClient implements MusicCatalogGateway {
+    private static final long MAX_RATE_LIMIT_QUEUE_NANOS = Duration.ofSeconds(2).toNanos();
     private final RestClient client;
     private final ObjectMapper objectMapper;
     private final ConnectedServiceProperties.MusicBrainz configuration;
@@ -115,6 +116,8 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
             if (!groups.isArray()) throw new IllegalStateException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR");
             List<MusicCatalogGateway.Album> albums = new ArrayList<>();
             for (JsonNode group : groups) {
+                String primaryType = group.path("primary-type").asText();
+                if (!primaryType.equals("Album") && !primaryType.equals("EP")) continue;
                 String id = group.path("id").asText();
                 String title = group.path("title").asText();
                 List<String> artistCredits = artistCredits(group.path("artist-credit"));
@@ -130,8 +133,8 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
                         artistCredits));
             }
             return List.copyOf(albums);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", exception);
+        } catch (JsonProcessingException | IllegalStateException exception) {
+            throw new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, exception);
         }
     }
 
@@ -151,7 +154,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
             }
             return List.copyOf(tracks);
         } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", exception);
+            throw new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, exception);
         }
     }
 
@@ -166,8 +169,8 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
                 if (!blank(id) && !blank(title)) tracks.add(new MusicCatalogGateway.Track(id, title, tracks.size() + 1));
             }
             return List.copyOf(tracks);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", exception);
+        } catch (JsonProcessingException | IllegalStateException exception) {
+            throw new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, exception);
         }
     }
 
@@ -176,8 +179,8 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
             JsonNode releases = objectMapper.readTree(response).path("releases");
             if (!releases.isArray() || releases.isEmpty()) return "";
             return releases.get(0).path("id").asText();
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", exception);
+        } catch (JsonProcessingException | IllegalStateException exception) {
+            throw new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, exception);
         }
     }
 
@@ -222,6 +225,9 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         long interval = 1_000_000_000L / configuration.requestsPerSecond();
         long now = System.nanoTime();
         long scheduled = Math.max(now, nextRequestAtNanos);
+        if (scheduled - now > MAX_RATE_LIMIT_QUEUE_NANOS) {
+            throw new CatalogAccessException("MUSICBRAINZ_RATE_LIMITED", true, null);
+        }
         nextRequestAtNanos = scheduled + interval;
         if (scheduled > now) LockSupport.parkNanos(scheduled - now);
     }

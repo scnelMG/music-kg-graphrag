@@ -18,7 +18,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-@SpringBootTest
+@SpringBootTest(properties = "music-kg.connected.mode=fixture")
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OutboxIntegrationTest {

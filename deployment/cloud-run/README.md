@@ -34,12 +34,11 @@ Give the Preview and Production Cloud Run service accounts access only to their
 matching BFF and Notion secrets. The templates retain scale-to-zero, `maxScale`
 of one, CPU throttling, and the no-JDBC Spring exclusions.
 
-For Vercel, set these values as server-only variables in the matching
-environment: `BACKEND_BASE_URL`, `BACKEND_BFF_SHARED_SECRET`, and
-`MUSIC_KG_APP_ACCESS_TOKEN`. The last value is a random access token of at
-least 32 characters; it enables the private operator access screen in the
-production frontend. Do not store it, the Notion API key, or either BFF secret
-in source control or expose them as `NEXT_PUBLIC_*` variables.
+For Vercel, set `BACKEND_BASE_URL` and `BACKEND_BFF_SHARED_SECRET` as
+server-only variables in the matching environment. Protect browser access with
+Vercel Deployment Protection SSO rather than a second application-level shared
+token. Do not store the Notion API key or either BFF secret in source control
+or expose them as `NEXT_PUBLIC_*` variables.
 
 Before a connected deployment, render the templates with `IMAGE_DIGEST`, the
 matching Vercel origin, Cloud Run service account, Notion data-source ID,

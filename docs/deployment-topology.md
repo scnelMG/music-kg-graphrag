@@ -11,12 +11,14 @@ described as one runtime until an operator deploys a durable projection host.
   live catalog dependency for album and track selection. Vercel exposes this
   API only through its server-side BFF shared-secret boundary; browser access
   is additionally protected by a signed, expiring access-session cookie.
-- **Personal evidence graph:** each insight request builds a bounded,
-  deterministic graph from the current Notion records and follows recorded
-  artist edges into live MusicBrainz release groups. Every recommendation
-  contains the contributing Notion page IDs and a score. It is an evidence
-  graph traversal, not an LLM answer and not a persistent GraphDB/pgvector
-  retrieval service.
+- **Personal evidence graph:** each insight request projects a bounded,
+  deterministic graph from the current Notion records into the private
+  `music-kg-personal` GraphDB repository, then follows recorded-artist and
+  MusicBrainz-tag edges into live MusicBrainz release groups. Multiple paths
+  to the same release group are combined before the deterministic score is
+  ranked, and every recommendation contains the contributing Notion page IDs
+  and relations. This is a rebuildable derived GraphDB projection, not an LLM
+  answer and not a vector/pgvector retrieval service.
 - **Canonical projection pipeline:** PostgreSQL, outbox, GraphDB, SHACL and
   the Python projector remain a separate canonical-data/projection system.
   PostgreSQL is authoritative only for this projection plane. It is not the
@@ -46,10 +48,11 @@ Run services for the connected Spring API, each with a distinct user-managed
 runtime service account and only its own environment's BFF secret. The legacy
 fixture controller remains test-only under `music-kg.connected.mode=fixture`;
 the connected production manifest sets `music-kg.connected.mode=connected`.
-PostgreSQL and GraphDB run on an
-external stateful host, and the Python worker runs on an external worker host.
-The backend and worker may join the private data network. Browser and Vercel
-traffic cannot.
+PostgreSQL and GraphDB run on an external stateful host, and the Python worker
+runs on an external worker host. The connected API is the only runtime allowed
+to write the private personal named graph; it rebuilds that derived graph from
+Notion records and never treats it as the personal source of truth. The backend
+and worker may join the private data network. Browser and Vercel traffic cannot.
 
 Only the frontend and authenticated backend have public routes. PostgreSQL,
 the worker, GraphDB port 7200, SPARQL, Workbench, repository management, and
@@ -61,6 +64,10 @@ state instead of proxying GraphDB responses.
 - Frontend: `/` proves the static/BFF surface is available.
 - Backend: authenticated `/api/v1/health` reports only `status` and `mode`;
   missing or invalid BFF credentials return typed HTTP 401.
+- Connected backend: authenticated `/api/v1/ready` probes Notion, MusicBrainz,
+  and the private GraphDB endpoint independently. It returns HTTP 503 unless all
+  three are ready; `/api/v1/operations` exposes aggregate operation counts and
+  average latency only, never record fields, provider payloads, IDs, or secrets.
 - PostgreSQL: `pg_isready` runs inside its trusted network.
 - Worker: its private `/health/worker` reports outbox lag and terminal-failure
   count without payloads.

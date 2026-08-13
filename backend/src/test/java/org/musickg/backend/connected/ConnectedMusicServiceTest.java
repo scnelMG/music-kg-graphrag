@@ -13,6 +13,41 @@ import org.musickg.backend.notion.PersonalMusicRecordGateway;
 
 class ConnectedMusicServiceTest {
     @Test
+    void generatesALocalGraphRagExplanationWithOnlyPublicEvidenceLabels() {
+        var records = new InMemoryRecords(List.of(
+                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true, "recorded-a")));
+        GroundedExplanationGenerator generator = context -> {
+            assertThat(context.evidence()).allSatisfy(evidence -> assertThat(evidence.label()).startsWith("E"));
+            assertThat(context.evidence().toString()).doesNotContain("page-a");
+            return new GroundedExplanationGenerator.Generated("기록의 최애곡과 감상을 근거로 다음 앨범을 골랐습니다.", List.of("E1"));
+        };
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records,
+                new InMemoryPersonalGraphProjectionGateway(), java.time.Clock.systemUTC(), generator);
+
+        var explanation = service.explainPersonalTaste();
+
+        assertThat(explanation.status()).isEqualTo(ConnectedMusicService.ExplanationStatus.GENERATED);
+        assertThat(explanation.answer()).contains("최애곡");
+        assertThat(explanation.citations()).containsExactly(new ConnectedMusicService.ExplanationCitation(
+                "E1", "Recorded A", "Artist A", "RECORDED_BY"));
+        assertThat(explanation.toString()).doesNotContain("page-a");
+    }
+
+    @Test
+    void preservesDeterministicRecommendationsWhenLlmGenerationIsDisabled() {
+        var records = new InMemoryRecords(List.of(
+                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true, "recorded-a")));
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records,
+                new InMemoryPersonalGraphProjectionGateway(), java.time.Clock.systemUTC(), GroundedExplanationGenerator.disabled());
+
+        var explanation = service.explainPersonalTaste();
+
+        assertThat(explanation.status()).isEqualTo(ConnectedMusicService.ExplanationStatus.DISABLED);
+        assertThat(service.personalInsights().graphTaste().recommendations())
+                .extracting(ConnectedMusicService.AlbumRecommendation::title).containsExactly("Unrecorded Album");
+    }
+
+    @Test
     void savesAnActualSelectedAlbumToNotionAndUpdatesTheMatchingExistingRecord() {
         var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
                 "page-1", "Existing Album", "Artist", "", "마음에 쏙", "Old track", false)));
@@ -113,6 +148,7 @@ class ConnectedMusicServiceTest {
         assertThat(records.listCalls()).isEqualTo(1);
         assertThat(insights.taste().recordCount()).isEqualTo(2);
         assertThat(insights.graphTaste().evidencePageIds()).containsExactly("page-a", "page-b");
+        assertThat(insights.syncState().status()).isEqualTo(PersonalGraphSyncService.Status.CURRENT);
         assertThat(insights.graphTaste().recommendations()).extracting(ConnectedMusicService.AlbumRecommendation::title)
                 .containsExactly("Unrecorded Album");
     }
@@ -190,6 +226,19 @@ class ConnectedMusicServiceTest {
     }
 
     @Test
+    void restoresAnArchivedPersonalRecordForTheCurrentListeningSession() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true, "recorded-a")));
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records);
+
+        service.remove("page-a");
+        var restored = service.restore("page-a");
+
+        assertThat(restored.operation()).isEqualTo(ConnectedMusicService.SaveOperation.RESTORED);
+        assertThat(records.records()).extracting(NotionClient.ExistingRecord::pageId).containsExactly("page-a");
+    }
+
+    @Test
     void preservesAllSelectedAlbumArtistCreditsWhenWritingTheNotionRecord() {
         var records = new InMemoryRecords(List.of());
         var service = new ConnectedMusicService(new InMemoryCatalog(), records);
@@ -198,6 +247,19 @@ class ConnectedMusicServiceTest {
                 List.of("Artist A", "Artist B")));
 
         assertThat(records.records().getFirst().artistCredits()).containsExactly("Artist A", "Artist B");
+    }
+
+    @Test
+    void usesEveryStoredCollaborationCreditInTheFallbackPersonalGraph() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-a", "Collaboration", "Artist A", "", "Loved", "Track", true, "recorded-a",
+                List.of("Artist A", "Artist B"))));
+        var service = new ConnectedMusicService(new MultiArtistCatalog(), records);
+
+        var discovery = service.discover();
+
+        assertThat(discovery.albums()).extracting(ConnectedMusicService.AlbumRecommendation::artist)
+                .containsExactly("Artist A", "Artist B");
     }
 
     @Test
@@ -226,6 +288,156 @@ class ConnectedMusicServiceTest {
                 .contains("Different artist");
         assertThat(discovery.albums().getFirst().evidencePaths())
                 .contains(new ConnectedMusicService.EvidencePath("page-a", "SHARES_MUSICBRAINZ_TAG", "dream pop"));
+    }
+
+    @Test
+    void limitsNewDiscoveriesToOneAlbumPerArtist() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a")));
+        var service = new ConnectedMusicService(new SameArtistCatalog(), records);
+
+        var recommendations = service.discover().albums();
+
+        assertThat(recommendations).extracting(ConnectedMusicService.AlbumRecommendation::artist)
+                .containsExactly("A new artist");
+    }
+
+    @Test
+    void withholdsDiscoveryWhenAllPersonalRecordsAreExplicitlyNegative() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-a", "Recorded", "Artist A", "", "Not for me", "Track", false, "recorded-a")));
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records);
+
+        var discovery = service.discover();
+
+        assertThat(discovery.seedArtist()).isEqualTo("긍정적인 감상");
+        assertThat(discovery.albums()).isEmpty();
+    }
+
+    @Test
+    void aggregatesIndependentGraphPathsForTheSameCandidateBeforeRankingIt() {
+        var records = new InMemoryRecords(List.of(
+                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true, "recorded-a"),
+                new NotionClient.ExistingRecord("page-b", "Recorded B", "Artist B", "", "Liked", "Track B", false, "recorded-b")));
+        PersonalGraphProjectionGateway graph = new PersonalGraphProjectionGateway() {
+            private List<NotionClient.ExistingRecord> snapshot = List.of();
+
+            @Override
+            public List<ArtistEvidence> projectAndRetrieve(List<NotionClient.ExistingRecord> history) {
+                return List.of(new ArtistEvidence("Artist B", 5, List.of("page-b")), new ArtistEvidence("Artist A", 2, List.of("page-a")));
+            }
+
+            @Override public void bootstrapRecords(List<NotionClient.ExistingRecord> records) { snapshot = List.copyOf(records); }
+            @Override public List<NotionClient.ExistingRecord> retrieveRecords() { return snapshot; }
+            @Override public List<ArtistEvidence> retrieveEvidence() { return projectAndRetrieve(snapshot); }
+            @Override
+            public String retrievalMethod() { return "TEST_GRAPH"; }
+        };
+        var service = new ConnectedMusicService(new SharedCandidateCatalog(), records, graph);
+
+        var recommendations = service.discover().albums();
+
+        assertThat(recommendations).singleElement().satisfies(recommendation -> {
+            assertThat(recommendation.score()).isEqualTo(7);
+            assertThat(recommendation.evidencePaths()).containsExactlyInAnyOrder(
+                    new ConnectedMusicService.EvidencePath("page-a", "RECORDED_BY", "Artist A"),
+                    new ConnectedMusicService.EvidencePath("page-b", "RECORDED_BY", "Artist B"));
+        });
+    }
+
+    @Test
+    void reportsATypedUnavailableReadinessComponentForUnexpectedDependencyFailures() {
+        var graph = new PersonalGraphProjectionGateway() {
+            @Override
+            public List<ArtistEvidence> projectAndRetrieve(List<NotionClient.ExistingRecord> history) { return List.of(); }
+
+            @Override
+            public String retrievalMethod() { return "TEST_GRAPH"; }
+
+            @Override
+            public void verifyReadiness() { throw new IllegalStateException("unexpected provider payload"); }
+        };
+        var service = new ConnectedMusicService(new InMemoryCatalog(), new InMemoryRecords(List.of(
+                new NotionClient.ExistingRecord("page-a", "Recorded", "Artist A", "", "Loved", "Track", false, "recorded-a"))), graph);
+
+        assertThat(service.readiness().components())
+                .contains(new ConnectedMusicService.DependencyReadiness("graphdb", false, "DEPENDENCY_UNAVAILABLE"));
+    }
+
+    @Test
+    void reusesAnUnchangedInsightSnapshotWithoutRepeatingGraphOrCatalogWork() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a")));
+        var catalog = new CountingCatalog();
+        var graph = new CountingGraph();
+        var service = new ConnectedMusicService(catalog, records, graph);
+
+        var first = service.personalInsights();
+        var second = service.personalInsights();
+
+        assertThat(second).isEqualTo(first);
+        assertThat(records.listCalls()).isEqualTo(1);
+        assertThat(graph.calls()).isEqualTo(1);
+        assertThat(catalog.externalCalls()).isEqualTo(2);
+    }
+
+    @Test
+    void readsOnlyNotionChangesAfterThePrivateGraphHasBeenBootstrapped() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a")));
+        var graph = new InMemoryPersonalGraphProjectionGateway();
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records, graph);
+
+        service.discover();
+        service.discover();
+
+        assertThat(records.listCalls()).isEqualTo(1);
+        assertThat(records.changedSinceCalls()).isEqualTo(1);
+    }
+
+    @Test
+    void mirrorsConfirmedNotionWritesIntoThePrivateGraphWithoutAFullRefresh() {
+        var records = new InMemoryRecords(List.of());
+        var graph = new InMemoryPersonalGraphProjectionGateway();
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records, graph);
+
+        var saved = service.save(new ConnectedMusicService.RecordInput(
+                "release-new", "New album", "Artist A", "", "Loved", "Favourite", true));
+
+        assertThat(graph.retrieveRecords()).extracting(NotionClient.ExistingRecord::pageId).containsExactly(saved.notionPageId());
+        service.remove(saved.notionPageId());
+        assertThat(graph.retrieveRecords()).isEmpty();
+        service.restore(saved.notionPageId());
+        assertThat(graph.retrieveRecords()).extracting(NotionClient.ExistingRecord::pageId).containsExactly(saved.notionPageId());
+    }
+
+    @Test
+    void invalidatesTheInsightSnapshotAfterSavingARecord() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a")));
+        var catalog = new CountingCatalog();
+        var graph = new CountingGraph();
+        var service = new ConnectedMusicService(catalog, records, graph);
+
+        service.personalInsights();
+        service.save(new ConnectedMusicService.RecordInput(
+                "", "Recorded B", "Artist B", "", "Loved", "Favourite", false));
+        service.personalInsights();
+
+        assertThat(graph.calls()).isEqualTo(2);
+        assertThat(catalog.externalCalls()).isEqualTo(4);
+    }
+
+    @Test
+    void reportsAllConnectedDependenciesReadyWhenTheirProbesSucceed() {
+        var service = new ConnectedMusicService(new InMemoryCatalog(), new InMemoryRecords(List.of(
+                new NotionClient.ExistingRecord("page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a"))));
+
+        var readiness = service.readiness();
+
+        assertThat(readiness.ready()).isTrue();
+        assertThat(readiness.components()).extracting(ConnectedMusicService.DependencyReadiness::name)
+                .containsExactly("notion", "musicbrainz", "graphdb");
     }
 
     private static class InMemoryCatalog implements MusicCatalogGateway {
@@ -290,11 +502,66 @@ class ConnectedMusicServiceTest {
         }
     }
 
+    private static final class SharedCandidateCatalog extends InMemoryCatalog {
+        @Override
+        public List<Album> searchByArtist(String artist) {
+            return List.of(new Album("shared", "Shared discovery", "Shared artist", "2025-01-01", ""));
+        }
+    }
+
+    private static final class SameArtistCatalog extends InMemoryCatalog {
+        @Override
+        public List<Album> searchByArtist(String artist) {
+            return List.of(
+                    new Album("new-one", "New one", "A new artist", "2025-01-01", ""),
+                    new Album("new-two", "New two", "A new artist", "2025-01-01", ""));
+        }
+    }
+
+    private static final class CountingCatalog extends InMemoryCatalog {
+        private int externalCalls;
+
+        @Override
+        public List<String> tags(String releaseGroupMbid) {
+            externalCalls++;
+            return List.of();
+        }
+
+        @Override
+        public List<Album> searchByArtist(String artist) {
+            externalCalls++;
+            return super.searchByArtist(artist);
+        }
+
+        private int externalCalls() { return externalCalls; }
+    }
+
+    private static final class CountingGraph implements PersonalGraphProjectionGateway {
+        private int calls;
+        private List<NotionClient.ExistingRecord> snapshot = List.of();
+
+        @Override
+        public List<ArtistEvidence> projectAndRetrieve(List<NotionClient.ExistingRecord> history) {
+            calls++;
+            return List.of(new ArtistEvidence("Artist A", 4, List.of("page-a")));
+        }
+
+        @Override public void bootstrapRecords(List<NotionClient.ExistingRecord> records) { snapshot = List.copyOf(records); }
+        @Override public List<NotionClient.ExistingRecord> retrieveRecords() { return snapshot; }
+        @Override public List<ArtistEvidence> retrieveEvidence() { return projectAndRetrieve(snapshot); }
+
+        @Override
+        public String retrievalMethod() { return "PERFORMANCE_TEST_GRAPH"; }
+
+        private int calls() { return calls; }
+    }
+
     private static final class InMemoryRecords implements PersonalMusicRecordGateway {
         private final List<NotionClient.ExistingRecord> values;
         private final List<NotionClient.ExistingRecord> visibleValues;
         private final boolean listReflectsWrites;
         private int listCalls;
+        private int changedSinceCalls;
 
         private InMemoryRecords(List<NotionClient.ExistingRecord> values) {
             this(values, true);
@@ -327,9 +594,22 @@ class ConnectedMusicServiceTest {
         }
 
         @Override
+        public NotionClient.SavedRecord restore(String pageId) {
+            values.add(new NotionClient.ExistingRecord(
+                    pageId, "Recorded A", "Artist A", "", "Loved", "Track A", true, "recorded-a"));
+            return new NotionClient.SavedRecord(pageId, Instant.parse("2026-08-10T00:00:00Z"));
+        }
+
+        @Override
         public List<NotionClient.ExistingRecord> list() {
             listCalls++;
             return List.copyOf(listReflectsWrites ? values : visibleValues);
+        }
+
+        @Override
+        public List<NotionClient.ExistingRecord> changedSince(Instant after) {
+            changedSinceCalls++;
+            return List.of();
         }
 
         @Override
@@ -343,5 +623,7 @@ class ConnectedMusicServiceTest {
         private List<NotionClient.ExistingRecord> records() { return List.copyOf(values); }
 
         private int listCalls() { return listCalls; }
+
+        private int changedSinceCalls() { return changedSinceCalls; }
     }
 }

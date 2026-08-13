@@ -1,122 +1,59 @@
 import { expect, test } from "@playwright/test";
-import { writeFile } from "node:fs/promises";
 
-type RequestTrace = {
-  readonly method: string;
-  readonly pathname: string;
-};
+import { routeConnectedWorkspace } from "./connected-workspace-fixtures";
 
-function traceFor(requests: readonly RequestTrace[]): string {
-  return `${JSON.stringify({ requests }, null, 2)}\n`;
-}
+test("Given personal listening evidence, when the workspace opens, then relistens precede new graph-supported discoveries", async ({ page }) => {
+  await routeConnectedWorkspace(page);
 
-test("Given a fixture candidate, when a reviewer selects and saves it, then recommendation, evidence, and GraphRAG answer remain visible", async ({ page }, testInfo) => {
-  const requests: RequestTrace[] = [];
-  const appOrigin = new URL(testInfo.project.use.baseURL ?? "http://127.0.0.1").origin;
-  page.on("request", (request) => {
-    const url = new URL(request.url());
-    if (url.origin === appOrigin) requests.push({ method: request.method(), pathname: url.pathname });
-  });
-
-  // Given the real local Spring fixture API and Next BFF are running
   await page.goto("/");
-  await expect(page.getByTestId("fixture-label")).toHaveText("fixture only");
 
-  // When the reviewer searches, selects the fixture candidate, and records a review
-  await page.locator("#album-search").fill("밤의 기록");
-  await page.locator(".search-row button").click();
-  await expect(page.getByText("밤의 기록", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("button", { name: /밤의 기록/ }).click();
-  await page.locator("#review").fill("Reviewer workspace fixture record");
-  await page.locator(".save-button").click();
-
-  // Then the selected candidate retains its backend-supplied GraphRAG answer, recommendation, evidence path, and save receipt
-  await expect(page.getByTestId("graphrag-answer")).toHaveText("선택한 음반은 현재 기록과 이어져 있어요.");
-  await expect(page.getByTestId("recommendation-panel")).toContainText("잠든 세계의 밤");
-  await expect(page.getByTestId("recommendation-panel")).toContainText("personal-graph-lexical-v1");
-  await expect(page.locator(".selected-record")).toContainText("밤의 기록");
-  await expect(page.getByTestId("recommendation-panel")).toContainText("0.3325");
-  await expect(page.getByTestId("recommendation-panel")).toContainText("0.23");
-  await expect(page.getByTestId("recommendation-panel")).toContainText("0.176");
-  await expect(page.getByTestId("recommendation-panel")).toContainText("0.08");
-  await expect(page.getByTestId("recommendation-panel")).toContainText("0.075");
-  await expect(page.getByTestId("recommendation-panel")).toContainText("evidence:preference-path-001");
-  await page.getByText("근거 경로 자세히 보기", { exact: true }).click();
-  await expect(page.getByText("fixture-evidence-001", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("save-confirmation")).toContainText("fixture-review-001");
-  await page.screenshot({ path: testInfo.outputPath(`reviewer-workspace-${testInfo.project.name}.png`), fullPage: true });
-  await writeFile(testInfo.outputPath(`reviewer-workspace-${testInfo.project.name}-network.json`), traceFor(requests));
+  const rows = page.locator(".recommendation-note .relisten-entry, .recommendation-note .discovery-entry");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("Album One");
+  await expect(rows.nth(1)).toContainText("Album Two");
+  await expect(page.locator(".technical-disclosure")).not.toContainText("notion-record-one");
 });
 
-test("Given a search with no fixture candidate, when the reviewer searches, then typed no-evidence panels show no synthesized answer", async ({ page }, testInfo) => {
-  // Given the real local reviewer workspace
+test("Given insufficient personal history, when insight retrieval responds with its typed code, then no recommendation row is synthesized", async ({ page }) => {
+  await routeConnectedWorkspace(page);
+  await page.route("**/api/music/insights", (route) => route.fulfill({
+    body: JSON.stringify({ code: "INSUFFICIENT_PERSONAL_HISTORY", retryable: false }),
+    contentType: "application/json",
+    status: 409
+  }));
+
   await page.goto("/");
-  await expect(page.getByTestId("fixture-label")).toHaveText("fixture only");
 
-  // When the fixture search has no candidate result
-  await page.locator("#album-search").fill("definitely-not-the-fixture");
-  await page.locator(".search-row button").click();
-
-  // Then the evidence path and synthesis panels remain in their typed no-evidence state without a fabricated answer or citation
-  await expect(page.locator(".candidate-row")).toHaveCount(0);
-  await expect(page.locator("#evidence-review .insight-state")).toHaveCount(1);
-  await expect(page.getByTestId("graphrag-answer")).toHaveCount(0);
-  await expect(page.getByText("fixture-evidence-001", { exact: true })).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath(`reviewer-no-evidence-${testInfo.project.name}.png`), fullPage: true });
+  await expect(page.locator("#album-search")).toBeEditable();
+  await expect(page.locator(".insight-state")).toHaveCount(1);
+  await expect(page.locator(".recommendation-note")).toHaveCount(0);
 });
 
-test("Given selected fixture evidence, when recommendation retrieval fails, then the workspace shows a typed recovery record without a fabricated recommendation", async ({ page }) => {
-  // Given real browser UI routes whose recommendation BFF response is an unavailable typed failure
-  await page.route("**/api/fixture/health", (route) => route.fulfill({ body: JSON.stringify({ mode: "fixture", status: "ok" }), contentType: "application/json", status: 200 }));
-  await page.route((url) => url.pathname === "/api/fixture/candidates", (route) => route.fulfill({
-    body: JSON.stringify({ candidates: [{ artist: "윤슬", id: "fixture-album-001", source: "PUBLIC_FIXTURE", title: "밤의 기록" }], mode: "fixture" }),
-    contentType: "application/json",
-    status: 200
-  }));
-  await page.route("**/api/fixture/candidates/fixture-album-001/evidence", (route) => route.fulfill({
-    body: JSON.stringify({
-      answer: "선택한 음반은 현재 기록과 이어져 있어요.",
-      claims: [{ evidenceIds: ["fixture-evidence-001"], text: "선택한 음반과 이어지는 청취 단서입니다." }],
-      records: [{ id: "fixture-evidence-001", subjectId: "fixture-album-001", summary: "선택한 음반과 이어지는 청취 단서입니다." }],
-      selectionStatus: "FIXTURE_SELECTED",
-      state: "ready"
-    }),
-    contentType: "application/json",
-    status: 200
-  }));
-  await page.route("**/api/fixture/recommendations", (route) => route.fulfill({
-    body: JSON.stringify({ code: "BACKEND_UNAVAILABLE", retryable: true }),
+test("Given an unavailable personal graph, when the workspace opens, then the recoverable state does not fabricate GraphRAG evidence", async ({ page }) => {
+  await routeConnectedWorkspace(page);
+  await page.route("**/api/music/insights", (route) => route.fulfill({
+    body: JSON.stringify({ code: "GRAPHDB_UNAVAILABLE", retryable: true }),
     contentType: "application/json",
     status: 503
   }));
+
   await page.goto("/");
 
-  // When the reviewer selects the fixture candidate
-  await page.locator(".search-row button").click();
-  await page.getByRole("button", { name: /밤의 기록/ }).click();
-
-  // Then the existing GraphRAG answer remains attributable while recommendation failure is explicit and no candidate is fabricated
-  await expect(page.getByTestId("graphrag-answer")).toHaveText("선택한 음반은 현재 기록과 이어져 있어요.");
-  await expect(page.getByTestId("recommendation-unavailable")).toBeVisible();
-  await expect(page.getByTestId("recommendation-panel")).toHaveCount(0);
+  await expect(page.locator(".insight-state")).toHaveCount(1);
+  await expect(page.locator(".recommendation-note .relisten-entry, .recommendation-note .discovery-entry")).toHaveCount(0);
+  await expect(page.locator(".technical-disclosure")).toHaveCount(0);
 });
 
-test("Given a configured outage or configuration failure, when the reviewer opens the workspace, then the typed error is recoverable without evidence data", async ({ page, request }, testInfo) => {
+test("Given a configuration or outage process, when the connected desk opens, then its typed recovery state remains usable", async ({ page, request }) => {
   const configurationFailure = process.env.TASK12B_E2E_BACKEND_CONFIGURATION_ERROR === "true";
   const outage = process.env.TASK12B_E2E_BACKEND_OUTAGE === "true";
   test.skip(!configurationFailure && !outage, "requires a real configured failure-mode process");
 
-  // Given the real Next process is started with a deliberately unavailable or missing backend configuration
-  const health = await request.get("/api/fixture/health");
-
-  // When the reviewer workspace is opened
+  const health = await request.get("/api/music/health");
   await page.goto("/");
 
-  // Then the typed 503 remains recoverable and does not invent GraphRAG or recommendation data
   expect(health.status()).toBe(503);
   await expect(page.locator("#album-search")).toBeEditable();
-  await expect(page.locator("#evidence-review .insight-state")).toHaveCount(1);
-  await expect(page.getByTestId("graphrag-answer")).toHaveCount(0);
-  await expect(page.getByTestId("recommendation-panel")).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath(`reviewer-recoverable-${testInfo.project.name}.png`), fullPage: true });
+  await expect(page.locator("form.search-row button")).toBeEnabled();
+  await expect(page.locator(".recommendation-note")).toHaveCount(0);
 });

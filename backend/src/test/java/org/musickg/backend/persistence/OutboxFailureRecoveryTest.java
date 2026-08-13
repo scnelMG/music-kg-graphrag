@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@SpringBootTest
+@SpringBootTest(properties = "music-kg.connected.mode=fixture")
 class OutboxFailureRecoveryTest extends OutboxIntegrationTestSupport {
     @Autowired CanonicalWriteService writes;
     @Autowired JdbcTemplate jdbc;

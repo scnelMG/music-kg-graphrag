@@ -24,12 +24,15 @@
     "esModuleInterop": true
   },
   "include": [
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
-    ".next-dev/types/**/*.ts",
-    ".next-e2e/types/**/*.ts",
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    ".next-dev/types/**/*.ts",
+    ".next-e2e-record-visual/types/**/*.ts",
+    ".next-e2e-record/types/**/*.ts",
+    ".next-e2e/types/**/*.ts",
+    ".next-live-graph-qa/types/**/*.ts",
+    ".next/types/**/*.ts",
+    "next-env.d.ts"
   ],
   "exclude": [
     "node_modules"

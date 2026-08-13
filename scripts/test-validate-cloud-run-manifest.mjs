@@ -286,7 +286,8 @@ test("connected production template requires a server-side Notion secret and exp
   assert.match(template, /run\.googleapis\.com\/vpc-access-egress: private-ranges-only/);
   assert.match(template, /autoscaling\.knative\.dev\/maxScale: "1"/);
   assert.match(template, /containerConcurrency: 1/);
-  assert.match(template, /timeoutSeconds: 20/);
+  assert.match(template, /timeoutSeconds: 30/);
+  assert.match(template, /name: MUSIC_KG_LLM_ENABLED\n\s+value: "false"/);
 });
 
 test("connected preview template quotes the operator MusicBrainz user agent", async () => {
@@ -304,7 +305,8 @@ test("connected preview template quotes the operator MusicBrainz user agent", as
   assert.match(template, /run\.googleapis\.com\/network-interfaces: '\[\{"network":"\$\{PERSONAL_GRAPHDB_VPC_NETWORK\}","subnetwork":"\$\{PERSONAL_GRAPHDB_VPC_SUBNETWORK\}"\}\]'/);
   assert.match(template, /run\.googleapis\.com\/vpc-access-egress: private-ranges-only/);
   assert.match(template, /containerConcurrency: 1/);
-  assert.match(template, /timeoutSeconds: 20/);
+  assert.match(template, /timeoutSeconds: 30/);
+  assert.match(template, /name: MUSIC_KG_LLM_ENABLED\n\s+value: "false"/);
 });
 
 test("connected templates render only when every server-side data binding is supplied", async () => {

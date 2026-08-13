@@ -1,42 +1,23 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const originalAccessToken = process.env.MUSIC_KG_APP_ACCESS_TOKEN;
-
 afterEach(() => {
-  if (originalAccessToken === undefined) delete process.env.MUSIC_KG_APP_ACCESS_TOKEN;
-  else process.env.MUSIC_KG_APP_ACCESS_TOKEN = originalAccessToken;
   vi.unstubAllEnvs();
-  vi.resetModules();
 });
 
-describe("private music service access boundary", () => {
-  it("redirects an unauthenticated production page request to the access gate", async () => {
-    // Given a production deployment with a configured operator access token
+describe("connected application routing boundary", () => {
+  it("does not require a second in-app token after Vercel protects the deployment", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    process.env.MUSIC_KG_APP_ACCESS_TOKEN = "test-access-token-with-adequate-length";
-
-    // When an unauthenticated visitor opens the personal music page
     const { middleware } = await import("../middleware");
     const response = await middleware(new NextRequest("https://music.example.test/"));
-
-    // Then personal music data is not served before the visitor passes the access gate
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://music.example.test/access?next=%2F");
+    expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("rejects an unauthenticated production BFF request instead of proxying it to Notion", async () => {
-    // Given a protected production BFF
+  it("allows Vercel-authorized BFF routes to reach the server-side secret boundary", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    process.env.MUSIC_KG_APP_ACCESS_TOKEN = "test-access-token-with-adequate-length";
-
-    // When a caller directly requests a personal-data route without a session
     const { middleware } = await import("../middleware");
     const response = await middleware(new NextRequest("https://music.example.test/api/music/records"));
-
-    // Then the request is denied before the server-side BFF credential can be used
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ code: "APP_ACCESS_REQUIRED" });
+    expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("applies the production access boundary to every API namespace, including retired fixture routes", async () => {
@@ -46,8 +27,6 @@ describe("private music service access boundary", () => {
   });
 
   it("does not expose retired fixture BFF routes from the connected application", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    process.env.MUSIC_KG_APP_ACCESS_TOKEN = "test-access-token-with-adequate-length";
     const { middleware } = await import("../middleware");
 
     const response = await middleware(new NextRequest("https://music.example.test/api/fixture/health"));
@@ -55,36 +34,14 @@ describe("private music service access boundary", () => {
     expect(response.status).toBe(404);
   });
 
-  it("leaves only the access-token exchange route reachable before a session exists", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    process.env.MUSIC_KG_APP_ACCESS_TOKEN = "test-access-token-with-adequate-length";
-    const { middleware } = await import("../middleware");
+  it("rejects a personal record request without an owner session when the owner boundary is enabled", async () => {
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_REQUIRED", "true");
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_SECRET", "a-session-secret-that-is-long-enough");
+    const { GET } = await import("../app/api/music/records/route");
 
-    const response = await middleware(new NextRequest("https://music.example.test/api/access"));
+    const response = await GET(new NextRequest("https://music.example.test/api/music/records"));
 
-    expect(response.headers.get("x-middleware-next")).toBe("1");
-  });
-
-  it("creates a strict HttpOnly signed session without placing the configured token in the browser cookie", async () => {
-    // Given a configured production access token
-    vi.stubEnv("NODE_ENV", "production");
-    process.env.MUSIC_KG_APP_ACCESS_TOKEN = "test-access-token-with-adequate-length";
-
-    // When the owner submits the matching token to the access route
-    const { POST } = await import("../app/api/access/route");
-    const response = await POST(new NextRequest("https://music.example.test/api/access", {
-      body: JSON.stringify({ token: "test-access-token-with-adequate-length" }),
-      headers: { "content-type": "application/json" },
-      method: "POST"
-    }));
-
-    // Then the browser receives only an HttpOnly same-site signed session, never the configured bearer value
-    expect(response.status).toBe(204);
-    const cookie = response.headers.get("set-cookie") ?? "";
-    expect(cookie).toContain("music_kg_access=");
-    expect(cookie).not.toContain("test-access-token-with-adequate-length");
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("SameSite=strict");
-    expect(cookie).toContain("Secure");
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ code: "OWNER_SESSION_REQUIRED", retryable: false });
   });
 });

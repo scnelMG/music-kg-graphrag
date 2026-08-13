@@ -23,6 +23,7 @@ function startBackend() {
     env: {
       ...process.env,
       BACKEND_BFF_SHARED_SECRET: secret,
+      MUSIC_KG_CONNECTED_MODE: "fixture",
       PORT: backendPort,
       SPRING_AUTOCONFIGURE_EXCLUDE: "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration"
     },

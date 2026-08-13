@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
+import { requireOwnerSession } from "../../../../lib/owner-session";
 
 const personalGraphRetrievalMethodSchema = z.enum([
   "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
@@ -11,7 +12,7 @@ const albumSchema = z.object({
   artist: z.string().min(1),
   coverUrl: z.string().url().or(z.literal("")),
   evidenceMethod: personalGraphRetrievalMethodSchema,
-  evidencePaths: z.array(z.object({ recordPageId: z.string().min(1), relation: z.enum(["RECORDED_BY", "SHARES_MUSICBRAINZ_TAG"]), value: z.string().min(1) })),
+  evidencePaths: z.array(z.object({ recordPageId: z.string().min(1).optional(), relation: z.enum(["RECORDED_BY", "SHARES_MUSICBRAINZ_TAG"]), value: z.string().min(1) })),
   firstReleaseDate: z.string(),
   releaseGroupMbid: z.string().min(1),
   title: z.string().min(1),
@@ -19,15 +20,28 @@ const albumSchema = z.object({
 });
 
 const graphTasteSchema = z.object({
-  evidencePageIds: z.array(z.string().min(1)),
+  evidencePageIds: z.array(z.string().min(1)).optional(),
   generatedByLlm: z.literal(false),
   personalRecordCount: z.number().int().positive(),
   recommendations: z.array(albumSchema),
   retrievalMethod: personalGraphRetrievalMethodSchema,
-  seedArtist: z.string().min(1)
+  seedArtist: z.string()
 });
 
-export async function GET(): Promise<NextResponse> {
+function publicGraphTaste(graphTaste: z.infer<typeof graphTasteSchema>) {
+  const { evidencePageIds: _evidencePageIds, recommendations, ...publicTaste } = graphTaste;
+  return {
+    ...publicTaste,
+    recommendations: recommendations.map(({ evidencePaths, ...recommendation }) => ({
+      ...recommendation,
+      evidencePaths: evidencePaths.map(({ recordPageId: _recordPageId, ...path }) => path)
+    }))
+  };
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const ownerSession = requireOwnerSession(request);
+  if (ownerSession !== null) return ownerSession;
   const result = await callBackend("api/v1/graphrag/taste");
   if (result.kind === "handled") return result.response;
   let payload: unknown;
@@ -38,5 +52,5 @@ export async function GET(): Promise<NextResponse> {
     throw error;
   }
   const graphTaste = graphTasteSchema.safeParse(payload);
-  return graphTaste.success ? NextResponse.json(graphTaste.data) : backendContractError();
+  return graphTaste.success ? NextResponse.json(publicGraphTaste(graphTaste.data)) : backendContractError();
 }
