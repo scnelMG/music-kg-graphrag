@@ -84,7 +84,7 @@ test("Given visible personal recommendations, when a refresh cannot retrieve the
   await page.goto("/");
   await expect(page.getByText("Album Two", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "내 기록 새로 고침" }).click();
+  await page.getByRole("button", { name: "새로 고침" }).click();
 
   await expect(page.getByText("Album Two", { exact: true })).toHaveCount(0);
   await expect(page.getByText("개인 추천 근거 그래프에 잠시 연결할 수 없습니다. 기록은 변경하지 않았으니 잠시 뒤 다시 시도해 주세요.")).toBeVisible();
@@ -93,6 +93,46 @@ test("Given visible personal recommendations, when a refresh cannot retrieve the
   await page.locator(".insight-state .insight-refresh").click();
 
   await expect(page.getByText("Album Two", { exact: true })).toBeVisible();
+});
+
+test("Given visible personal recommendations, when the personal workspace reconnect fails, then stale recommendations are removed", async ({ page }) => {
+  let formOptionRequests = 0;
+  await routeConnectedWorkspace(page);
+  await page.route("**/api/music/sync", (route) => route.fulfill({
+    body: JSON.stringify({ changedRecordCount: 0, lastSuccessfulAt: "2026-08-13T00:00:00Z", stale: false, status: "CURRENT" }),
+    contentType: "application/json",
+    status: 200
+  }));
+  await page.unroute("**/api/music/form-options");
+  await page.route("**/api/music/form-options", (route) => {
+    formOptionRequests += 1;
+    return route.fulfill({
+      body: formOptionRequests === 1
+        ? JSON.stringify({ sentiments: ["Loved"] })
+        : JSON.stringify({ code: "BACKEND_UNAVAILABLE", message: "temporary" }),
+      contentType: "application/json",
+      status: formOptionRequests === 1 ? 200 : 503
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByText("Album Two", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "새로 고침" }).click();
+
+  await expect(page.getByText("Album Two", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("추천을 불러오지 못했습니다.")).toBeVisible();
+});
+
+test("shows one primary relisten and keeps technical recommendation details closed by default", async ({ page }) => {
+  await routeConnectedWorkspace(page);
+
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "오늘 다시 들을 앨범" })).toBeVisible();
+  await expect(page.getByText("GraphRAG", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("근거 점수", { exact: false })).toHaveCount(0);
+  await expect(page.locator(".today-recommendation .recommendation-reason summary")).toHaveText("왜 이 앨범인가요?");
 });
 
 test("Given graph-backed recommendations, when the listener explicitly requests a grounded LLM explanation, then the cited explanation appears without changing the recommendations", async ({ page }, testInfo) => {
@@ -108,8 +148,9 @@ test("Given graph-backed recommendations, when the listener explicitly requests 
   }));
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "근거로 설명 만들기" })).toBeVisible();
-  await page.getByRole("button", { name: "근거로 설명 만들기" }).click();
+  await page.getByText("추천을 문장으로 보기", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "설명 만들기" })).toBeVisible();
+  await page.getByRole("button", { name: "설명 만들기" }).click();
 
   await expect(page.getByText("기록한 앨범의 최애곡과 감상을 근거로 다음 앨범을 골랐습니다.")).toBeVisible();
   await expect(page.getByText("Recorded Album · Artist One", { exact: true })).toBeVisible();
@@ -197,12 +238,13 @@ test("shows recorded relistens before new MusicBrainz discoveries with their dis
 
   await page.goto("/");
 
+  const today = page.locator(".today-recommendation");
   const recommendation = page.locator(".recommendation-note");
-  await expect(recommendation).toContainText("Recorded Album");
+  await expect(today).toContainText("Recorded Album");
   await expect(recommendation).toContainText("New Discovery");
-  await expect(recommendation.locator(".relisten-entry, .discovery-entry")).toHaveCount(2);
-  await expect(recommendation).toContainText("Artist A");
-  await expect(recommendation.getByText("Recorded Album", { exact: true })).toBeVisible();
+  await expect(page.locator(".today-recommendation, .recommendation-note").locator(".relisten-entry, .discovery-entry")).toHaveCount(1);
+  await expect(today).toContainText("Artist A");
+  await expect(today.getByText("Recorded Album", { exact: true })).toBeVisible();
   await expect(recommendation.getByText("New Discovery", { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath(`connected-music-insights-${testInfo.project.name}.png`), fullPage: true });
 });
@@ -214,6 +256,16 @@ test("keeps the connected personal-insights workspace legible at every supported
   }));
   await page.route("**/api/music/form-options", (route) => route.fulfill({
     body: JSON.stringify({ sentiments: ["오래 남음"] }), contentType: "application/json", status: 200
+  }));
+  await page.route("**/api/music/records", (route) => route.fulfill({
+    body: JSON.stringify({
+      nextCursor: null,
+      records: [{
+        albumTitle: "Recorded Album", artist: "Artist A", artistCredits: ["Artist A"], coverUrl: "",
+        favouriteTrack: "Favourite Track", lastEditedAt: "2026-08-13T00:00:00.000Z", owned: true,
+        recordHandle: "record-1", releaseGroupMbid: "recorded-release-group", sentiment: "오래 남음"
+      }]
+    }), contentType: "application/json", status: 200
   }));
   await page.route("**/api/music/insights", (route) => route.fulfill({
     body: JSON.stringify({
@@ -230,15 +282,22 @@ test("keeps the connected personal-insights workspace legible at every supported
   for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/");
-    await expect(page.locator(".recommendation-note")).toContainText("Recorded Album");
+    await expect(page.locator(".today-recommendation")).toContainText("Recorded Album");
     await expect(page.locator("html")).toHaveJSProperty("scrollWidth", viewport.width);
     await page.screenshot({ path: testInfo.outputPath(`connected-music-insights-${viewport.width}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.locator("#album-search").focus();
   await expect(page.locator("#album-search")).toBeFocused();
-  await page.screenshot({ path: testInfo.outputPath("connected-music-focus-375.png"), fullPage: true });
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: testInfo.outputPath("connected-music-focus-375.png") });
+
+  await page.goto("/");
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".skip-link")).toBeFocused();
+  await page.screenshot({ path: testInfo.outputPath("connected-music-skip-focus-375.png") });
 });
 
 test("loads actual MusicBrainz tracks before a listener can choose a favourite track", async ({ page }) => {

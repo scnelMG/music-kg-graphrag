@@ -1,150 +1,92 @@
-# Music KG GraphRAG Design System
+# Music KG Connected Design System
 
-## Product position
+## 0. Research log
 
-이 서비스는 개인 음악 기록을 위한 **근거가 보이는 음악 기록장**이다. 첫 화면의
-목표는 사용자가 실제 앨범을 찾고, 선택하고, 자신의 감상을 Notion에 남기도록
-돕는 것이다. 추천과 그래프 탐색 근거는 선택을 뒷받침하며 채팅 제품의 전면
-장식이 아니다.
+- **Reference study:** Toss Design System’s official [color foundations](https://tossmini-docs.toss.im/tds-mobile/foundation/colors/) and [component guidance](https://developers-apps-in-toss.toss.im/design/components.html) informed the cool-neutral base, clear action hierarchy, generous target sizes, and short task-first copy. No Toss code, assets, logo, or product copy is used.
+- **Existing-product audit:** the previous warm paper treatment made the connected service feel like a static journal and exposed too much implementation detail. The redesign keeps the real Notion, MusicBrainz, and GraphRAG flows but makes one next action visible at a time.
+- **Design choice:** Clear Blue A1 — a calm, bright personal music space led by **오늘의 한 장**, with record management as a separate, deliberate task.
 
-연결 모드에서 앨범 검색은 MusicBrainz, 개인 기록의 원본은 사용자가 공유한
-Notion 데이터베이스다. 연결할 수 없는 데이터는 결과·커버·기록·추천으로
-꾸미지 않으며, 사용자가 해결할 수 있는 상태와 다음 행동을 명시한다.
+## 1. Product promise
 
-## 디자인 원칙
+Music KG helps its owner find an album, save a real listening record to Notion, and return to one well-grounded album for today. Public visitors can search real MusicBrainz albums and tracks; private records and recommendations never render until owner access is confirmed.
 
-- 분위기는 따뜻한 음악 기록장이다. 종이 같은 여백, 잉크색 본문, 광물성
-  청색 행동색과 선택된 음반의 절제된 버건디 표식을 사용한다.
-- 정보는 한 장의 작업면에 모은다. KPI 카드 벽, 대시보드 사이드바, 과도한
-  테두리 상자, 보라색/파란색 AI 그라데이션, 챗봇 크롬, 이모지는 사용하지 않는다.
-- 기본 경로는 한국어로 짧고 직접적으로 쓴다. 기술 식별자·점수·근거 ID는
-  필요한 사람이 펼쳐 보는 상세 정보에만 둔다.
-- 상태는 문장과 아이콘으로 설명한다. 색, 점이 붙은 상태 배지, 둥근 pill만으로
-  상태를 전달하지 않는다.
+## 2. Content hierarchy
 
-## 토큰
+1. **Today:** one relisten recommendation, if the graph has adequate evidence.
+2. **Discover:** at most two new albums, secondary to today’s choice.
+3. **Find:** real album and artist search with the selected album’s actual tracks.
+4. **Record:** selected-album fields only, then the owner’s paginated Notion archive.
 
-| 역할 | 토큰 | 값 |
+Technical implementation, graph paths, scores, provider health, sync internals, IDs, and optional LLM explanation are never shown by default. A native disclosure exposes only a concise user-facing reason on request. No empty state may fabricate an album, cover, artist, record, score, or recommendation.
+
+## 3. Visual language
+
+The surface is light, clear, and quietly tactile rather than glossy. It uses a cool gray page background, elevated white surfaces, a single confident blue action color, and restrained semantic feedback. The UI must not use gradients, glass effects, emoji icons, metric dashboards, status pills, heavy card grids, chat chrome, or copied brand treatments.
+
+### Tokens
+
+| Role | Token | Value |
 | --- | --- | --- |
-| Canvas | `--canvas` | `#f5f1e9` |
-| Paper | `--paper` | `#fffdf8` |
-| Paper muted | `--paper-muted` | `#ece6db` |
-| Ink | `--ink` | `#24211d` |
-| Ink muted | `--ink-muted` | `#665f56` |
-| Rule | `--rule` | `#d9d0c3` |
-| Action | `--action` | `#315e72` |
-| Action pressed | `--action-pressed` | `#204655` |
-| Selection | `--selection` | `#8b3f35` |
-| Success | `--success` | `#25663b` |
-| Warning | `--warning` | `#9a5a12` |
-| Error | `--error` | `#aa332b` |
-| Focus | `--focus` | `#005f9e` |
+| Page | `--bg` | `#f2f4f6` |
+| Surface | `--surface` | `#ffffff` |
+| Subtle surface | `--surface-subtle` | `#f7f9fc` |
+| Primary text | `--text` | `#191f28` |
+| Secondary text | `--text-secondary` | `#4e5968` |
+| Tertiary text | `--text-tertiary` | `#697586` |
+| Border | `--line` | `#e5e8eb` |
+| Action | `--blue` | `#3182f6` |
+| Action pressed | `--blue-strong` | `#1b64da` |
+| Selection | `--blue-soft` | `#e8f3ff` |
+| Success | `--success` | `#20a56a` |
+| Warning | `--warning` | `#d88900` |
+| Danger | `--danger` | `#e2484d` |
+| Focus | `--focus` | `#0064ff` |
 
-색은 상태의 유일한 신호가 아니다. 선택·저장·오류는 텍스트와 구조로도
-구별된다.
+Spacing uses a 4px scale. Radius is purposeful: 12px for controls, 16px for grouped rows, and 24px for the main workspace. Shadows are limited to surface elevation and focus; they never decorate non-interactive text.
 
-## 타이포그래피와 간격
+## 4. Typography and copy
 
-- UI: `Pretendard Variable`, `Noto Sans KR`, `Geist`, sans-serif
-- 편집적 문장/인용: `Noto Serif KR`, Georgia, serif
-- opt-in 기술 식별자: `IBM Plex Mono KR`, `Geist Mono`, Consolas, monospace
+- UI: `Pretendard Variable`, `Noto Sans KR`, `Geist`, sans-serif.
+- Reading rationale: `Noto Serif KR`, Georgia, serif.
+- Use Korean task language: “오늘 다시 들을 앨범”, “음반 찾기”, “기록 남기기”.
+- One heading per decision area; supporting copy is one sentence unless a recovery path needs two.
+- Korean uses `word-break: keep-all`; short predicates and object phrases use `.keep-together` only where it prevents a semantic break.
 
-간격은 4px 배수(`--space-1`~`--space-14`)를 사용한다. 제목은 한 페이지에
-하나만 두고, 세리프체는 소개 문장과 증거 답변처럼 읽기 중심의 부분에만 쓴다.
+## 5. Primitives and states
 
-## 화면 구성
+### Header and navigation
 
-### Journal header
+The header is a compact product identity and owner-aware navigation. Public and checking states show only public search navigation; owner-only controls appear only after explicit owner confirmation.
 
-서비스 이름, 한 문장 가치 제안, 개인 데이터 연결 상태 안내를 둔다. 설정 오류는
-행동 가능한 복구 문장으로 표시한다.
+### Today card
 
-### Listening search
+The first private recommendation is a single elevated surface with cover, album, artist, favourite-track context, and a single “기록 보기” action when a matching saved record exists. Its reason is hidden in `<details>` under “왜 이 앨범인가요?”. If evidence is insufficient, show a short honest recovery state instead of a substitute recommendation.
 
-앨범/아티스트 검색어와 검색 버튼을 제공한다. 유휴·로딩·결과·없음·오류 상태를
-입력 가까이에 표시한다.
+### Discovery list
 
-### Record row and selected record
+At most two MusicBrainz discovery rows appear below the today card. They are visually lighter than the today card and never show ranking scores by default.
 
-후보는 앨범명·아티스트·사람이 읽을 수 있는 선택 힌트로 표현한다. 원본 ID는
-행에 노출하지 않는다. 선택된 음반은 개인 메모 위의 명확한 맥락이 된다.
+### Search and record
 
-### Listening note
+Search is a real GET form with `q` in the URL. Results use stable image dimensions and a non-shifting selected state. The record editor is progressively disclosed only after a user selects an album. Save, archive, and restore are separate confirmed Notion writes with focus management and honest results.
 
-최애곡, 감상, 보유 여부를 작성한다. 유효성 오류, 저장 중, Notion 저장 확인,
-오류를 인접한 live region으로 알린다. 저장 확인은 생성 또는 갱신된 실제 기록을
-명확히 말한다.
+### Feedback
 
-선택 전에는 다음 행동을 설명하는 한 문장만 보이고, 실제 앨범을 고른 뒤에만 감상·
-수록곡·보유 여부·저장 조작을 연다. 선택 영역은 최소 높이를 유지해 비동기 수록곡
-조회 중에도 본문이 흔들리지 않게 한다.
+Loading is short, local, and text-backed. Errors identify the unavailable user task and offer a retry. A personal workspace retry invalidates every older recommendation, graph, explanation, sync, and record response before the new request begins; stale private data may never remain on screen.
 
-### Record collection
+## 6. Responsive and accessibility contract
 
-내가 Notion에 남긴 기록은 청색 왼쪽 규칙과 `내가 남긴 기록` 문장으로 표현한다.
-다시 듣기는 같은 개인 기록 계열, 새 발견은 버건디 왼쪽 규칙과 그래프 근거 문장으로
-구분한다. 세 목록은 같은 범용 카드 컴포넌트를 공유하지 않는다.
+- `375px`: one reading column; recommendation appears before search; controls remain at least 44px tall.
+- `768px`: one calm reading column with compact grouped controls.
+- `1280px`: search/record and recommendation occupy a balanced two-column workspace; DOM order stays recommendation then work so mobile has the correct priority.
+- The page owns scrolling; panels never create nested scrolling.
+- `main#main-content` has a visible skip link, focusable target, semantic headings, labels, live regions, disabled states, and a 3px focus outline.
+- Motion is limited to meaningful opacity/transform feedback and is removed under `prefers-reduced-motion`.
 
-보관은 인라인 확인 단계로만 실행한다. 확인 문장은 숨김 효과와 Notion에서의 되돌림
-경로를 설명하고, 취소와 보관 실행은 서로 다른 텍스트·테두리·색으로 표현한다.
+## 7. Truthfulness and data boundaries
 
-Notion 목록을 읽는 중에는 빈 목록처럼 보이게 하지 않고, 읽기 실패 때는 기존 목록을
-숨긴 뒤 같은 영역에서 다시 불러오기를 제공한다. 이전 개인 기록을 최신 결과인 것처럼
-남겨두지 않는다.
+All search results and covers come from MusicBrainz-related catalog responses. Personal records come from the connected Notion database. Recommendation decisions come from the personal graph and catalog evidence; an optional LLM may only summarize already selected evidence. The frontend never creates client-side fallback records, recommendations, covers, or scores.
 
-기록이 많아도 한 번에 모두 렌더링하지 않는다. 처음에는 최신 12개를 보여 주고,
-Notion의 불투명 cursor가 다음 페이지를 가리킬 때만 `다음 기록 더 보기`로 같은 크기의 묶음을 이어서 연다.
-남은 총수는 별도 전체 조회 없이는 알 수 없으므로 추정 수치로 표시하지 않는다. 새로고침·저장·보관
-뒤에는 최신 상태를 먼저 보이도록 목록을 다시 첫 묶음으로 돌린다.
+## 8. Accepted debt and handoff
 
-### Insight note
-
-한 개의 근거 영역에서 추천, 자연어 답변, 회복 상태, 선택적 provenance를
-순서대로 보여 준다. 근거가 없으면 답변을 만들지 않고 이유와 다음 행동을
-표시한다.
-
-작은 테두리형 `기록과 추천 새로 고침` 조작은 이 영역의 실제 Notion 기록과 그래프
-근거를 다시 읽는다. 새 읽기가 실패하면 이전 취향·추천을 즉시 숨기고, 오류 문장과
-`기록과 추천 다시 불러오기` 조작만 남긴다. 따라서 오래된 추천이 최신 결과인 것처럼
-표시되지 않는다.
-
-## 반응형·접근성
-
-- 문서가 세로 스크롤을 소유하며, 주 작업 영역에 중첩 스크롤을 만들지 않는다.
-- 데스크톱은 검색/기록과 읽기 노트의 2열, 900px 이하는 같은 DOM 순서의
-  단일 열이다.
-- 375px 및 200% zoom에서 가로 스크롤이 없어야 한다. 한국어는 자연스럽게
-  줄바꿈하고, 긴 기술 ID는 상세 정보에서만 비상 줄바꿈한다.
-- 모든 조작은 44px 이상의 대상, 보이는 3px focus outline, 키보드 접근,
-  polite live announcement를 제공한다.
-- 문서 시작에는 `본문으로 건너뛰기` 링크를 두고 `main#main-content`로 이동한다.
-- 검색 입력은 `q` 이름의 GET 계약을 가지며, 실행된 검색어는 URL에 남아 새로 열거나
-  뒤로 가기 했을 때 같은 실제 검색을 복원한다.
-- `prefers-reduced-motion`에서는 불필요한 변환·부드러운 스크롤을 제거한다.
-
-## 구현 품질 기준
-
-- 실제 DOM과 의미론적 `main`, `header`, `nav`, `section`, `article`, `form`,
-  `button`, `details`를 사용한다. 스크린샷·canvas로 UI를 흉내 내지 않는다.
-- 외부 참고는 Gesso의 일관된 디자인 사양, Select Craft의 절제된 상태 전환,
-  WCAG 2.2의 focus/target-size 기준을 참고하되 브랜드·레이아웃을 복제하지 않는다.
-- 새 화면은 desktop, tablet, mobile에서 실제 브라우저로 확인하고 Korean CJK
-  줄바꿈과 에러·복구 경로를 함께 검증한다.
-
-## 현재 제외 범위
-
-벡터 검색과 Microsoft GraphRAG의 전역·커뮤니티 검색은 연결 모드의 범위가 아니다. 다만 개인 취향·추천은
-현재 Notion 기록의 최소 근거를 사설 GraphDB named graph에 투영하고 SPARQL로
-집계한 뒤, 실제 MusicBrainz 발매 그룹을 탐색하는 결정론적 경로로 표현한다.
-GraphDB가 사용할 수 없으면 추천을 대체 결과로 가장하지 않고 복구 상태를 표시한다.
-fixture는 회귀 테스트에만 남고 사용자 화면의 실제 데이터인 것처럼 나타나지 않는다.
-
-### 선택형 근거 제한 LLM 설명
-
-개인 그래프 추천의 순위와 근거는 항상 실제 Notion 기록, GraphDB 탐색, MusicBrainz 결과로 먼저 결정한다. 외부 LLM은 사용자가 `근거로 설명 만들기`를 명시적으로 눌렀을 때에만, 이미 화면에 표시할 수 있는 앨범·아티스트·관계 근거를 한국어 두 문장 이내로 요약한다.
-
-- LLM 설명은 추천 순위, 점수, 저장 동작을 바꾸지 않는다.
-- 요청 전에는 개인 감상 정보가 외부 모델에 전송되지 않는다. 요청 직전에는 어떤 항목이 전송되는지 짧게 설명한다.
-- 생성 결과는 근거 카드 안의 차분한 문단과 앨범·아티스트 인용 목록으로만 보인다. 채팅 창, 점수 카드, 모델명 배지, 자동 생성 애니메이션을 만들지 않는다.
-- Notion page ID, 원문 URL, 비공개 메모, 토큰은 LLM 문맥과 브라우저 응답 어느 쪽에도 넣지 않는다.
-- 모델이 연결되지 않았거나 응답하지 않으면, 결정론적 그래프 추천과 기존 근거는 그대로 두고 그 사실과 재시도 동작만 보여 준다.
+`ConnectedMusicDesk` still coordinates several real API states. This redesign keeps its API boundary stable to reduce Notion-write risk. If future product work expands the home further, extract the recommendation workspace as its own typed component before adding new behavior. Every UI change must be verified at 375px, 768px, and 1280px with interaction, loading/error, and CJK checks.

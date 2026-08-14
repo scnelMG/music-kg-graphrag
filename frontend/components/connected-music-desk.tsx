@@ -194,7 +194,29 @@ export function ConnectedMusicDesk(): React.JSX.Element {
   const explanationGeneration = useRef(0);
   const recordGeneration = useRef(0);
   const trackGeneration = useRef(0);
+  const workspaceGeneration = useRef(0);
   const executedSearchQuery = useRef<string | null>(null);
+
+  function beginPersonalWorkspaceLoad(): number {
+    const generation = workspaceGeneration.current + 1;
+    workspaceGeneration.current = generation;
+    insightGeneration.current += 1;
+    explanationGeneration.current += 1;
+    recordGeneration.current += 1;
+    setGroundedExplanation(null);
+    setExplanationState("idle");
+    setTaste(null);
+    setGraphTaste(null);
+    setSyncState(null);
+    setInsightState("loading");
+    setInsightMessage("개인 기록과 추천을 불러오는 중입니다.");
+    setRecords([]);
+    setNextRecordCursor(null);
+    setRecordState("loading");
+    setRecordMessage("");
+    setLoadingMoreRecords(false);
+    return generation;
+  }
 
   async function loadInsights(): Promise<void> {
     const generation = insightGeneration.current + 1;
@@ -301,11 +323,13 @@ export function ConnectedMusicDesk(): React.JSX.Element {
   }
 
   async function loadPersonalWorkspace(): Promise<void> {
+    const generation = beginPersonalWorkspaceLoad();
     setAvailability("loading");
     const optionsOutcome = await requestBff(
       ky.get("/api/music/form-options", { throwHttpErrors: false }),
       formOptionsSchema
     );
+    if (generation !== workspaceGeneration.current) return;
     if (optionsOutcome.kind === "failure") {
       setAvailability("error");
       const message = failureText(optionsOutcome);
@@ -321,22 +345,21 @@ export function ConnectedMusicDesk(): React.JSX.Element {
   }
 
   async function refreshPersonalWorkspace(): Promise<void> {
+    const generation = beginPersonalWorkspaceLoad();
+    setAvailability("loading");
     const outcome = await requestBff(
       ky.post("/api/music/sync", { throwHttpErrors: false }),
       syncStateSchema
     );
+    if (generation !== workspaceGeneration.current) return;
     if (outcome.kind === "failure") {
-      explanationGeneration.current += 1;
-      setGroundedExplanation(null);
-      setExplanationState("idle");
-      setTaste(null);
-      setGraphTaste(null);
-      setSyncState(null);
+      setAvailability("error");
       setInsightState("error");
       setInsightMessage(failureText(outcome));
+      setRecordState("error");
+      setRecordMessage(failureText(outcome));
       return;
     }
-    setSyncState(outcome.value);
     await loadPersonalWorkspace();
   }
 
@@ -509,6 +532,8 @@ export function ConnectedMusicDesk(): React.JSX.Element {
 
   const saveEnabled = ownerAccess === "owner" && availability === "ready" && selected !== null && trackState === "ready" && sentiment.length > 0 && favouriteTrack.length > 0 && saveState !== "saving";
   const selectedExistingRecord = selected === null ? undefined : existingRecordFor(selected, records);
+  const todayRelisten = graphTaste?.relisten[0] ?? null;
+  const todayRecord = todayRelisten === null ? undefined : records.find((record) => record.releaseGroupMbid === todayRelisten.releaseGroupMbid);
   const connectionLabel = ownerAccess === "checking"
     ? "개인 공간 확인 중"
     : ownerAccess === "visitor"
@@ -548,7 +573,7 @@ export function ConnectedMusicDesk(): React.JSX.Element {
   return <><a className="skip-link" href="#main-content">본문으로 건너뛰기</a><main className="music-journal" id="main-content" tabIndex={-1}>
     <header className="journal-header" data-owner-access={ownerAccess}>
       <h1>나의 음악 기록</h1>
-      <p className="journal-intro">{ownerAccess === "owner" ? <>앨범이나 가수를 찾아 고르고, 최애곡과 감상을 남기세요. 기록은 Notion에 저장됩니다. <span className="keep-together">다음 추천의 근거가 됩니다.</span></> : <>앨범이나 가수를 찾아 실제 앨범과 수록곡을 확인하세요. 개인 기록과 추천은 <span className="keep-together">소유자 세션에서만 열립니다.</span></>}</p>
+      <p className="journal-intro">{ownerAccess === "owner" ? "오늘 들을 한 장을 고르고, 남기고 싶은 기록만 더해 보세요." : "앨범과 수록곡은 누구나 검색할 수 있습니다."}</p>
       <div className="journal-context"><p>연결 상태: <strong>{availability === "loading" ? "확인 중" : availability === "ready" ? "실제 데이터 연결됨" : "설정 필요"}</strong></p></div>
     </header>
     <div className="connection-status" role="status">연결 상태: <strong>{connectionLabel}</strong></div>
@@ -556,8 +581,8 @@ export function ConnectedMusicDesk(): React.JSX.Element {
     <section className="journal-workspace" aria-label="음악 기록 작업공간">
       <section className="journal-page" aria-labelledby="search-heading">
         <section className="search-section" id="candidate-search">
-          <p className="section-kicker">음반 찾기</p><h2 id="search-heading">무슨 앨범을 찾고 있나요?</h2>
-          <p className="instruction">앨범명 또는 가수명을 입력하면 MusicBrainz의 실제 release group 결과를 보여줍니다.</p>
+          <p className="section-kicker">음반 찾기</p><h2 id="search-heading">듣고 싶은 앨범을 찾아보세요.</h2>
+          <p className="instruction">앨범명이나 가수명으로 실제 앨범과 수록곡을 찾습니다.</p>
           <form className="search-row" method="get" action={pathname} onSubmit={(event) => { event.preventDefault(); submitSearch(); }}>
             <label htmlFor="album-search">앨범명 또는 가수</label>
             <input id="album-search" name="q" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="예: Kind of Blue 또는 김사월" autoComplete="off" inputMode="search" enterKeyHint="search" />
@@ -576,16 +601,16 @@ export function ConnectedMusicDesk(): React.JSX.Element {
         </section>
         {ownerAccess === "owner" ? <ListeningRecordSection archiveCandidate={archiveCandidate} archivedRecord={archivedRecord} availability={availability} favouriteTrack={favouriteTrack} loadingMoreRecords={loadingMoreRecords} nextRecordCursor={nextRecordCursor} onArchive={archiveRecord} onCancelArchive={() => setArchiveCandidate(null)} onFavouriteTrackChange={setFavouriteTrack} onLoadMoreRecords={loadMoreRecords} onOwnedChange={setOwned} onReloadRecords={loadPersonalWorkspace} onRequestArchive={setArchiveCandidate} onRestore={restoreRecord} onSave={save} onSentimentChange={setSentiment} onSelectRecord={editRecord} owned={owned} recordMessage={recordMessage} records={records} recordState={recordState} saveEnabled={saveEnabled} saveMessage={saveMessage} saveState={saveState} selected={selected} selectedExistingRecord={selectedExistingRecord} sentiment={sentiment} sentiments={sentiments} trackMessage={trackMessage} trackState={trackState} tracks={tracks} /> : <><section className="catalog-album-detail" aria-live="polite"><p className="section-kicker">수록곡 확인</p>{selected === null ? <p>앨범을 고르면 MusicBrainz 수록곡을 여기에서 확인할 수 있습니다.</p> : <><h3>{selected.title}</h3><p>{selected.artist}</p>{trackState === "loading" && <p>수록곡을 불러오는 중입니다.</p>}{trackState === "error" && <p>{trackMessage}</p>}{trackState === "empty" && <p>확인 가능한 수록곡이 없습니다.</p>}{trackState === "ready" && <ol className="catalog-track-list">{tracks.map((track) => <li key={track.recordingMbid}>{track.title}</li>)}</ol>}</>}</section><section className="owner-access-note" aria-label="개인 기록 안내"><p className="section-kicker">개인 기록</p><h3>내 Notion 기록과 추천은 소유자만 볼 수 있습니다.</h3><p>공개 검색으로 앨범과 수록곡을 확인할 수 있습니다. 개인 기록을 관리하려면 소유자 확인을 완료하세요.</p><a className="owner-access-link" href="/owner">소유자 확인으로 이동</a></section></>}
       </section>
-      {ownerAccess === "owner" ? <aside className="insight-region" id="personal-insights" aria-label="개인 취향과 추천">
-        <section className="insight-note" aria-live="polite"><header className="insight-heading"><div><p className="section-kicker">내 취향의 흐름</p><h2>추천과 근거</h2></div><button className="insight-refresh" type="button" disabled={insightState === "loading"} onClick={() => void refreshPersonalWorkspace()}>{insightState === "loading" ? "불러오는 중" : "내 기록 새로 고침"}</button></header>
-          {syncState?.stale && <p className="sync-notice" role="status">Notion 변경을 아직 가져오지 못해 마지막으로 동기화된 기록을 표시합니다.</p>}
-          {taste === null ? <div className="insight-state"><WarningCircle size={20} weight="fill" aria-hidden="true" /><div><strong>{insightState === "loading" ? "개인 기록을 불러오고 있습니다." : "아직 개인화 추천을 만들 수 없습니다."}</strong><p>{insightMessage}</p>{insightState === "error" && <button className="insight-refresh" type="button" onClick={() => void refreshPersonalWorkspace()}>내 기록 다시 동기화</button>}</div></div> : <>
-            <section className="evidence-answer"><p className="section-kicker">실제 기록에서 읽은 취향</p><h3>{taste.recordCount}개의 Notion 기록을 기준으로 <span className="keep-together">취향의 흐름을 정리했습니다.</span></h3><dl className="technical-record"><div><dt>많이 기록한 가수</dt><dd>{taste.artists.slice(0, 3).map((item) => `${item.value} ${item.count}회`).join(", ")}</dd></div><div><dt>자주 남긴 감상</dt><dd>{taste.sentiments.slice(0, 3).map((item) => `${item.value} ${item.count}회`).join(", ")}</dd></div></dl></section>
-            {graphTaste !== null && <section className="recommendation-note"><p className="section-kicker">다음에 들을 것</p><h3>{graphTaste.seedArtist}의 기록에서 출발했습니다.</h3>{graphTaste.relisten.length > 0 && <><p className="recommendation-group-heading">다시 듣기</p><p>마지막으로 기록을 수정한 순서로, 당신이 남긴 실제 앨범 기록을 <span className="keep-together">다시 보여드립니다.</span></p><div className="recommendation-list">{graphTaste.relisten.map((album) => <article key={album.releaseGroupMbid} className="relisten-entry"><AlbumArt album={album} /><div><p className="entry-eyebrow">내가 남긴 기록</p><strong>{album.title}</strong><span>{album.artist}{album.favouriteTrack.length > 0 ? ` · 최애곡 ${album.favouriteTrack}` : ""}{album.owned && <> · <span className="keep-together">보유 기록</span></>}</span></div></article>)}</div></>}<p className="recommendation-group-heading">새 발견</p><p>개인 기록의 MusicBrainz 태그와 <span className="keep-together">가수 연결</span>을 따라가며, 이미 기록한 앨범은 제외합니다.</p>{graphTaste.recommendations.length === 0 ? <p>아직 새 추천을 만들 수 있는 결과가 없습니다.</p> : <div className="recommendation-list">{graphTaste.recommendations.map((album) => <article key={album.releaseGroupMbid} className="discovery-entry"><AlbumArt album={album} /><div><p className="entry-eyebrow">그래프 근거로 찾은 새 앨범</p><strong>{album.title}</strong><span>{album.artist} · 근거 점수 {album.score}</span><span>{album.evidencePaths.map((path) => path.relation === "SHARES_MUSICBRAINZ_TAG" ? `내 기록의 MusicBrainz 태그: ${path.value}` : `내 기록의 가수 연결: ${path.value}`).join(" · ")}</span></div></article>)}</div>}<details className="technical-disclosure"><summary>개인 기록 그래프 검색 근거</summary><p>다시 들을 앨범: 같은 가수의 실제 Notion 기록을 마지막 수정 시각으로 정렬</p><p>새 발견: 개인 기록의 MusicBrainz 태그 또는 가수 연결을 따라간 실제 release group</p><p>추천은 실제 Notion 기록, GraphDB 탐색, MusicBrainz 결과로 결정합니다. 선택형 설명은 그 근거를 바꾸지 않습니다.</p><p className="mono">Notion 내부 식별자는 브라우저와 설명 모델에 전송하지 않습니다.</p></details></section>}
-            {graphTaste !== null && <section className="grounded-explanation" aria-live="polite"><p className="section-kicker">선택형 설명</p><h3>이미 찾은 근거를 문장으로 읽기</h3><p>버튼을 누를 때에만 앨범·가수·감상·최애곡 근거가 선택한 외부 언어 모델에 전달됩니다. Notion 내부 ID와 비공개 메모는 보내지 않습니다.</p><button className="insight-refresh grounded-explanation-trigger" type="button" disabled={explanationState === "loading"} onClick={() => void generateGroundedExplanation()}>{explanationState === "loading" ? "근거를 정리하는 중" : "근거로 설명 만들기"}</button>{explanationState === "generated" && groundedExplanation !== null && <div className="grounded-explanation-answer" data-testid="grounded-explanation"><p>{groundedExplanation.answer}</p><ul>{groundedExplanation.citations.map((citation) => <li key={citation.label}>{citation.recordTitle} · {citation.artist}</li>)}</ul></div>}{explanationState === "disabled" && <p className="grounded-explanation-state">설명 모델이 아직 연결되지 않았습니다. 그래프 근거 추천은 그대로 사용할 수 있습니다.</p>}{explanationState === "unavailable" && <p className="grounded-explanation-state">설명 모델이 지금 응답하지 않습니다. 추천 근거는 그대로 확인할 수 있습니다. 잠시 뒤 다시 시도해 주세요.</p>}</section>}
+      {ownerAccess === "owner" ? <aside className="insight-region" id="personal-insights" aria-label="오늘의 추천">
+        <section className="insight-note" aria-live="polite"><header className="insight-heading"><div><p className="section-kicker">오늘의 한 장</p><h2>오늘 다시 들을 앨범</h2></div><button className="insight-refresh" type="button" disabled={insightState === "loading"} onClick={() => void refreshPersonalWorkspace()}>{insightState === "loading" ? "불러오는 중" : "새로 고침"}</button></header>
+          {syncState?.stale && <p className="sync-notice" role="status">최신 기록을 가져오지 못했습니다. 다시 불러오면 추천을 갱신합니다.</p>}
+          {taste === null ? <div className="insight-state"><WarningCircle size={20} weight="fill" aria-hidden="true" /><div><strong>{insightState === "loading" ? "오늘의 추천을 준비하고 있습니다." : "추천을 불러오지 못했습니다."}</strong><p>{insightMessage}</p>{insightState === "error" && <button className="insight-refresh" type="button" onClick={() => void refreshPersonalWorkspace()}>다시 불러오기</button>}</div></div> : <>
+            {todayRelisten === null ? <div className="insight-state"><WarningCircle size={20} weight="fill" aria-hidden="true" /><div><strong>아직 다시 들을 앨범을 고르지 못했습니다.</strong><p>기록이 쌓이면 다음에 들을 한 장을 보여드릴게요.</p></div></div> : <section className="today-recommendation"><div className="today-recommendation-main"><AlbumArt album={todayRelisten} /><div><p className="entry-eyebrow">내가 남긴 기록</p><strong>{todayRelisten.title}</strong><span>{todayRelisten.artist}{todayRelisten.favouriteTrack.length > 0 ? ` · 최애곡 ${todayRelisten.favouriteTrack}` : ""}</span></div></div>{todayRecord !== undefined && <button className="today-recommendation-action" type="button" onClick={() => editRecord(todayRecord)}>기록 보기</button>}<details className="recommendation-reason"><summary>왜 이 앨범인가요?</summary><p>{graphTaste?.seedArtist}의 실제 기록을 바탕으로 다시 들을 한 장을 골랐습니다.</p></details></section>}
+            {graphTaste !== null && <section className="recommendation-note"><p className="recommendation-group-heading">새로운 발견</p>{graphTaste.recommendations.length === 0 ? <p>지금은 새 발견을 만들 근거가 부족합니다.</p> : <div className="recommendation-list">{graphTaste.recommendations.slice(0, 2).map((album) => <article key={album.releaseGroupMbid} className="discovery-entry"><AlbumArt album={album} /><div><p className="entry-eyebrow">새 앨범</p><strong>{album.title}</strong><span>{album.artist}</span></div></article>)}</div>}<details className="recommendation-reason"><summary>왜 이 앨범인가요?</summary><p>내 기록과 MusicBrainz 연결을 따라, 이미 기록한 앨범은 제외하고 찾았습니다.</p></details></section>}
+            {graphTaste !== null && <details className="grounded-explanation" aria-live="polite"><summary>추천을 문장으로 보기</summary><p>원할 때만 근거를 문장으로 정리합니다.</p><button className="insight-refresh grounded-explanation-trigger" type="button" disabled={explanationState === "loading"} onClick={() => void generateGroundedExplanation()}>{explanationState === "loading" ? "정리하는 중" : "설명 만들기"}</button>{explanationState === "generated" && groundedExplanation !== null && <div className="grounded-explanation-answer" data-testid="grounded-explanation"><p>{groundedExplanation.answer}</p><ul>{groundedExplanation.citations.map((citation) => <li key={citation.label}>{citation.recordTitle} · {citation.artist}</li>)}</ul></div>}{explanationState === "disabled" && <p className="grounded-explanation-state">설명 모델이 연결되지 않았습니다. 추천은 그대로 사용할 수 있습니다.</p>}{explanationState === "unavailable" && <p className="grounded-explanation-state">설명을 만들 수 없습니다. 잠시 뒤 다시 시도해 주세요.</p>}</details>}
           </>}
         </section>
-      </aside> : <aside className="insight-region" aria-label="개인 추천 안내"><section className="owner-access-note"><p className="section-kicker">개인 추천</p><h2>기록이 연결되면 취향의 흐름을 보여드립니다.</h2><p>이 공간은 공개 방문자에게 추천을 만들어 보이지 않습니다. 소유자 세션에서만 Notion 기록과 GraphRAG 근거를 읽습니다.</p><a className="owner-access-link" href="/owner">소유자 확인으로 이동</a></section></aside>}
+      </aside> : <aside className="insight-region" aria-label="개인 추천 안내"><section className="owner-access-note"><p className="section-kicker">나의 추천</p><h2>기록을 연결하면 오늘의 한 장을 추천해 드립니다.</h2><p>개인 기록과 추천은 소유자에게만 보입니다.</p><a className="owner-access-link" href="/owner">소유자 확인</a></section></aside>}
     </section>
   </main></>;
 }
