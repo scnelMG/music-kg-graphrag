@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-fixture='.supply-chain-redaction-fixture'
+fixture='supply-chain-redaction-fixture'
 log_file='.supply-chain-redaction-output'
 secret="redaction-${RANDOM}-${RANDOM}"
 trap '/usr/bin/rm -f "$fixture" "$log_file"' EXIT
