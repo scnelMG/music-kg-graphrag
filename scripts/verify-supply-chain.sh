@@ -3,15 +3,21 @@ set -euo pipefail
 
 mkdir -p sbom
 scan_path="${SUPPLY_CHAIN_SCAN_PATH:-.}"
-if rg --quiet --hidden \
-  --glob '!.git/**' \
-  --glob '!*.example' \
-  --glob '!*.invalid' \
-  --glob '!pipeline/.venv/**' \
-  --glob '!.uv-cache/**' \
-  --glob '!pipeline/.pytest_cache/**' \
-  --glob '!**/.pytest_cache/**' \
-  '(?i)(api[_-]?key|token|password)\s*=\s*[^[:space:]#][^[:space:]#]+' "$scan_path"; then
+secret_pattern='(api[_-]?key|token|password)\s*=\s*[^[:space:]#][^[:space:]#]+'
+if [[ -f "$scan_path" ]]; then
+  scan_command=(grep --extended-regexp --ignore-case --quiet)
+else
+  scan_command=(rg --quiet --hidden \
+    --glob '!.git/**' \
+    --glob '!*.example' \
+    --glob '!*.invalid' \
+    --glob '!pipeline/.venv/**' \
+    --glob '!.uv-cache/**' \
+    --glob '!pipeline/.pytest_cache/**' \
+    --glob '!**/.pytest_cache/**')
+fi
+
+if "${scan_command[@]}" "$secret_pattern" "$scan_path"; then
   printf 'SECRET_PATTERN_DETECTED\n' >&2
   exit 2
 fi
