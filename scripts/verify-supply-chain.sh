@@ -2,6 +2,7 @@
 set -euo pipefail
 
 mkdir -p sbom
+scan_path="${SUPPLY_CHAIN_SCAN_PATH:-.}"
 if rg --quiet --hidden \
   --glob '!.git/**' \
   --glob '!*.example' \
@@ -10,7 +11,7 @@ if rg --quiet --hidden \
   --glob '!.uv-cache/**' \
   --glob '!pipeline/.pytest_cache/**' \
   --glob '!**/.pytest_cache/**' \
-  '(?i)(api[_-]?key|token|password)\s*=\s*[^[:space:]#][^[:space:]#]+' .; then
+  '(?i)(api[_-]?key|token|password)\s*=\s*[^[:space:]#][^[:space:]#]+' "$scan_path"; then
   printf 'SECRET_PATTERN_DETECTED\n' >&2
   exit 2
 fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-fixture='supply-chain-redaction-fixture'
+fixture='.supply-chain-redaction-fixture'
 log_file='.supply-chain-redaction-output'
 secret="redaction-${RANDOM}-${RANDOM}"
 trap '/usr/bin/rm -f "$fixture" "$log_file"' EXIT
@@ -9,7 +9,7 @@ trap '/usr/bin/rm -f "$fixture" "$log_file"' EXIT
 printf '%s%s\n' 'API_KEY=' "$secret" > "$fixture"
 
 set +e
-bash scripts/verify-supply-chain.sh > "$log_file" 2>&1
+SUPPLY_CHAIN_SCAN_PATH="$fixture" bash scripts/verify-supply-chain.sh > "$log_file" 2>&1
 status=$?
 set -e
 
