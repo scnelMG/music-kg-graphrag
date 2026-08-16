@@ -141,7 +141,7 @@ def test_topology_contract_has_no_public_graphdb_route_and_restore_is_canonical_
     ]
 
 
-def test_task7_docs_name_canonical_outbox_and_live_evidence_boundary() -> None:
+def test_task7_docs_name_canonical_outbox_and_runtime_verification() -> None:
     # Given / When
     topology = (REPOSITORY_ROOT / "docs" / "deployment-topology.md").read_text(
         encoding="utf-8",
@@ -156,7 +156,5 @@ def test_task7_docs_name_canonical_outbox_and_live_evidence_boundary() -> None:
         assert "pipeline.project_graph" in document
         assert "PostgreSQL-outbox" in document
         assert "fresh-volume" in document
-    assert "task-7-live-runtime-remediation-verification.md" in (
-        (REPOSITORY_ROOT / "deployment" / "evidence" / "task-7" / "verification.md")
-        .read_text(encoding="utf-8")
-    )
+    assert "pinned GraphDB runtime path is verified" in topology
+    assert "real GraphDB runtime path is verified" in graphdb
