@@ -52,7 +52,7 @@ if ($CheckOnly) {
     return
 }
 if (-not $Deploy) {
-    throw "PERSONAL_GRAPHDB_DEPLOY_APPROVAL_REQUIRED: rerun with -Deploy after reviewing e2-medium plus 30GB pd-balanced recurring cost."
+    throw "PERSONAL_GRAPHDB_DEPLOY_APPROVAL_REQUIRED: rerun with -Deploy after reviewing e2-medium plus 30GB pd-standard recurring cost."
 }
 
 $lookup = Invoke-GcloudCapture -Arguments @("compute", "instances", "describe", $instanceName,
@@ -72,7 +72,7 @@ Invoke-Gcloud -Arguments @("compute", "instances", "create", $instanceName,
     "--network-interface", "network=$Network,subnet=$Subnetwork",
     "--tags", "music-kg-graphdb",
     "--boot-disk-size", "30GB",
-    "--boot-disk-type", "pd-balanced",
+    "--boot-disk-type", "pd-standard",
     "--image-family", "debian-12",
     "--image-project", "debian-cloud",
     "--metadata-from-file", "startup-script=$startupScript,personal-repository-config=$repositoryConfig")

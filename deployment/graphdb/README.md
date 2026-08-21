@@ -1,5 +1,27 @@
 # GraphDB 10.8.8 repository lifecycle
 
+## Personal GraphDB VM boot disk
+
+`music-kg-personal-graphdb` is an `e2-medium` VM in
+`asia-northeast3-a` with a 30 GiB `pd-standard` boot disk. The checked-in
+deployment script deliberately creates this HDD-backed disk type to keep the
+small personal GraphDB host inexpensive; it does not change the VM machine
+type, VPC, tags, startup metadata, or the private GraphDB access boundary.
+
+Persistent Disk types cannot be converted in place. To replace a live boot
+disk, stop the VM, disable auto-delete on the source disk, create a snapshot,
+create an equal-sized `pd-standard` disk from that snapshot in the same zone,
+swap the boot attachment, and verify the container, repository, and SPARQL
+readiness before deleting either recovery artifact. Keep the source disk and
+snapshot whenever verification or latency comparison fails, then roll back by
+reattaching the source disk. This follows Google's [Persistent Disk migration
+procedure](https://docs.cloud.google.com/compute/docs/disks/modify-persistent-disk).
+
+Because `pd-standard` is HDD-backed, compare a representative private SPARQL
+ASK request before and after every migration. Roll back if the measured
+response time makes the personal recommendation path unusable. Do not add a
+public firewall rule or host-port exposure as part of this operation.
+
 The release artifact uses GraphDB 10.8.8 by immutable multi-platform image
 digest:
 
