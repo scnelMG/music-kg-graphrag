@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
+import { sameOriginCoverUrl } from "../../../../lib/cover-art";
 import { requireOwnerSession } from "../../../../lib/owner-session";
 
 const recommendationSchema = z.object({
@@ -21,12 +22,13 @@ const recommendationSchema = z.object({
   seedArtist: z.string()
 });
 
-function publicRecommendation(recommendation: z.infer<typeof recommendationSchema>) {
+function publicRecommendation(recommendation: z.infer<typeof recommendationSchema>, requestUrl: string) {
   const { evidencePageIds: _evidencePageIds, albums, ...publicResult } = recommendation;
   return {
     ...publicResult,
     albums: albums.map(({ evidencePaths, ...album }) => ({
       ...album,
+      coverUrl: sameOriginCoverUrl(album.coverUrl, album.releaseGroupMbid, requestUrl),
       evidencePaths: evidencePaths.map(({ recordPageId: _recordPageId, ...path }) => path)
     }))
   };
@@ -45,5 +47,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     throw error;
   }
   const recommendation = recommendationSchema.safeParse(payload);
-  return recommendation.success ? NextResponse.json(publicRecommendation(recommendation.data)) : backendContractError();
+  return recommendation.success ? NextResponse.json(publicRecommendation(recommendation.data, request.url)) : backendContractError();
 }

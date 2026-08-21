@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../../../lib/backend-bff";
+import { sameOriginCoverUrl } from "../../../../../../lib/cover-art";
 import { requireOwnerSession } from "../../../../../../lib/owner-session";
 import { issueRecordHandle } from "../../../../../../lib/record-handle";
 
@@ -57,5 +58,9 @@ export async function GET(
   if (!record.success || record.data.releaseGroupMbid !== params.data.releaseGroupMbid
     || secret === undefined || secret.length === 0) return backendContractError();
   const { pageId, ...publicRecord } = record.data;
-  return NextResponse.json({ record: { ...publicRecord, recordHandle: issueRecordHandle(pageId, secret) } });
+  return NextResponse.json({ record: {
+    ...publicRecord,
+    coverUrl: sameOriginCoverUrl(publicRecord.coverUrl, publicRecord.releaseGroupMbid, request.url),
+    recordHandle: issueRecordHandle(pageId, secret)
+  } });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
+import { sameOriginCoverUrl } from "../../../../lib/cover-art";
 import { requireOwnerSession } from "../../../../lib/owner-session";
 
 const personalGraphRetrievalMethodSchema = z.enum([
@@ -58,12 +59,12 @@ const personalInsightsSchema = z.object({
   })
 });
 
-function publicGraphTaste(graphTaste: z.infer<typeof personalInsightsSchema>["graphTaste"]) {
+function publicGraphTaste(graphTaste: z.infer<typeof personalInsightsSchema>["graphTaste"], requestUrl: string) {
   return {
     relisten: [],
     recommendations: graphTaste.recommendations.map(({ artist, coverUrl, firstReleaseDate, releaseGroupMbid, title }) => ({
       artist,
-      coverUrl,
+      coverUrl: sameOriginCoverUrl(coverUrl, releaseGroupMbid, requestUrl),
       firstReleaseDate,
       releaseGroupMbid,
       title
@@ -89,6 +90,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const insights = personalInsightsSchema.safeParse(payload);
   if (!insights.success) return backendContractError();
   return ownerScope
-    ? NextResponse.json(insights.data)
-    : NextResponse.json({ graphTaste: publicGraphTaste(insights.data.graphTaste) });
+    ? NextResponse.json({
+      ...insights.data,
+      graphTaste: {
+        ...insights.data.graphTaste,
+        relisten: insights.data.graphTaste.relisten.map((album) => ({
+          ...album,
+          coverUrl: sameOriginCoverUrl(album.coverUrl, album.releaseGroupMbid, request.url)
+        })),
+        recommendations: insights.data.graphTaste.recommendations.map((album) => ({
+          ...album,
+          coverUrl: sameOriginCoverUrl(album.coverUrl, album.releaseGroupMbid, request.url)
+        }))
+      }
+    })
+    : NextResponse.json({ graphTaste: publicGraphTaste(insights.data.graphTaste, request.url) });
 }
