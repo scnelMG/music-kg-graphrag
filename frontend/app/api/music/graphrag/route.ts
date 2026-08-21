@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
+import { sameOriginCoverUrl } from "../../../../lib/cover-art";
 import { requireOwnerSession } from "../../../../lib/owner-session";
 
 const personalGraphRetrievalMethodSchema = z.enum([
@@ -28,12 +29,13 @@ const graphTasteSchema = z.object({
   seedArtist: z.string()
 });
 
-function publicGraphTaste(graphTaste: z.infer<typeof graphTasteSchema>) {
+function publicGraphTaste(graphTaste: z.infer<typeof graphTasteSchema>, requestUrl: string) {
   const { evidencePageIds: _evidencePageIds, recommendations, ...publicTaste } = graphTaste;
   return {
     ...publicTaste,
     recommendations: recommendations.map(({ evidencePaths, ...recommendation }) => ({
       ...recommendation,
+      coverUrl: sameOriginCoverUrl(recommendation.coverUrl, recommendation.releaseGroupMbid, requestUrl),
       evidencePaths: evidencePaths.map(({ recordPageId: _recordPageId, ...path }) => path)
     }))
   };
@@ -52,5 +54,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     throw error;
   }
   const graphTaste = graphTasteSchema.safeParse(payload);
-  return graphTaste.success ? NextResponse.json(publicGraphTaste(graphTaste.data)) : backendContractError();
+  return graphTaste.success ? NextResponse.json(publicGraphTaste(graphTaste.data, request.url)) : backendContractError();
 }

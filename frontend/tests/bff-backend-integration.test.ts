@@ -584,11 +584,11 @@ describe("fixture BFF backend integration", () => {
           }],
           recommendations: [{
             artist: "Artist Two",
-            coverUrl: "https://cover.example/new-album.jpg",
+            coverUrl: "https://coverartarchive.org/release-group/f9b61a7e-0c86-4cc7-b94e-48d3b643c554/front-250",
             evidenceMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
             evidencePaths: [{ recordPageId: "private-notion-page-id", relation: "SHARES_MUSICBRAINZ_TAG", value: "dream pop" }],
             firstReleaseDate: "2025-01-01",
-            releaseGroupMbid: "new-release-group",
+            releaseGroupMbid: "f9b61a7e-0c86-4cc7-b94e-48d3b643c554",
             score: 1,
             title: "New Album"
           }],
@@ -617,6 +617,7 @@ describe("fixture BFF backend integration", () => {
       expect(body.graphTaste.recommendations[0].score).toBeUndefined();
       expect(body.graphTaste.recommendations[0].evidenceMethod).toBeUndefined();
       expect(body.graphTaste.recommendations[0].evidencePaths).toBeUndefined();
+      expect(body.graphTaste.recommendations[0].coverUrl).toBe("http://localhost/api/music/covers/f9b61a7e-0c86-4cc7-b94e-48d3b643c554");
       expect(body.taste).toBeUndefined();
       expect(body.syncState).toBeUndefined();
       expect(JSON.stringify(body)).not.toContain("Track One");

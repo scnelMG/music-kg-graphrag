@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
+import { sameOriginCoverUrl } from "../../../../lib/cover-art";
 import { requireOwnerSession, requireOwnerWriteSession } from "../../../../lib/owner-session";
 import { productionWriteConfirmationRequired } from "../../../../lib/personal-write-intent";
 import { issueRecordHandle } from "../../../../lib/record-handle";
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     nextCursor: records.data.nextCursor,
     records: records.data.records.map(({ pageId, ...record }) => ({
       ...record,
+      coverUrl: sameOriginCoverUrl(record.coverUrl, record.releaseGroupMbid, request.url),
       recordHandle: issueRecordHandle(pageId, secret)
     }))
   });
