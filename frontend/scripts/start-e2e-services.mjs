@@ -10,6 +10,7 @@ const secret = "task-12b-local-e2e-secret";
 const backendOutage = process.env.TASK12B_E2E_BACKEND_OUTAGE === "true";
 const backendPort = process.env.TASK12_UI_E2E_BACKEND_PORT ?? "18080";
 const e2ePort = process.env.TASK12_UI_E2E_PORT ?? "3100";
+const nextDistDir = process.env.NEXT_DIST_DIR ?? ".next-e2e";
 const children = [];
 let stopping = false;
 
@@ -89,7 +90,7 @@ try {
       ...process.env,
       BACKEND_BASE_URL: backendOutage ? "http://127.0.0.1:1" : `http://127.0.0.1:${backendPort}`,
       BACKEND_BFF_SHARED_SECRET: secret,
-      NEXT_DIST_DIR: ".next-e2e"
+      NEXT_DIST_DIR: nextDistDir
     },
     stdio: "inherit"
   });

@@ -63,13 +63,21 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-pe
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\start-connected-service.ps1
 ```
 
-### Personal-data boundary
+### Connected-service access policy
 
-The catalog search is public, but a listener's Notion history, taste profile, graph-backed
-recommendations, and record mutations are private. Production must set the server-only
-`MUSIC_KG_OWNER_SESSION_REQUIRED=true`, `MUSIC_KG_OWNER_SETUP_TOKEN`, and
-`MUSIC_KG_OWNER_SESSION_SECRET` variables. The owner creates an HttpOnly session at `/owner`;
-no Notion ID, provider credential, or setup token is sent in browser responses.
+The deployed site is a public music portfolio with a private owner workspace. Visitors can search
+MusicBrainz and see only redacted graph-backed recommendations. A signed owner session is always
+required before the BFF reads the connected Notion archive, taste details, duplicate state, or
+record list, and before it saves, archives, restores, refreshes, or generates an explanation.
+There is no production flag that turns an unauthenticated visitor into an owner. The browser never
+receives a Notion credential, Notion page ID, provider credential, or BFF shared secret.
+
+The owner opens `/owner` once with the setup token to create an HttpOnly cookie; ordinary
+visitors are never asked for that token. This prevents automated or casual public requests from
+changing the connected Notion database while keeping the archive itself shareable.
+
+Configure `MUSIC_KG_OWNER_SETUP_TOKEN` plus `MUSIC_KG_OWNER_SESSION_SECRET`; `/owner` creates an
+HttpOnly owner session. This single-owner boundary is not a substitute for multi-user authentication.
 
 연결 모드 설정과 Notion의 한 번뿐인 공유 절차는
 [`docs/connected-service-setup.md`](docs/connected-service-setup.md)를 따르세요.

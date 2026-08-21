@@ -7,16 +7,16 @@ test("Given personal listening evidence, when the workspace opens, then relisten
 
   await page.goto("/");
 
-  const rows = page.locator(".recommendation-note .relisten-entry, .recommendation-note .discovery-entry");
+  const rows = page.locator(".today-recommendation, .recommendation-note .discovery-entry");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("Album One");
   await expect(rows.nth(1)).toContainText("Album Two");
-  await expect(page.locator(".technical-disclosure")).not.toContainText("notion-record-one");
+  await expect(page.getByRole("main")).not.toContainText("notion-record-one");
 });
 
 test("Given insufficient personal history, when insight retrieval responds with its typed code, then no recommendation row is synthesized", async ({ page }) => {
   await routeConnectedWorkspace(page);
-  await page.route("**/api/music/insights", (route) => route.fulfill({
+  await page.route("**/api/music/insights*", (route) => route.fulfill({
     body: JSON.stringify({ code: "INSUFFICIENT_PERSONAL_HISTORY", retryable: false }),
     contentType: "application/json",
     status: 409
@@ -31,7 +31,7 @@ test("Given insufficient personal history, when insight retrieval responds with 
 
 test("Given an unavailable personal graph, when the workspace opens, then the recoverable state does not fabricate GraphRAG evidence", async ({ page }) => {
   await routeConnectedWorkspace(page);
-  await page.route("**/api/music/insights", (route) => route.fulfill({
+  await page.route("**/api/music/insights*", (route) => route.fulfill({
     body: JSON.stringify({ code: "GRAPHDB_UNAVAILABLE", retryable: true }),
     contentType: "application/json",
     status: 503
@@ -40,7 +40,7 @@ test("Given an unavailable personal graph, when the workspace opens, then the re
   await page.goto("/");
 
   await expect(page.locator(".insight-state")).toHaveCount(1);
-  await expect(page.locator(".recommendation-note .relisten-entry, .recommendation-note .discovery-entry")).toHaveCount(0);
+  await expect(page.locator(".today-recommendation, .recommendation-note .discovery-entry")).toHaveCount(0);
   await expect(page.locator(".technical-disclosure")).toHaveCount(0);
 });
 

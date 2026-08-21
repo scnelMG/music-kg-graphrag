@@ -1,11 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const e2ePort = Number(process.env.TASK12_UI_E2E_PORT ?? "3100");
+const e2eDistDir = `.next-e2e-${e2ePort}`;
 const backendConfigurationError = process.env.TASK12B_E2E_BACKEND_CONFIGURATION_ERROR === "true";
 const backendOutage = process.env.TASK12B_E2E_BACKEND_OUTAGE === "true";
 const browserTestEnvironment = {
   MUSIC_KG_ENABLE_FIXTURE_ROUTES: "true",
-  NEXT_DIST_DIR: ".next-e2e",
+  NEXT_DIST_DIR: e2eDistDir,
   NEXT_PUBLIC_DISABLE_REACT_DEVTOOLS: "1"
 };
 

@@ -59,20 +59,24 @@ const personalInsightsSchema = z.object({
 });
 
 function publicGraphTaste(graphTaste: z.infer<typeof personalInsightsSchema>["graphTaste"]) {
-  const { evidencePageIds: _evidencePageIds, relisten, recommendations, ...publicTaste } = graphTaste;
   return {
-    ...publicTaste,
-    relisten: relisten.map(({ evidencePageId: _evidencePageId, ...record }) => record),
-    recommendations: recommendations.map(({ evidencePaths, ...recommendation }) => ({
-      ...recommendation,
-      evidencePaths: evidencePaths.map(({ recordPageId: _recordPageId, ...path }) => path)
+    relisten: [],
+    recommendations: graphTaste.recommendations.map(({ artist, coverUrl, firstReleaseDate, releaseGroupMbid, title }) => ({
+      artist,
+      coverUrl,
+      firstReleaseDate,
+      releaseGroupMbid,
+      title
     }))
   };
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const ownerSession = requireOwnerSession(request);
-  if (ownerSession !== null) return ownerSession;
+  const ownerScope = request.nextUrl.searchParams.get("scope") === "owner";
+  if (ownerScope) {
+    const ownerSession = requireOwnerSession(request);
+    if (ownerSession !== null) return ownerSession;
+  }
   const result = await callBackend("api/v1/personal-insights");
   if (result.kind === "handled") return result.response;
   let payload: unknown;
@@ -83,7 +87,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     throw error;
   }
   const insights = personalInsightsSchema.safeParse(payload);
-  return insights.success
-    ? NextResponse.json({ ...insights.data, graphTaste: publicGraphTaste(insights.data.graphTaste) })
-    : backendContractError();
+  if (!insights.success) return backendContractError();
+  return ownerScope
+    ? NextResponse.json(insights.data)
+    : NextResponse.json({ graphTaste: publicGraphTaste(insights.data.graphTaste) });
 }

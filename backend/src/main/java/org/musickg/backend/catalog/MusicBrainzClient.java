@@ -1,15 +1,15 @@
 package org.musickg.backend.catalog;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.LockSupport;
 import org.musickg.backend.config.ConnectedServiceProperties;
@@ -19,16 +19,20 @@ import org.springframework.web.client.RestClientResponseException;
 
 public final class MusicBrainzClient implements MusicCatalogGateway {
     private static final long MAX_RATE_LIMIT_QUEUE_NANOS = Duration.ofSeconds(2).toNanos();
+    static final int MAX_CATALOG_CACHE_ENTRIES = 128;
+    private static final int RELEASE_BROWSE_LIMIT = 20;
     private final RestClient client;
-    private final ObjectMapper objectMapper;
+    private final MusicBrainzPayloadParser parser;
     private final ConnectedServiceProperties.MusicBrainz configuration;
     private final Map<String, CachedAlbums> albumCache = new ConcurrentHashMap<>();
+    private final Map<String, CachedEditionPage> editionPageCache = new ConcurrentHashMap<>();
+    private final Map<String, CachedEdition> editionCache = new ConcurrentHashMap<>();
     private final Map<String, CachedTags> tagCache = new ConcurrentHashMap<>();
     private long nextRequestAtNanos;
 
     public MusicBrainzClient(RestClient client, ObjectMapper objectMapper, ConnectedServiceProperties.MusicBrainz configuration) {
         this.client = client;
-        this.objectMapper = objectMapper;
+        this.parser = new MusicBrainzPayloadParser(objectMapper);
         this.configuration = configuration;
     }
 
@@ -60,32 +64,136 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         if (blank(releaseGroupMbid)) return List.of();
         CachedTags cached = tagCache.get(releaseGroupMbid);
         if (cached != null && !cached.expired()) return cached.tags();
-        List<String> tags = parseTags(get("/release-group/" + encoded(releaseGroupMbid) + "?inc=tags+genres&fmt=json"));
-        tagCache.put(releaseGroupMbid, new CachedTags(tags, System.nanoTime() + Duration.ofHours(6).toNanos()));
+        List<String> tags = parser.tags(get("/release-group/" + encoded(releaseGroupMbid) + "?inc=tags+genres&fmt=json"));
+        cache(tagCache, releaseGroupMbid, new CachedTags(tags, System.nanoTime() + Duration.ofHours(6).toNanos()));
         return tags;
+    }
+
+    @Override
+    public List<MusicCatalogGateway.Edition> editions(String releaseGroupMbid) {
+        return editions(releaseGroupMbid, null, null).editions();
+    }
+
+    @Override
+    public MusicCatalogGateway.EditionPage editions(String releaseGroupMbid, String cursor, String selectedReleaseMbid) {
+        if (blank(releaseGroupMbid)) throw new IllegalArgumentException("MUSICBRAINZ_RELEASE_GROUP_REQUIRED");
+        int offset = editionOffset(cursor);
+        MusicCatalogGateway.EditionPage page = editionPage(releaseGroupMbid, offset);
+        if (offset != 0 || blank(selectedReleaseMbid)
+                || page.editions().stream().anyMatch(edition -> edition.releaseMbid().equals(selectedReleaseMbid))) {
+            return page;
+        }
+        List<MusicCatalogGateway.Edition> editions = new ArrayList<>(page.editions());
+        editions.add(edition(releaseGroupMbid, selectedReleaseMbid));
+        return new MusicCatalogGateway.EditionPage(editions, page.nextCursor(), page.hasMore());
+    }
+
+    @Override
+    public boolean editionBelongsToReleaseGroup(String releaseGroupMbid, String releaseMbid) {
+        if (blank(releaseGroupMbid) || blank(releaseMbid)) return false;
+        edition(releaseGroupMbid, releaseMbid);
+        return true;
     }
 
     @Override
     public List<MusicCatalogGateway.Track> tracks(String releaseGroupMbid) {
         if (blank(releaseGroupMbid)) throw new IllegalArgumentException("MUSICBRAINZ_RELEASE_GROUP_REQUIRED");
         try {
-            String group = get("/release-group/" + encoded(releaseGroupMbid) + "?inc=releases&fmt=json");
-            String releaseMbid = firstReleaseMbid(group);
+            String releaseMbid = editions(releaseGroupMbid).stream()
+                    .filter(MusicCatalogGateway.Edition::recommended)
+                    .map(MusicCatalogGateway.Edition::releaseMbid)
+                    .findFirst()
+                    .orElse("");
             if (blank(releaseMbid)) return List.of();
-            return parseTracks(get("/release/" + encoded(releaseMbid) + "?inc=recordings%2Bmedia&fmt=json"));
+            return tracks(releaseGroupMbid, releaseMbid);
         } catch (CatalogAccessException exception) {
-            if (exception.retryable()) throw exception;
-            return parseRecordingSearch(get("/recording?query=" + encoded("rgid:" + releaseGroupMbid) + "&fmt=json&limit=100"));
+            if (exception.retryable() || !exception.code().equals("MUSICBRAINZ_REQUEST_REJECTED")) throw exception;
+            return parser.recordingSearch(get("/recording?query=" + encoded("rgid:" + releaseGroupMbid) + "&fmt=json&limit=100"));
         }
+    }
+
+    @Override
+    public List<MusicCatalogGateway.Track> tracks(String releaseGroupMbid, String releaseMbid) {
+        if (blank(releaseGroupMbid)) throw new IllegalArgumentException("MUSICBRAINZ_RELEASE_GROUP_REQUIRED");
+        if (blank(releaseMbid)) return tracks(releaseGroupMbid);
+        boolean belongsToReleaseGroup = editionBelongsToReleaseGroup(releaseGroupMbid, releaseMbid);
+        if (!belongsToReleaseGroup) throw new CatalogAccessException("MUSICBRAINZ_RELEASE_NOT_IN_GROUP", false, null);
+        return parser.tracks(get("/release/" + encoded(releaseMbid) + "?inc=recordings%2Bmedia&fmt=json"));
     }
 
     private List<MusicCatalogGateway.Album> searchQuery(String query) {
         CachedAlbums cached = albumCache.get(query);
         if (cached != null && !cached.expired()) return cached.albums();
         String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
-        List<MusicCatalogGateway.Album> albums = parseAlbums(get("/release-group?query=" + encodedQuery + "&fmt=json&limit=10"));
-        albumCache.put(query, new CachedAlbums(albums, System.nanoTime() + Duration.ofMinutes(2).toNanos()));
+        List<MusicCatalogGateway.Album> albums = parser.albums(
+                get("/release-group?query=" + encodedQuery + "&fmt=json&limit=10"), this::coverUrl);
+        cache(albumCache, query, new CachedAlbums(albums, System.nanoTime() + Duration.ofMinutes(2).toNanos()));
         return albums;
+    }
+
+    private MusicCatalogGateway.EditionPage editionPage(String releaseGroupMbid, int offset) {
+        String cacheKey = releaseGroupMbid + "|" + offset;
+        CachedEditionPage cached = editionPageCache.get(cacheKey);
+        if (cached != null && !cached.expired()) return cached.page();
+        MusicBrainzPayloadParser.EditionPage providerPage = parser.editionPage(
+                releaseGroupMbid,
+                get("/release?release-group=" + encoded(releaseGroupMbid)
+                        + "&limit=" + RELEASE_BROWSE_LIMIT + "&offset=" + offset + "&fmt=json"));
+        Set<String> releaseMbids = new HashSet<>();
+        if (providerPage.editions().stream().anyMatch(edition -> !releaseMbids.add(edition.releaseMbid()))) {
+            throw contractError();
+        }
+        if (providerPage.returnedCount() > RELEASE_BROWSE_LIMIT
+                || offset > providerPage.releaseCount()
+                || (providerPage.returnedCount() == 0 && offset < providerPage.releaseCount())
+                || offset + providerPage.returnedCount() > providerPage.releaseCount()) throw contractError();
+        List<MusicCatalogGateway.Edition> ranked = parser.rankEditions(providerPage.editions());
+        long editionExpiry = System.nanoTime() + Duration.ofMinutes(10).toNanos();
+        providerPage.editions().forEach(edition -> cache(editionCache, edition.releaseMbid(), new CachedEdition(edition, editionExpiry)));
+        List<MusicCatalogGateway.Edition> editions = offset == 0 ? ranked : ranked.stream()
+                .map(MusicBrainzClient::withoutRecommendation)
+                .toList();
+        int nextOffset = offset + providerPage.returnedCount();
+        boolean hasMore = nextOffset < providerPage.releaseCount();
+        MusicCatalogGateway.EditionPage page = new MusicCatalogGateway.EditionPage(
+                editions, hasMore ? Integer.toString(nextOffset) : null, hasMore);
+        cache(editionPageCache, cacheKey, new CachedEditionPage(page, System.nanoTime() + Duration.ofMinutes(2).toNanos()));
+        return page;
+    }
+
+    private MusicCatalogGateway.Edition edition(String releaseGroupMbid, String releaseMbid) {
+        CachedEdition cached = editionCache.get(releaseMbid);
+        if (cached != null && !cached.expired()) {
+            if (!cached.edition().releaseGroupMbid().equals(releaseGroupMbid)) {
+                throw CatalogAccessException.releaseNotInGroup();
+            }
+            return cached.edition();
+        }
+        MusicCatalogGateway.Edition edition = parser.edition(releaseGroupMbid,
+                get("/release/" + encoded(releaseMbid) + "?inc=release-groups&fmt=json"));
+        cache(editionCache, releaseMbid, new CachedEdition(edition, System.nanoTime() + Duration.ofMinutes(10).toNanos()));
+        return edition;
+    }
+
+    private static MusicCatalogGateway.Edition withoutRecommendation(MusicCatalogGateway.Edition edition) {
+        return new MusicCatalogGateway.Edition(
+                edition.releaseMbid(), edition.releaseGroupMbid(), edition.title(), edition.releaseDate(),
+                edition.country(), edition.status(), edition.disambiguation(), false);
+    }
+
+    private static int editionOffset(String cursor) {
+        if (blank(cursor)) return 0;
+        try {
+            int offset = Integer.parseInt(cursor);
+            if (offset < 0) throw new IllegalArgumentException("MUSICBRAINZ_EDITION_CURSOR_INVALID");
+            return offset;
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("MUSICBRAINZ_EDITION_CURSOR_INVALID", exception);
+        }
+    }
+
+    private static CatalogAccessException contractError() {
+        return new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, null);
     }
 
     private String get(String pathAndQuery) {
@@ -108,110 +216,6 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
             LockSupport.parkNanos(Duration.ofMillis(200L * attempt).toNanos());
         }
         throw failure == null ? new CatalogAccessException("MUSICBRAINZ_UNAVAILABLE", true, null) : failure;
-    }
-
-    private List<MusicCatalogGateway.Album> parseAlbums(String response) {
-        try {
-            JsonNode groups = objectMapper.readTree(response).path("release-groups");
-            if (!groups.isArray()) throw new IllegalStateException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR");
-            List<MusicCatalogGateway.Album> albums = new ArrayList<>();
-            for (JsonNode group : groups) {
-                String primaryType = group.path("primary-type").asText();
-                if (!primaryType.equals("Album") && !primaryType.equals("EP")) continue;
-                String id = group.path("id").asText();
-                String title = group.path("title").asText();
-                List<String> artistCredits = artistCredits(group.path("artist-credit"));
-                String artist = String.join(", ", artistCredits);
-                if (id.isBlank() || title.isBlank() || artist.isBlank()) continue;
-                boolean hasFrontCover = group.path("cover-art-archive").path("front").asBoolean(false);
-                albums.add(new MusicCatalogGateway.Album(
-                        id,
-                        title,
-                        artist,
-                        group.path("first-release-date").asText(""),
-                        hasFrontCover ? coverUrl(id) : "",
-                        artistCredits));
-            }
-            return List.copyOf(albums);
-        } catch (JsonProcessingException | IllegalStateException exception) {
-            throw new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, exception);
-        }
-    }
-
-    private List<MusicCatalogGateway.Track> parseTracks(String response) {
-        try {
-            JsonNode release = objectMapper.readTree(response);
-            List<MusicCatalogGateway.Track> tracks = new ArrayList<>();
-            for (JsonNode medium : release.path("media")) {
-                for (JsonNode track : medium.path("tracks")) {
-                    String recordingId = track.path("recording").path("id").asText();
-                    String title = track.path("recording").path("title").asText(track.path("title").asText());
-                    int position = track.path("position").asInt();
-                    if (!blank(recordingId) && !blank(title) && position > 0) {
-                        tracks.add(new MusicCatalogGateway.Track(recordingId, title, position));
-                    }
-                }
-            }
-            return List.copyOf(tracks);
-        } catch (JsonProcessingException exception) {
-            throw new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, exception);
-        }
-    }
-
-    private List<MusicCatalogGateway.Track> parseRecordingSearch(String response) {
-        try {
-            JsonNode recordings = objectMapper.readTree(response).path("recordings");
-            if (!recordings.isArray()) throw new IllegalStateException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR");
-            List<MusicCatalogGateway.Track> tracks = new ArrayList<>();
-            for (JsonNode recording : recordings) {
-                String id = recording.path("id").asText();
-                String title = recording.path("title").asText();
-                if (!blank(id) && !blank(title)) tracks.add(new MusicCatalogGateway.Track(id, title, tracks.size() + 1));
-            }
-            return List.copyOf(tracks);
-        } catch (JsonProcessingException | IllegalStateException exception) {
-            throw new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, exception);
-        }
-    }
-
-    private String firstReleaseMbid(String response) {
-        try {
-            JsonNode releases = objectMapper.readTree(response).path("releases");
-            if (!releases.isArray() || releases.isEmpty()) return "";
-            return releases.get(0).path("id").asText();
-        } catch (JsonProcessingException | IllegalStateException exception) {
-            throw new CatalogAccessException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", false, exception);
-        }
-    }
-
-    private List<String> parseTags(String response) {
-        try {
-            JsonNode body = objectMapper.readTree(response);
-            java.util.LinkedHashSet<String> values = new java.util.LinkedHashSet<>();
-            collectTags(values, body.path("genres"));
-            collectTags(values, body.path("tags"));
-            return List.copyOf(values.stream().limit(3).toList());
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR", exception);
-        }
-    }
-
-    private static void collectTags(java.util.LinkedHashSet<String> values, JsonNode tags) {
-        if (!tags.isArray()) return;
-        for (JsonNode tag : tags) {
-            String name = tag.path("name").asText().trim();
-            if (!name.isBlank()) values.add(name);
-        }
-    }
-
-    private static List<String> artistCredits(JsonNode credits) {
-        if (!credits.isArray()) return List.of();
-        List<String> values = new ArrayList<>();
-        for (JsonNode credit : credits) {
-            String name = credit.path("name").asText();
-            if (!blank(name)) values.add(name);
-        }
-        return List.copyOf(values);
     }
 
     private static CatalogAccessException fromResponse(RestClientResponseException exception) {
@@ -255,7 +259,24 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         return escaped.toString();
     }
 
+    private static <T> void cache(Map<String, T> cache, String key, T value) {
+        synchronized (cache) {
+            if (!cache.containsKey(key) && cache.size() >= MAX_CATALOG_CACHE_ENTRIES) {
+                cache.keySet().stream().findFirst().ifPresent(cache::remove);
+            }
+            cache.put(key, value);
+        }
+    }
+
     private record CachedAlbums(List<MusicCatalogGateway.Album> albums, long expiresAtNanos) {
+        private boolean expired() { return System.nanoTime() >= expiresAtNanos; }
+    }
+
+    private record CachedEditionPage(MusicCatalogGateway.EditionPage page, long expiresAtNanos) {
+        private boolean expired() { return System.nanoTime() >= expiresAtNanos; }
+    }
+
+    private record CachedEdition(MusicCatalogGateway.Edition edition, long expiresAtNanos) {
         private boolean expired() { return System.nanoTime() >= expiresAtNanos; }
     }
 
@@ -264,12 +285,28 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
     }
 
     public static final class CatalogAccessException extends RuntimeException {
+        public static CatalogAccessException releaseNotInGroup() {
+            return new CatalogAccessException("MUSICBRAINZ_RELEASE_NOT_IN_GROUP", false, null);
+        }
+
+        public static CatalogAccessException releaseGroupNotFound() {
+            return new CatalogAccessException("MUSICBRAINZ_RELEASE_GROUP_NOT_FOUND", false, null);
+        }
+
+        public static CatalogAccessException trackNotInRelease() {
+            return new CatalogAccessException("MUSICBRAINZ_TRACK_NOT_IN_RELEASE", false, null);
+        }
+
+        private final String code;
         private final boolean retryable;
 
         CatalogAccessException(String code, boolean retryable, Throwable cause) {
             super(code, cause);
+            this.code = code;
             this.retryable = retryable;
         }
+
+        public String code() { return code; }
 
         public boolean retryable() { return retryable; }
     }

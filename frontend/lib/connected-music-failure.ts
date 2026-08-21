@@ -17,6 +17,7 @@ export function connectedMusicFailureKind(message: string): ConnectedMusicFailur
   if (message.includes("GRAPHDB_UNAVAILABLE")) return "personal-graph-unavailable";
   if (message.includes("INSUFFICIENT_PERSONAL_HISTORY")) return "insufficient-history";
   if (message.includes("OWNER_SESSION_REQUIRED")) return "owner-session-required";
+  if (message.includes("YOUTUBE_MAPPING_CONFIGURATION_REQUIRED") || message.includes("YOUTUBE_CONFIGURATION_ERROR")) return "configuration";
   if (message.includes("BACKEND_CONFIGURATION_ERROR")) return "configuration";
   return "unavailable";
 }

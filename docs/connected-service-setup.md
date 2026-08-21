@@ -49,8 +49,8 @@ GraphDB 컨테이너는 `127.0.0.1:7200`에만 바인딩되고, 개인 Notion �
 
 ## 추천과 그래프 근거의 의미
 
-현재 추천 순위는 외부 LLM의 생성문이나 벡터 유사도가 아니다. 통찰 요청마다 현재
-Notion 기록의 페이지 ID, 아티스트, release-group MBID, 근거 가중치만 사설
+현재 추천 순위는 외부 LLM의 생성문이나 벡터 유사도가 아니다. 최초 동기화 또는 명시적
+증분 동기화에서 Notion 기록의 페이지 ID, 아티스트, release-group MBID, 근거 가중치만 사설
 GraphDB의 `music-kg-personal` named graph에 투영하고 SPARQL 집계로 시드
 아티스트와 근거 페이지를 조회한다. 이어 MusicBrainz 태그와 아티스트 연결을
 통해 아직 기록하지 않은 실제 발매 그룹만 추천한다. GraphDB가 응답하지 않으면
@@ -90,13 +90,42 @@ Notion에 제목 또는 가수가 비어 있는 미완성 페이지가 있어도
 기록끼리는 제목·가수가 같아도 MBID가 같을 때만 갱신한다. 기존 기록에 ID가 비어 있으면
 한 번만 제목·가수로 찾아 해당 선택 앨범의 ID를 채워 넣는다.
 
+`MusicBrainz Release MBID` 텍스트 속성은 사용자가 고른 실제 발매판 ID를 저장한다.
+예를 들어 리마스터를 골라도 중복 판정은 위 release-group ID로 유지하고, 수록곡과 이후
+기록 수정은 선택한 발매판을 기준으로 복원한다. 이 속성은 connected 배포와 로컬 실행에서
+필수이며, 서비스가 Notion 데이터베이스 스키마를 자동으로 변경하지는 않는다.
+
+### 확인된 YouTube 재생
+
+서비스는 제목만 같은 다른 영상이 자동으로 재생되는 일을 막기 위해, 검색 결과를 바로
+연결하거나 재생하지 않는다. 소유자가 앨범의 실제 수록곡을 고른 뒤 `YouTube 후보 찾기`를
+누르면, 그 곡의 MusicBrainz Recording MBID와 함께 후보 제목·채널을 확인하고 하나를
+명시적으로 선택한다. 선택 전에는 iframe을 만들지 않으며, 확인하지 못한 곡은 재생 버튼도
+보이지 않는다. 저장된 영상은 그 Recording MBID가 같은 곡에서만 다시 연다.
+
+이 기능을 운영에서 켜려면 Notion 데이터베이스에 다음 Rich text 속성을 **모두** 추가하고
+Cloud Run에 같은 이름을 환경 변수로 설정한다. 네 값 중 하나라도 빠지면 영상 매핑 저장은
+409으로 차단되어 기존 기록을 잘못 바꾸지 않는다.
+
+```text
+NOTION_YOUTUBE_RECORDING_MBID_FIELD=MusicBrainz Recording MBID
+NOTION_YOUTUBE_VIDEO_ID_FIELD=YouTube Video ID
+NOTION_YOUTUBE_VIDEO_TITLE_FIELD=YouTube Video Title
+NOTION_YOUTUBE_CHANNEL_TITLE_FIELD=YouTube Channel Title
+```
+
+Vercel Production/Preview에는 `YOUTUBE_DATA_API_KEY`를 서버 전용 환경 변수로 넣는다.
+브라우저 번들, `NEXT_PUBLIC_*`, Git, Notion에는 키를 넣지 않는다. 키가 없거나 YouTube가
+응답하지 않으면 후보만 표시하지 않고 오류를 안내하며, 임의 영상으로 대체하지 않는다.
+YouTube 임베드는 권리·지역·업로더 설정에 따라 전체 영상 또는 제공되는 일부만 재생될 수 있다.
+
 개인 통찰은 하나의 Notion 기록 스냅샷으로 취향 집계와 추천 근거를 함께 계산한다. 이는
 저장 직후 여러 번의 목록 조회가 Notion 요청 제한에 걸리는 문제를 줄이기 위한 동작이다.
 
 초기 화면은 목록 전체를 내려받지 않고 최근 Notion 기록 12개만 먼저 읽는다. `다음 기록 더 보기`를
 눌렀을 때에만 다음 Notion 페이지를 요청한다. 취향·그래프 추천은 체크포인트가 없을 때만 Notion
-기록을 한 번 읽어 private GraphDB 스냅샷을 만들고, 이후에는 Notion의 수정 시각 변경분과 그
-스냅샷으로 계산한다. 따라서 추천을 계산하는 동안에도 검색과 첫 기록 목록은 사용할 수 있으며,
+기록을 한 번 읽어 private GraphDB 스냅샷을 만든다. 이후 통찰 읽기는 그 스냅샷만 사용하고,
+소유자가 `새로 고침`을 눌렀을 때에만 Notion의 수정 시각 변경분을 증분 동기화한다. 따라서 추천을 계산하는 동안에도 검색과 첫 기록 목록은 사용할 수 있으며,
 사용자의 기록을 자동으로 쓰거나 보관하지 않는다.
 
 ## 운영 쓰기 안전
@@ -126,27 +155,24 @@ Production의 기록 생성·보관·복원 요청은 브라우저에서 `Notion
 fixture Preview 설정은 연결 모드 배포 증거가 아니다.
 실제 Notion 토큰을 원격 비밀 저장소로 옮기는 작업은 별도 권한과 비용 검토가 필요한 외부 쓰기다.
 
-## 공개 카탈로그와 개인 기록의 경계
+## 공개 사이트와 개인 소유자 작업공간
 
-MusicBrainz 앨범·트랙 검색은 공개 서비스 기능이다. 반대로 Notion 목록, 취향 분석,
-GraphRAG 추천, 기록 생성·수정·보관·복원은 한 사람의 개인 데이터이므로 공개 BFF 경로가
-아니다. Production Vercel 환경에는 아래의 서버 전용 변수를 설정한다.
+MusicBrainz 앨범·트랙 검색과 개인 식별자를 제거한 추천은 공개 서비스 기능이다. Notion
+목록, 상세 취향, 중복 상태, 기록 생성·수정·보관·복원과 그래프 새로 고침은 모두 서명된
+소유자 세션이 있어야 한다. 읽기 경계를 비활성화하는 운영 모드는 제공하지 않는다.
 
 ```text
-MUSIC_KG_OWNER_SESSION_REQUIRED=true
 MUSIC_KG_OWNER_SETUP_TOKEN=<32 bytes or more, random>
 MUSIC_KG_OWNER_SESSION_SECRET=<different 32 bytes or more, random>
 ```
 
-소유자는 `/owner`에서 설정 토큰으로 한 번 확인한 뒤에만 HttpOnly 세션 쿠키를 받는다.
-토큰·Notion 페이지 ID·BFF 비밀은 브라우저 저장소, URL, 로그, 소스에 남기지 않는다.
-이 방식은 단일 소유자 개인 도구의 안전한 운영 경계다. 여러 사용자 계정, 공유, 권한 회수,
-감사 로그가 필요해지는 시점에는 이 세션 설정값을 사용자 인증으로 오인하지 말고 OAuth/OIDC
-공급자로 교체해야 한다.
+Notion 토큰, Notion 페이지 ID, BFF 비밀은 브라우저 저장소, URL, 로그, 소스에 보내지지
+않는다. 방문자는 공개 검색과 요약 추천만 볼 수 있고 개인 기록 및 변경 버튼은 보이지 않는다.
+운영자는 `/owner`에서 설정 토큰으로 한 번 확인해 HttpOnly 세션을 만든 뒤에만 개인 작업공간을
+읽고 변경한다. 여러 사용자 계정, 공유, 권한 회수, 감사 로그가 필요해지는 시점에는 이 단일
+소유자 세션을 OAuth/OIDC 공급자로 교체해야 한다. Preview에는 Production과 분리된 Notion
+데이터 소스와 비밀을 사용한다.
 
-This policy supersedes earlier documentation that described Vercel Deployment Protection
-alone as the personal-record boundary. Vercel protection is useful for preview review, but it
-does not authenticate an individual owner to a publicly reachable production BFF.
 연결 서비스를 Cloud Run에 배포할 때는 legacy fixture 템플릿이 아니라
 `deployment/cloud-run/connected-production-service.yaml.tmpl` 또는
 `connected-preview-service.yaml.tmpl`을 사용한다. Preview에는 Production 개인 기록과

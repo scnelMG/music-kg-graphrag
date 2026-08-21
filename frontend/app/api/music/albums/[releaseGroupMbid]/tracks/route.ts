@@ -2,21 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../../../lib/backend-bff";
+import { catalogTrackSchema } from "../../../../../../lib/music-catalog-contract";
 
-const paramsSchema = z.object({ releaseGroupMbid: z.string().min(1) });
-const tracksSchema = z.array(z.object({
-  position: z.number().int().positive(),
-  recordingMbid: z.string().min(1),
-  title: z.string().min(1)
-}));
+const paramsSchema = z.object({ releaseGroupMbid: z.string().trim().min(1) });
+const tracksSchema = z.array(catalogTrackSchema);
+
+const publicCatalogCacheControl = "public, s-maxage=600, stale-while-revalidate=86400";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { readonly params: Promise<{ readonly releaseGroupMbid: string }> }
 ): Promise<NextResponse> {
   const params = paramsSchema.safeParse(await context.params);
   if (!params.success) return NextResponse.json({ code: "MALFORMED_REQUEST", retryable: false }, { status: 400 });
-  const result = await callBackend(`api/v1/catalog/albums/${encodeURIComponent(params.data.releaseGroupMbid)}/tracks`);
+  const queryKeys = [...request.nextUrl.searchParams.keys()];
+  const editions = request.nextUrl.searchParams.getAll("edition");
+  const edition = editions[0]?.trim() ?? "";
+  if (queryKeys.length !== 1 || queryKeys[0] !== "edition" || editions.length !== 1 || edition.length === 0) {
+    return NextResponse.json({ code: "MALFORMED_REQUEST", retryable: false }, { status: 400 });
+  }
+  const result = await callBackend(
+    `api/v1/catalog/albums/${encodeURIComponent(params.data.releaseGroupMbid)}/tracks`,
+    { searchParams: new URLSearchParams({ edition }) }
+  );
   if (result.kind === "handled") return result.response;
   let payload: unknown;
   try {
@@ -26,5 +34,7 @@ export async function GET(
     throw error;
   }
   const tracks = tracksSchema.safeParse(payload);
-  return tracks.success ? NextResponse.json({ tracks: tracks.data }) : backendContractError();
+  return tracks.success
+    ? NextResponse.json({ tracks: tracks.data }, { headers: { "cache-control": publicCatalogCacheControl } })
+    : backendContractError();
 }

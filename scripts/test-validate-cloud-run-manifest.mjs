@@ -279,6 +279,11 @@ test("connected production template requires a server-side Notion secret and exp
   assert.match(template, /name: NOTION_API_KEY\n\s+valueFrom:\n\s+secretKeyRef:\n\s+name: music-kg-production-notion-api-key/);
   assert.match(template, /name: MUSIC_KG_API_CORS_ALLOWED_ORIGINS\n\s+value: \$\{VERCEL_PRODUCTION_ORIGIN\}/);
   assert.match(template, /name: NOTION_RELEASE_GROUP_MBID_FIELD\n\s+value: \$\{NOTION_RELEASE_GROUP_MBID_FIELD\}/);
+  assert.match(template, /name: NOTION_RELEASE_MBID_FIELD\n\s+value: \$\{NOTION_RELEASE_MBID_FIELD\}/);
+  assert.match(template, /name: NOTION_YOUTUBE_RECORDING_MBID_FIELD\n\s+value: \$\{NOTION_YOUTUBE_RECORDING_MBID_FIELD\}/);
+  assert.match(template, /name: NOTION_YOUTUBE_VIDEO_ID_FIELD\n\s+value: \$\{NOTION_YOUTUBE_VIDEO_ID_FIELD\}/);
+  assert.match(template, /name: NOTION_YOUTUBE_VIDEO_TITLE_FIELD\n\s+value: \$\{NOTION_YOUTUBE_VIDEO_TITLE_FIELD\}/);
+  assert.match(template, /name: NOTION_YOUTUBE_CHANNEL_TITLE_FIELD\n\s+value: \$\{NOTION_YOUTUBE_CHANNEL_TITLE_FIELD\}/);
   assert.match(template, /name: MUSICBRAINZ_USER_AGENT\n\s+value: "\$\{MUSICBRAINZ_USER_AGENT\}"/);
   assert.match(template, /name: MUSIC_KG_GRAPHDB_BASE_URL\n\s+value: \$\{PERSONAL_GRAPHDB_BASE_URL\}/);
   assert.match(template, /name: MUSIC_KG_GRAPHDB_REPOSITORY\n\s+value: music-kg-personal/);
@@ -322,6 +327,11 @@ test("connected templates render only when every server-side data binding is sup
     "${NOTION_FAVOURITE_TRACK_FIELD}": "개인 최애곡",
     "${NOTION_OWNED_FIELD}": "앨범 보유",
     "${NOTION_RELEASE_GROUP_MBID_FIELD}": "MusicBrainz MBID",
+    "${NOTION_RELEASE_MBID_FIELD}": "MusicBrainz Release MBID",
+    "${NOTION_YOUTUBE_RECORDING_MBID_FIELD}": "MusicBrainz Recording MBID",
+    "${NOTION_YOUTUBE_VIDEO_ID_FIELD}": "YouTube Video ID",
+    "${NOTION_YOUTUBE_VIDEO_TITLE_FIELD}": "YouTube Video Title",
+    "${NOTION_YOUTUBE_CHANNEL_TITLE_FIELD}": "YouTube Channel Title",
     "${MUSICBRAINZ_USER_AGENT}": "music-kg-graphrag/1.0 (operator@example.invalid)",
     "${PERSONAL_GRAPHDB_BASE_URL}": "http://10.42.0.10:7200",
     "${PERSONAL_GRAPHDB_VPC_NETWORK}": "music-kg-private",

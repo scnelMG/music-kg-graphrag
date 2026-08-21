@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../../../lib/backend-bff";
-import { requireOwnerSession } from "../../../../../../lib/owner-session";
+import { requireOwnerWriteSession } from "../../../../../../lib/owner-session";
 import { productionWriteConfirmationRequired } from "../../../../../../lib/personal-write-intent";
 import { resolveRecordHandle } from "../../../../../../lib/record-handle";
 
@@ -17,7 +17,7 @@ export async function POST(
   request: NextRequest,
   context: { readonly params: Promise<{ readonly pageId: string }> }
 ): Promise<NextResponse> {
-  const ownerSession = requireOwnerSession(request);
+  const ownerSession = requireOwnerWriteSession(request);
   if (ownerSession !== null) return ownerSession;
   const confirmation = productionWriteConfirmationRequired(request);
   if (confirmation !== null) return confirmation;

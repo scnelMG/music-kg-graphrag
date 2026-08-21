@@ -42,7 +42,7 @@ or expose them as `NEXT_PUBLIC_*` variables.
 
 Before a connected deployment, render the templates with `IMAGE_DIGEST`, the
 matching Vercel origin, Cloud Run service account, Notion data-source ID,
-Notion field names, and a MusicBrainz User-Agent. Run
+Notion field names (including the `MusicBrainz Release MBID` rich-text field for the selected edition), and a MusicBrainz User-Agent. Run
 `node scripts/test-validate-cloud-run-manifest.mjs` and deploy only the fully
 rendered file through `scripts/deploy-cloud-run-service.mjs`. Creating the
 Notion secrets, granting Secret Manager access, and replacing a Cloud Run
