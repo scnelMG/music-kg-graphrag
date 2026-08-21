@@ -53,7 +53,7 @@ class MusicBrainzClientTest {
     }
 
     @Test
-    void leavesCoverUrlEmptyWhenMusicBrainzReportsNoFrontArtwork() {
+    void returnsTheCoverArtArchiveUrlWhenMusicBrainzReportsNoFrontArtwork() {
         var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
         var server = MockRestServiceServer.bindTo(builder).build();
         var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
@@ -70,7 +70,26 @@ class MusicBrainzClientTest {
                 "No Front Art",
                 "Artist",
                 "",
-                ""));
+                "https://coverartarchive.org/release-group/f9b61a7e-0c86-4cc7-b94e-48d3b643c554/front-250"));
+        server.verify();
+    }
+
+    @Test
+    void returnsTheCoverArtArchiveUrlWhenSearchOmitsCoverArtworkMetadata() {
+        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz(
+                "music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
+
+        server.expect(requestTo("https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Metadata+Omitted%22+OR+artist%3A%22Metadata+Omitted%22&fmt=json&limit=10"))
+                .andRespond(withSuccess("""
+                        {"release-groups":[{"id":"f9b61a7e-0c86-4cc7-b94e-48d3b643c554","title":"Metadata Omitted","primary-type":"Album","artist-credit":[{"name":"Artist"}]}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        var albums = client.search("Metadata Omitted");
+
+        assertThat(albums).singleElement().extracting(MusicCatalogGateway.Album::coverUrl)
+                .isEqualTo("https://coverartarchive.org/release-group/f9b61a7e-0c86-4cc7-b94e-48d3b643c554/front-250");
         server.verify();
     }
 
