@@ -38,13 +38,8 @@ pipeline/.tmp-*/
 frontend/.next-*/
 frontend/.next-build.lock
 
-# Local agent plans and detailed execution receipts are retained on the machine,
-# while reviewed quality summaries live in docs/quality.
-.omo/drafts/
-.omo/evidence/
-.omo/lazycodex-executor-verify/
-.omo/plans/*.md
-.omo/ulw-research/
+# Local agent plans and execution receipts are not part of the public source.
+.omo/
 frontend/.agents/
 frontend/.omo/
 pipeline/.omo/
