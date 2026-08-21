@@ -11,6 +11,16 @@
 fixture 경로는 회귀 검증용으로만 남아 있으며, 연결 모드의 사용자 화면은 이를
 읽거나 표시하지 않습니다.
 
+## 프로젝트 한눈에 보기
+
+| 구분 | 내용 |
+| --- | --- |
+| 서비스 목표 | 앨범 탐색, 개인 감상 기록, 기록 근거가 있는 다음 앨범 탐색을 하나의 흐름으로 연결 |
+| 사용자 흐름 | MusicBrainz 검색 → Notion 기록 저장 → GraphDB 근거 투영 → 취향·추천 확인 |
+| 구현 구조 | Next.js BFF, Spring Boot API, PostgreSQL outbox, RDF/SPARQL GraphDB, Python 검증 파이프라인 |
+| 공개 범위 | 방문자는 검색과 비식별 추천만 이용하며, 개인 Notion 기록의 읽기·변경은 서명된 소유자 세션에서만 허용 |
+| 검증 기준 | 프론트엔드·백엔드·파이프라인 테스트, Docker Compose 구성, 공급망·배포 매니페스트 검사 |
+
 ## 현재 제공하는 기능
 
 - Spring Boot API: MusicBrainz 앨범/아티스트 검색, Notion 개인 기록 읽기·쓰기,
