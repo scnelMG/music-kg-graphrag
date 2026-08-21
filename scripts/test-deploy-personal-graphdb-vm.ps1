@@ -5,6 +5,8 @@ $startup = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot
 if ($script -notmatch '\[switch\]\$Deploy') { throw "PERSONAL_GRAPHDB_EXPLICIT_DEPLOY_REQUIRED" }
 if ($script -notmatch 'e2-medium') { throw "PERSONAL_GRAPHDB_MINIMUM_MEMORY_CLASS_REQUIRED" }
 if ($script -notmatch '"--boot-disk-size", "30GB"') { throw "PERSONAL_GRAPHDB_PERSISTENT_DISK_REQUIRED" }
+if ($script -notmatch '"--boot-disk-type", "pd-standard"') { throw "PERSONAL_GRAPHDB_STANDARD_BOOT_DISK_REQUIRED" }
+if ($script -match '"--boot-disk-type", "pd-balanced"') { throw "PERSONAL_GRAPHDB_BALANCED_BOOT_DISK_FORBIDDEN" }
 if ($script -notmatch 'network=\$Network,subnet=\$Subnetwork') { throw "PERSONAL_GRAPHDB_VPC_REQUIRED" }
 if ($startup -notmatch 'ontotext/graphdb@sha256:[0-9a-f]{64}') { throw "PERSONAL_GRAPHDB_IMMUTABLE_IMAGE_REQUIRED" }
 if ($startup -notmatch 'music-kg-personal') { throw "PERSONAL_GRAPHDB_PRIVATE_REPOSITORY_REQUIRED" }

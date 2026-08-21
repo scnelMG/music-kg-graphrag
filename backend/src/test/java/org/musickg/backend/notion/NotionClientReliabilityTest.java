@@ -21,7 +21,7 @@ import org.springframework.web.client.RestClient;
 
 class NotionClientReliabilityTest {
     private static final ConnectedServiceProperties.Notion.Fields FIELDS = new ConnectedServiceProperties.Notion.Fields(
-            "Album", "Artists", "Cover", "Sentiment", "Favourite track", "Owned", "Release group MBID");
+            "Album", "Artists", "Cover", "Sentiment", "Favourite track", "Owned", "Release group MBID", "Release MBID");
 
     @Test
     void cachesAReadSnapshotAndInvalidatesItAfterArchivingTheRecord() {

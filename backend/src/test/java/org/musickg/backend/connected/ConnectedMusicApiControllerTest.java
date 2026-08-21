@@ -1,14 +1,19 @@
 package org.musickg.backend.connected;
 
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.musickg.backend.api.ApiProperties;
+import org.musickg.backend.catalog.MusicBrainzClient;
 import org.musickg.backend.catalog.MusicCatalogGateway;
 import org.musickg.backend.config.ConnectedServiceProperties;
 import org.musickg.backend.notion.NotionClient;
@@ -42,6 +47,175 @@ class ConnectedMusicApiControllerTest {
     }
 
     @Test
+    void returnsABoundedPublicEditionPageForTheSelectedAlbum() throws Exception {
+        given(service.editions("group-id", null, "stored-release")).willReturn(new MusicCatalogGateway.EditionPage(
+                List.of(new MusicCatalogGateway.Edition(
+                        "release-id", "group-id", "Kind of Blue", "1997-01-01", "US", "Official", "Remaster", true)),
+                "20", true));
+
+        mvc.perform(get("/api/v1/catalog/albums/group-id/editions")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("selected", "stored-release"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.editions[0].releaseMbid").value("release-id"))
+                .andExpect(jsonPath("$.editions[0].recommended").value(true))
+                .andExpect(jsonPath("$.nextCursor").value("20"))
+                .andExpect(jsonPath("$.hasMore").value(true));
+
+        verify(service).editions("group-id", null, "stored-release");
+    }
+
+    @Test
+    void forwardsTheEditionCursorWithoutRequestingAnUnboundedCollection() throws Exception {
+        given(service.editions("group-id", "20", null)).willReturn(new MusicCatalogGateway.EditionPage(
+                List.of(new MusicCatalogGateway.Edition(
+                        "release-20", "group-id", "Kind of Blue", "2000-01-01", "JP", "Official", "", false)),
+                "40", true));
+
+        mvc.perform(get("/api/v1/catalog/albums/group-id/editions")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("cursor", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.editions[0].releaseMbid").value("release-20"))
+                .andExpect(jsonPath("$.nextCursor").value("40"));
+
+        verify(service).editions("group-id", "20", null);
+    }
+
+    @Test
+    void rejectsAnEditionCursorOutsideTheIntegerDomainAsAMalformedRequest() throws Exception {
+        mvc.perform(get("/api/v1/catalog/albums/group-id/editions")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("cursor", "999999999999999999999"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void loadsTracksForTheExplicitSelectedEdition() throws Exception {
+        given(service.tracks("group-id", "release-id")).willReturn(List.of(
+                new MusicCatalogGateway.Track("recording-id", "Actual Track", 1)));
+
+        mvc.perform(get("/api/v1/catalog/albums/group-id/tracks")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("edition", "release-id"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("Actual Track"));
+
+        verify(service).tracks("group-id", "release-id");
+    }
+
+    @Test
+    void rejectsABlankEditionBeforeCallingTheCatalog() throws Exception {
+        mvc.perform(get("/api/v1/catalog/albums/group-id/tracks")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("edition", " "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void rejectsAnOmittedEditionBeforeCallingTheCatalog() throws Exception {
+        mvc.perform(get("/api/v1/catalog/albums/group-id/tracks")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void rejectsSavingARecordWithoutTheChosenReleaseMbid() throws Exception {
+        mvc.perform(post("/api/v1/listening-records")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"releaseGroupMbid":"group-id","albumTitle":"Kind of Blue","artist":"Miles Davis","sentiment":"Loved","favouriteTrack":"So What","owned":false}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void reportsAForeignEditionAsATypedClientError() throws Exception {
+        MusicBrainzClient.CatalogAccessException exception = mock(MusicBrainzClient.CatalogAccessException.class);
+        given(exception.code()).willReturn("MUSICBRAINZ_RELEASE_NOT_IN_GROUP");
+        given(exception.retryable()).willReturn(false);
+        given(service.tracks("group-id", "foreign-release-id")).willThrow(exception);
+
+        mvc.perform(get("/api/v1/catalog/albums/group-id/tracks")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("edition", "foreign-release-id"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("MUSICBRAINZ_RELEASE_NOT_IN_GROUP"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty());
+
+        verify(service).tracks("group-id", "foreign-release-id");
+    }
+
+    @Test
+    void reportsAForeignEditionAsATypedClientErrorWhenSavingARecord() throws Exception {
+        MusicBrainzClient.CatalogAccessException exception = mock(MusicBrainzClient.CatalogAccessException.class);
+        given(exception.code()).willReturn("MUSICBRAINZ_RELEASE_NOT_IN_GROUP");
+        given(exception.retryable()).willReturn(false);
+        given(service.save(org.mockito.ArgumentMatchers.any())).willThrow(exception);
+
+        mvc.perform(post("/api/v1/listening-records")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"releaseGroupMbid":"group-id","releaseMbid":"foreign-release-id","albumTitle":"Kind of Blue","artist":"Miles Davis","sentiment":"Loved","favouriteTrack":"So What","owned":false}
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("MUSICBRAINZ_RELEASE_NOT_IN_GROUP"));
+
+        verify(service).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void preservesBadGatewayForANonRetryableMusicBrainzProviderError() throws Exception {
+        MusicBrainzClient.CatalogAccessException exception = mock(MusicBrainzClient.CatalogAccessException.class);
+        given(exception.code()).willReturn("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR");
+        given(exception.retryable()).willReturn(false);
+        given(service.tracks("group-id", "release-id")).willThrow(exception);
+
+        mvc.perform(get("/api/v1/catalog/albums/group-id/tracks")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("edition", "release-id"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("MUSICBRAINZ_RESPONSE_CONTRACT_ERROR"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty());
+
+        verify(service).tracks("group-id", "release-id");
+    }
+
+    @Test
+    void returnsRecoverableServiceUnavailableForARetryableExplicitEditionTrackFailure() throws Exception {
+        MusicBrainzClient.CatalogAccessException exception = mock(MusicBrainzClient.CatalogAccessException.class);
+        given(exception.code()).willReturn("MUSICBRAINZ_UNAVAILABLE");
+        given(exception.retryable()).willReturn(true);
+        given(service.tracks("group-id", "release-id")).willThrow(exception);
+
+        mvc.perform(get("/api/v1/catalog/albums/group-id/tracks")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("edition", "release-id"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("MUSICBRAINZ_UNAVAILABLE"))
+                .andExpect(jsonPath("$.requestId").isNotEmpty());
+
+        verify(service).tracks("group-id", "release-id");
+    }
+
+    @Test
     void exposesConfiguredNotionSentimentsInsteadOfAClientSideFixtureList() throws Exception {
         given(service.sentimentOptions()).willReturn(List.of("애착 앨범", "마음에 쏙"));
 
@@ -62,6 +236,23 @@ class ConnectedMusicApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.records[0].pageId").value("page-1"))
                 .andExpect(jsonPath("$.nextCursor").value("following-cursor"));
+    }
+
+    @Test
+    void returnsAnAuthoritativeExistingRecordOutsideTheClientsLoadedPage() throws Exception {
+        var existing = new NotionClient.ExistingRecord(
+                "page-13", "Later record", "Artist", "", "Loved", "Saved favourite", true,
+                "release-group-later", "release-later", List.of("Artist"), java.time.Instant.parse("2026-08-10T00:00:00Z"));
+        given(service.recordByReleaseGroupMbid("release-group-later")).willReturn(Optional.of(existing));
+
+        mvc.perform(get("/api/v1/listening-records/by-release-group/release-group-later")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pageId").value("page-13"))
+                .andExpect(jsonPath("$.favouriteTrack").value("Saved favourite"))
+                .andExpect(jsonPath("$.releaseMbid").value("release-later"));
+
+        verify(service).recordByReleaseGroupMbid("release-group-later");
     }
 
     @Test

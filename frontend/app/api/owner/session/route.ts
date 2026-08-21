@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { clearOwnerSession, createOwnerSession, isOwnerSession, setOwnerSession } from "../../../../lib/owner-session";
+import { clearOwnerSession, createOwnerSession, isOwnerSession, isOwnerWriteSession, setOwnerSession } from "../../../../lib/owner-session";
 
 const requestSchema = z.object({ token: z.string().min(1).max(512) });
 
 export function GET(request: NextRequest): NextResponse {
-  return NextResponse.json({ owner: isOwnerSession(request) });
+  const owner = isOwnerSession(request);
+  return NextResponse.json({ owner, writeOwner: owner && isOwnerWriteSession(request) });
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

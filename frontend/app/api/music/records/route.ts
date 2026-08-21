@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
-import { requireOwnerSession } from "../../../../lib/owner-session";
+import { sameOriginCoverUrl } from "../../../../lib/cover-art";
+import { requireOwnerSession, requireOwnerWriteSession } from "../../../../lib/owner-session";
 import { productionWriteConfirmationRequired } from "../../../../lib/personal-write-intent";
 import { issueRecordHandle } from "../../../../lib/record-handle";
 
@@ -14,7 +15,17 @@ const recordRequestSchema = z.object({
   favouriteTrack: z.string().min(1),
   owned: z.boolean(),
   releaseGroupMbid: z.string().min(1),
-  sentiment: z.string().min(1)
+  releaseMbid: z.string().min(1),
+  sentiment: z.string().min(1),
+  youtubeChannelTitle: z.string().trim().max(200).optional().default(""),
+  youtubeRecordingMbid: z.string().trim().max(128).optional().default(""),
+  youtubeVideoId: z.string().regex(/^[A-Za-z0-9_-]{11}$/).or(z.literal("")).optional().default(""),
+  youtubeVideoTitle: z.string().trim().max(300).optional().default("")
+}).superRefine((value, context) => {
+  const fields = [value.youtubeRecordingMbid, value.youtubeVideoId, value.youtubeVideoTitle, value.youtubeChannelTitle];
+  const complete = fields.every((field) => field.length > 0);
+  const empty = fields.every((field) => field.length === 0);
+  if (!complete && !empty) context.addIssue({ code: z.ZodIssueCode.custom, message: "YouTube mapping must be complete." });
 });
 
 const savedSchema = z.object({
@@ -32,8 +43,19 @@ const existingRecordSchema = z.object({
   owned: z.boolean(),
   pageId: z.string().min(1),
   releaseGroupMbid: z.string(),
-  sentiment: z.string()
-});
+  releaseMbid: z.string(),
+  sentiment: z.string(),
+  youtubeChannelTitle: z.string().optional(),
+  youtubeRecordingMbid: z.string().optional(),
+  youtubeVideoId: z.string().optional(),
+  youtubeVideoTitle: z.string().optional()
+}).transform((record) => ({
+  ...record,
+  youtubeChannelTitle: record.youtubeChannelTitle ?? "",
+  youtubeRecordingMbid: record.youtubeRecordingMbid ?? "",
+  youtubeVideoId: record.youtubeVideoId ?? "",
+  youtubeVideoTitle: record.youtubeVideoTitle ?? ""
+}));
 const recordsPageSchema = z.object({
   nextCursor: z.string().min(1).nullable(),
   records: z.array(existingRecordSchema)
@@ -66,13 +88,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     nextCursor: records.data.nextCursor,
     records: records.data.records.map(({ pageId, ...record }) => ({
       ...record,
+      coverUrl: sameOriginCoverUrl(record.coverUrl, record.releaseGroupMbid, request.url),
       recordHandle: issueRecordHandle(pageId, secret)
     }))
   });
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const ownerSession = requireOwnerSession(request);
+  const ownerSession = requireOwnerWriteSession(request);
   if (ownerSession !== null) return ownerSession;
   const confirmation = productionWriteConfirmationRequired(request);
   if (confirmation !== null) return confirmation;

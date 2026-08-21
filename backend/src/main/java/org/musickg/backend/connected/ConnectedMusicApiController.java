@@ -48,9 +48,18 @@ class ConnectedMusicApiController {
         return metrics.observe("catalog.search", () -> service.search(q));
     }
 
+    @GetMapping("/catalog/albums/{releaseGroupMbid}/editions")
+    MusicCatalogGateway.EditionPage editions(@PathVariable @NotBlank String releaseGroupMbid,
+                                               @RequestParam(required = false) @Min(0) Integer cursor,
+                                               @RequestParam(required = false) String selected) {
+        String cursorValue = cursor == null ? null : Integer.toString(cursor);
+        return metrics.observe("catalog.editions", () -> service.editions(releaseGroupMbid, cursorValue, selected));
+    }
+
     @GetMapping("/catalog/albums/{releaseGroupMbid}/tracks")
-    List<MusicCatalogGateway.Track> tracks(@PathVariable @NotBlank String releaseGroupMbid) {
-        return metrics.observe("catalog.tracks", () -> service.tracks(releaseGroupMbid));
+    List<MusicCatalogGateway.Track> tracks(@PathVariable @NotBlank String releaseGroupMbid,
+                                            @RequestParam("edition") @NotBlank String releaseMbid) {
+        return metrics.observe("catalog.tracks", () -> service.tracks(releaseGroupMbid, releaseMbid));
     }
 
     @GetMapping("/listening-records")
@@ -64,6 +73,14 @@ class ConnectedMusicApiController {
         return metrics.observe("records.page", () -> service.recordsPage(limit, cursor));
     }
 
+    @GetMapping("/listening-records/by-release-group/{releaseGroupMbid}")
+    ResponseEntity<NotionClient.ExistingRecord> recordByReleaseGroupMbid(
+            @PathVariable @NotBlank String releaseGroupMbid) {
+        return metrics.observe("records.lookup", () -> service.recordByReleaseGroupMbid(releaseGroupMbid)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build()));
+    }
+
     @GetMapping("/listening-records/form-options")
     FormOptions formOptions() {
         return metrics.observe("records.formOptions", () -> new FormOptions(service.sentimentOptions()));
@@ -72,8 +89,9 @@ class ConnectedMusicApiController {
     @PostMapping("/listening-records")
     ConnectedMusicService.SaveResult save(@Valid @RequestBody SaveRequest request) {
         return metrics.observe("records.save", () -> service.save(new ConnectedMusicService.RecordInput(
-                request.releaseGroupMbid(), request.albumTitle(), request.artist(), request.coverUrl(),
-                request.sentiment(), request.favouriteTrack(), request.owned(), request.artistCredits())));
+                request.releaseGroupMbid(), request.releaseMbid(), request.albumTitle(), request.artist(), request.coverUrl(),
+                request.sentiment(), request.favouriteTrack(), request.owned(), request.artistCredits(),
+                request.youtubeRecordingMbid(), request.youtubeVideoId(), request.youtubeVideoTitle(), request.youtubeChannelTitle())));
     }
 
     @DeleteMapping("/listening-records/{pageId}")
@@ -143,9 +161,10 @@ class ConnectedMusicApiController {
         return metrics.snapshot();
     }
 
-    record SaveRequest(@NotBlank String releaseGroupMbid, @NotBlank String albumTitle, @NotBlank String artist,
+    record SaveRequest(@NotBlank String releaseGroupMbid, @NotBlank String releaseMbid, @NotBlank String albumTitle, @NotBlank String artist,
                        String coverUrl, @NotBlank String sentiment, @NotBlank String favouriteTrack, boolean owned,
-                       List<String> artistCredits) {
+                       List<String> artistCredits, String youtubeRecordingMbid, String youtubeVideoId,
+                       String youtubeVideoTitle, String youtubeChannelTitle) {
         SaveRequest {
             artistCredits = artistCredits == null || artistCredits.isEmpty() ? List.of(artist) : List.copyOf(artistCredits);
         }
