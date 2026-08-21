@@ -32,13 +32,12 @@ final class MusicBrainzPayloadParser {
                 List<String> artistCredits = artistCredits(group.path("artist-credit"));
                 String artist = String.join(", ", artistCredits);
                 if (blank(releaseGroupMbid) || blank(title) || blank(artist)) continue;
-                boolean hasFrontCover = group.path("cover-art-archive").path("front").asBoolean(false);
                 albums.add(new MusicCatalogGateway.Album(
                         releaseGroupMbid,
                         title,
                         artist,
                         group.path("first-release-date").asText(""),
-                        hasFrontCover ? coverUrl.apply(releaseGroupMbid) : "",
+                        coverUrl.apply(releaseGroupMbid),
                         artistCredits,
                         primaryType,
                         group.path("score").asInt()));
