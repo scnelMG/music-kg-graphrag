@@ -159,6 +159,33 @@ describe("fixture BFF backend integration", () => {
     });
   });
 
+  it("rewrites a Cover Art Archive catalog URL to the same-origin image route", async () => {
+    const releaseGroupMbid = "f9b61a7e-0c86-4cc7-b94e-48d3b643c554";
+    await withBackend((_request, response) => {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([{
+        artist: "Artist",
+        artistCredits: ["Artist"],
+        coverUrl: `https://coverartarchive.org/release-group/${releaseGroupMbid}/front-250`,
+        firstReleaseDate: "2020-01-01",
+        primaryType: "Album",
+        releaseGroupMbid,
+        searchScore: 100,
+        title: "Covered album"
+      }]));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getAlbums(new NextRequest("https://archive.example/api/music/albums?q=Covered"));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ albums: [expect.objectContaining({
+        coverUrl: `https://archive.example/api/music/covers/${releaseGroupMbid}`
+      })] });
+    });
+  });
+
   it("rejects an edition that belongs to a different release group", async () => {
     // Given a backend catalog response containing a cross-group edition
     await withBackend((request, response) => {
