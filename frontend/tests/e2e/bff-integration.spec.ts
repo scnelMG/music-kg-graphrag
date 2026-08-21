@@ -54,7 +54,7 @@ test("Given a message-less personal-insights 502 response, when the connected de
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await routeConnectedWorkspace(page);
-  await page.route("**/api/music/insights", (route) => route.fulfill({
+  await page.route("**/api/music/insights*", (route) => route.fulfill({
     body: JSON.stringify({ code: "BACKEND_CONTRACT_ERROR", retryable: false }),
     contentType: "application/json",
     status: 502

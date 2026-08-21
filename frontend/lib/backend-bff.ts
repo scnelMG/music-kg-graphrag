@@ -40,6 +40,7 @@ type BackendPath =
 
 type ConnectedBackendPath =
   | "api/v1/catalog/albums"
+  | `api/v1/catalog/albums/${string}/editions`
   | `api/v1/catalog/albums/${string}/tracks`
   | "api/v1/health"
   | "api/v1/ready"

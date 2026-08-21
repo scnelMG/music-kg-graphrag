@@ -184,7 +184,7 @@ public final class NotionClient implements PersonalMusicRecordGateway {
         Optional<ExistingRecord> parsedRecord = parsePage(response).records().stream().findFirst();
         if (parsedRecord.isPresent()) return parsedRecord;
         return pageId(response).map(pageId -> new ExistingRecord(
-                pageId, "", "", "", "", "", false, releaseGroupMbid, List.of(), Instant.EPOCH));
+                pageId, "", "", "", "", "", false, releaseGroupMbid, "", List.of(), Instant.EPOCH));
     }
 
     public List<String> sentimentOptions() {
@@ -258,11 +258,21 @@ public final class NotionClient implements PersonalMusicRecordGateway {
                 String favouriteTrack = firstText(properties.path(fields.favouriteTrack()).path("rich_text"));
                 boolean owned = properties.path(fields.owned()).path("checkbox").asBoolean(false);
                 String releaseGroupMbid = firstText(properties.path(fields.releaseGroupMbid()).path("rich_text"));
+                String releaseMbid = firstText(properties.path(fields.releaseMbid()).path("rich_text"));
+                String youtubeRecordingMbid = fields.youtubeMappingConfigured()
+                        ? firstText(properties.path(fields.youtubeRecordingMbid()).path("rich_text")) : "";
+                String youtubeVideoId = fields.youtubeMappingConfigured()
+                        ? firstText(properties.path(fields.youtubeVideoId()).path("rich_text")) : "";
+                String youtubeVideoTitle = fields.youtubeMappingConfigured()
+                        ? firstText(properties.path(fields.youtubeVideoTitle()).path("rich_text")) : "";
+                String youtubeChannelTitle = fields.youtubeMappingConfigured()
+                        ? firstText(properties.path(fields.youtubeChannelTitle()).path("rich_text")) : "";
                 if (blank(pageId) || blank(albumTitle) || blank(artist)) continue;
                 String coverUrl = firstCoverUrl(properties.path(fields.cover()).path("files"));
                 Instant lastEditedAt = parseInstant(result.path("last_edited_time").asText());
                 records.add(new ExistingRecord(
-                        pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, artistCredits, lastEditedAt));
+                        pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
+                        artistCredits, lastEditedAt, youtubeRecordingMbid, youtubeVideoId, youtubeVideoTitle, youtubeChannelTitle));
             }
             String cursor = body.path("has_more").asBoolean(false) ? body.path("next_cursor").asText() : null;
             if (cursor != null && cursor.isBlank()) throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR");
@@ -334,18 +344,48 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             properties.put(fields.releaseGroupMbid(), Map.of(
                     "rich_text", List.of(Map.of("text", Map.of("content", record.releaseGroupMbid())))));
         }
+        if (!blank(fields.releaseMbid()) && !blank(record.releaseMbid())) {
+            properties.put(fields.releaseMbid(), Map.of(
+                    "rich_text", List.of(Map.of("text", Map.of("content", record.releaseMbid())))));
+        }
+        if (record.hasYoutubeMapping() && !fields.youtubeMappingConfigured()) {
+            throw new AccessException("YOUTUBE_MAPPING_CONFIGURATION_REQUIRED");
+        }
+        if (fields.youtubeMappingConfigured()) {
+            properties.put(fields.youtubeRecordingMbid(), richText(record.youtubeRecordingMbid()));
+            properties.put(fields.youtubeVideoId(), richText(record.youtubeVideoId()));
+            properties.put(fields.youtubeVideoTitle(), richText(record.youtubeVideoTitle()));
+            properties.put(fields.youtubeChannelTitle(), richText(record.youtubeChannelTitle()));
+        }
         return Map.copyOf(properties);
     }
 
+    private static Map<String, Object> richText(String value) {
+        return Map.of("rich_text", blank(value) ? List.of() : List.of(Map.of("text", Map.of("content", value))));
+    }
+
     public record Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack,
-                         boolean owned, String releaseGroupMbid, List<String> artistCredits) {
+                         boolean owned, String releaseGroupMbid, String releaseMbid, List<String> artistCredits,
+                         String youtubeRecordingMbid, String youtubeVideoId, String youtubeVideoTitle,
+                         String youtubeChannelTitle) {
+        public Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack,
+                      boolean owned, String releaseGroupMbid, String releaseMbid, List<String> artistCredits) {
+            this(albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
+                    artistCredits, "", "", "", "");
+        }
+
+        public Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack,
+                      boolean owned, String releaseGroupMbid, List<String> artistCredits) {
+            this(albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, "", artistCredits);
+        }
+
         public Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack,
                       boolean owned, String releaseGroupMbid) {
-            this(albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, List.of(artist));
+            this(albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, "", List.of(artist));
         }
 
         public Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack, boolean owned) {
-            this(albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, "", List.of(artist));
+            this(albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, "", "", List.of(artist));
         }
 
         public Record {
@@ -354,34 +394,69 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             }
             coverUrl = coverUrl == null ? "" : coverUrl;
             releaseGroupMbid = releaseGroupMbid == null ? "" : releaseGroupMbid;
+            releaseMbid = releaseMbid == null ? "" : releaseMbid;
             artistCredits = artistCredits == null || artistCredits.isEmpty() ? List.of(artist) : List.copyOf(artistCredits);
+            youtubeRecordingMbid = youtubeRecordingMbid == null ? "" : youtubeRecordingMbid.trim();
+            youtubeVideoId = youtubeVideoId == null ? "" : youtubeVideoId.trim();
+            youtubeVideoTitle = youtubeVideoTitle == null ? "" : youtubeVideoTitle.trim();
+            youtubeChannelTitle = youtubeChannelTitle == null ? "" : youtubeChannelTitle.trim();
+            boolean youtubeComplete = !blank(youtubeRecordingMbid) && !blank(youtubeVideoId)
+                    && !blank(youtubeVideoTitle) && !blank(youtubeChannelTitle);
+            boolean youtubeEmpty = blank(youtubeRecordingMbid) && blank(youtubeVideoId)
+                    && blank(youtubeVideoTitle) && blank(youtubeChannelTitle);
+            if (!youtubeEmpty && (!youtubeComplete || !youtubeVideoId.matches("[A-Za-z0-9_-]{11}"))) {
+                throw new IllegalArgumentException("YOUTUBE_MAPPING_INVALID");
+            }
         }
+
+        public boolean hasYoutubeMapping() { return !blank(youtubeVideoId); }
     }
 
     public record SavedRecord(String pageId, Instant lastEditedAt) {}
 
     public record ExistingRecord(String pageId, String albumTitle, String artist, String coverUrl, String sentiment,
-                                 String favouriteTrack, boolean owned, String releaseGroupMbid, List<String> artistCredits,
-                                 Instant lastEditedAt) {
+                                 String favouriteTrack, boolean owned, String releaseGroupMbid, String releaseMbid,
+                                 List<String> artistCredits,
+                                 Instant lastEditedAt, String youtubeRecordingMbid, String youtubeVideoId,
+                                 String youtubeVideoTitle, String youtubeChannelTitle) {
+        public ExistingRecord(String pageId, String albumTitle, String artist, String coverUrl, String sentiment,
+                              String favouriteTrack, boolean owned, String releaseGroupMbid, String releaseMbid,
+                              List<String> artistCredits, Instant lastEditedAt) {
+            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
+                    artistCredits, lastEditedAt, "", "", "", "");
+        }
+        public ExistingRecord(String pageId, String albumTitle, String artist, String coverUrl, String sentiment,
+                              String favouriteTrack, boolean owned, String releaseGroupMbid, List<String> artistCredits,
+                              Instant lastEditedAt) {
+            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, "", artistCredits, lastEditedAt);
+        }
+
         public ExistingRecord(String pageId, String albumTitle, String artist, String coverUrl, String sentiment,
                               String favouriteTrack, boolean owned, String releaseGroupMbid) {
-            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, List.of(artist), Instant.EPOCH);
+            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, "", List.of(artist), Instant.EPOCH);
         }
 
         public ExistingRecord(String pageId, String albumTitle, String artist, String coverUrl, String sentiment,
                               String favouriteTrack, boolean owned) {
-            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, "", List.of(artist), Instant.EPOCH);
+            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, "", "", List.of(artist), Instant.EPOCH);
         }
 
         public ExistingRecord(String pageId, String albumTitle, String artist, String coverUrl, String sentiment,
                               String favouriteTrack, boolean owned, String releaseGroupMbid, List<String> artistCredits) {
-            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, artistCredits, Instant.EPOCH);
+            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, "", artistCredits, Instant.EPOCH);
         }
 
         public ExistingRecord {
+            releaseMbid = releaseMbid == null ? "" : releaseMbid;
             artistCredits = artistCredits == null || artistCredits.isEmpty() ? List.of(artist) : List.copyOf(artistCredits);
             lastEditedAt = lastEditedAt == null ? Instant.EPOCH : lastEditedAt;
+            youtubeRecordingMbid = youtubeRecordingMbid == null ? "" : youtubeRecordingMbid.trim();
+            youtubeVideoId = youtubeVideoId == null ? "" : youtubeVideoId.trim();
+            youtubeVideoTitle = youtubeVideoTitle == null ? "" : youtubeVideoTitle.trim();
+            youtubeChannelTitle = youtubeChannelTitle == null ? "" : youtubeChannelTitle.trim();
         }
+
+        public boolean hasYoutubeMapping() { return !blank(youtubeVideoId) && youtubeVideoId.matches("[A-Za-z0-9_-]{11}"); }
     }
 
     public static final class AccessException extends RuntimeException {

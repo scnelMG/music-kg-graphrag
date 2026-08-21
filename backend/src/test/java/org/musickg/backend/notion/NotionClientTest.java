@@ -23,7 +23,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 
 class NotionClientTest {
     private static final ConnectedServiceProperties.Notion.Fields FIELDS = new ConnectedServiceProperties.Notion.Fields(
-            "앨범명", "가수", "앨범커버", "개인 감상평", "개인 최애곡", "앨범 보유", "MusicBrainz MBID");
+            "앨범명", "가수", "앨범커버", "개인 감상평", "개인 최애곡", "앨범 보유", "MusicBrainz MBID", "MusicBrainz Release MBID");
 
     @Test
     void createsRecordUsingOnlyTheConfiguredDataSourceAndKoreanUserFields() {
@@ -69,7 +69,7 @@ class NotionClientTest {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
         var fields = new ConnectedServiceProperties.Notion.Fields(
-                "앨범명", "가수", "앨범커버", "개인 감상평", "개인 최애곡", "앨범 보유", "MusicBrainz MBID");
+                "앨범명", "가수", "앨범커버", "개인 감상평", "개인 최애곡", "앨범 보유", "MusicBrainz MBID", "MusicBrainz Release MBID");
         var client = new NotionClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.Notion("secret-token", "data-source-id", fields));
 
         server.expect(requestTo("https://api.notion.com/v1/pages"))
@@ -81,6 +81,59 @@ class NotionClientTest {
 
         client.create(new NotionClient.Record(
                 "Kind of Blue", "Miles Davis", "", "애착 앨범", "So What", true, "release-group-id"));
+
+        server.verify();
+    }
+
+    @Test
+    void writesAndReadsTheChosenReleaseSeparatelyFromTheReleaseGroupIdentity() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var fields = new ConnectedServiceProperties.Notion.Fields(
+                "앨범명", "가수", "앨범커버", "개인 감상평", "개인 최애곡", "앨범 보유",
+                "Release group MBID", "Release MBID");
+        var client = new NotionClient(builder.build(), new ObjectMapper(),
+                new ConnectedServiceProperties.Notion("secret-token", "data-source-id", fields));
+
+        server.expect(requestTo("https://api.notion.com/v1/pages"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"parent":{"data_source_id":"data-source-id"},"properties":{"Release group MBID":{"rich_text":[{"text":{"content":"release-group-id"}}]},"Release MBID":{"rich_text":[{"text":{"content":"selected-release-id"}}]}}}
+                        """, false))
+                .andRespond(withSuccess("{\"id\":\"page-id\",\"last_edited_time\":\"2026-08-10T00:00:00.000Z\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://api.notion.com/v1/data_sources/data-source-id/query"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"results":[{"id":"page-id","last_edited_time":"2026-08-10T00:00:00.000Z","properties":{"앨범명":{"title":[{"plain_text":"Kind of Blue"}]},"가수":{"multi_select":[{"name":"Miles Davis"}]},"앨범커버":{"files":[]},"개인 감상평":{"select":{"name":"애착 앨범"}},"개인 최애곡":{"rich_text":[{"plain_text":"So What"}]},"앨범 보유":{"checkbox":true},"Release group MBID":{"rich_text":[{"plain_text":"release-group-id"}]},"Release MBID":{"rich_text":[{"plain_text":"selected-release-id"}]}}}],"has_more":false}
+                        """, MediaType.APPLICATION_JSON));
+
+        client.create(new NotionClient.Record("Kind of Blue", "Miles Davis", "", "애착 앨범", "So What", true,
+                "release-group-id", "selected-release-id", List.of("Miles Davis")));
+
+        assertThat(client.list()).singleElement().extracting(NotionClient.ExistingRecord::releaseMbid)
+                .isEqualTo("selected-release-id");
+        server.verify();
+    }
+
+    @Test
+    void updatesTheChosenReleasePropertyWhenUpdatingAnExistingRecord() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var fields = new ConnectedServiceProperties.Notion.Fields(
+                "앨범명", "가수", "앨범커버", "개인 감상평", "개인 최애곡", "앨범 보유",
+                "Release group MBID", "Release MBID");
+        var client = new NotionClient(builder.build(), new ObjectMapper(),
+                new ConnectedServiceProperties.Notion("secret-token", "data-source-id", fields));
+
+        server.expect(requestTo("https://api.notion.com/v1/pages/page-id"))
+                .andExpect(method(HttpMethod.PATCH))
+                .andExpect(content().json("""
+                        {"properties":{"Release group MBID":{"rich_text":[{"text":{"content":"release-group-id"}}]},"Release MBID":{"rich_text":[{"text":{"content":"selected-release-id"}}]}}}
+                        """, false))
+                .andRespond(withSuccess("{\"id\":\"page-id\",\"last_edited_time\":\"2026-08-10T00:00:00.000Z\"}", MediaType.APPLICATION_JSON));
+
+        client.update("page-id", new NotionClient.Record("Kind of Blue", "Miles Davis", "", "애착 앨범", "So What", true,
+                "release-group-id", "selected-release-id", List.of("Miles Davis")));
 
         server.verify();
     }

@@ -37,6 +37,7 @@ test("keeps the selected-record and archive-confirmation workflow legible at rev
     owned: true,
     recordHandle: "notion-record-one",
     releaseGroupMbid: albumFixture.releaseGroupMbid,
+    releaseMbid: "release-one",
     sentiment: "Loved"
   };
   await routeConnectedWorkspace(page, { records: [record] });
@@ -46,7 +47,7 @@ test("keeps the selected-record and archive-confirmation workflow legible at rev
     await page.goto("/");
     await page.locator("#album-search").fill(albumFixture.title);
     await page.locator("form.search-row button").click();
-    await page.getByText(albumFixture.title, { exact: true }).first().click();
+    await page.locator(".candidate-row").filter({ hasText: albumFixture.title }).click();
     await expect(page.locator("#favourite-track-select")).toContainText(trackFixture.title);
     await page.getByRole("button", { name: "Notion 기록 갱신" }).click();
     await expect(page.getByRole("alertdialog")).toContainText("이 기록을 Notion에 저장할까요?");
@@ -79,6 +80,7 @@ test("keeps the restore confirmation visible before it can change a Notion recor
     owned: true,
     recordHandle: "notion-record-one",
     releaseGroupMbid: albumFixture.releaseGroupMbid,
+    releaseMbid: "release-one",
     sentiment: "Loved"
   };
   await routeConnectedWorkspace(page);
@@ -112,6 +114,7 @@ test("keeps a long Notion record list measured at review widths", async ({ page 
     owned: false,
     recordHandle: `notion-record-${index + 1}`,
     releaseGroupMbid: `release-group-${index + 1}`,
+    releaseMbid: `release-${index + 1}`,
     sentiment: "Loved"
   }));
   await routeConnectedWorkspace(page, { records: records.slice(0, 12) });

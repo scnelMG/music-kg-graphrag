@@ -10,14 +10,35 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.musickg.backend.config.ConnectedServiceProperties;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 class MusicBrainzClientTest {
+    @Test
+    void boundsDistinctPublicSearchQueriesInTheAlbumCache() throws Exception {
+        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz(
+                "music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1_000_000, "https://coverartarchive.org"));
+        server.expect(ExpectedCount.manyTimes(), request -> { })
+                .andRespond(withSuccess("{\"release-groups\":[]}", MediaType.APPLICATION_JSON));
+
+        for (int index = 0; index <= MusicBrainzClient.MAX_CATALOG_CACHE_ENTRIES; index++) {
+            client.search("distinct-query-" + index);
+        }
+
+        Field albumCache = MusicBrainzClient.class.getDeclaredField("albumCache");
+        albumCache.setAccessible(true);
+        assertThat((Map<?, ?>) albumCache.get(client)).hasSizeLessThanOrEqualTo(MusicBrainzClient.MAX_CATALOG_CACHE_ENTRIES);
+        server.verify();
+    }
+
     @Test
     void rejectsAnOverloadedLocalRateLimitQueueInsteadOfBlockingTheRequestThread() throws Exception {
         var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
@@ -32,7 +53,7 @@ class MusicBrainzClientTest {
     }
 
     @Test
-    void omitsCoverUrlWhenMusicBrainzDoesNotConfirmFrontArtwork() {
+    void leavesCoverUrlEmptyWhenMusicBrainzReportsNoFrontArtwork() {
         var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
         var server = MockRestServiceServer.bindTo(builder).build();
         var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
@@ -44,7 +65,12 @@ class MusicBrainzClientTest {
 
         var albums = client.search("No Front Art");
 
-        assertThat(albums).containsExactly(new MusicCatalogGateway.Album("f9b61a7e-0c86-4cc7-b94e-48d3b643c554", "No Front Art", "Artist", "", ""));
+        assertThat(albums).containsExactly(new MusicCatalogGateway.Album(
+                "f9b61a7e-0c86-4cc7-b94e-48d3b643c554",
+                "No Front Art",
+                "Artist",
+                "",
+                ""));
         server.verify();
     }
 
@@ -102,25 +128,27 @@ class MusicBrainzClientTest {
     }
 
     @Test
-    void returnsOnlyRecordingsFromTheRequestedReleaseGroup() {
+    void exposesAlbumAndEpMetadataAndRanksHigherScoredMatchesFirst() {
         var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
         var server = MockRestServiceServer.bindTo(builder).build();
         var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
-
-        server.expect(requestTo("https://musicbrainz.org/ws/2/release-group/release-group-id?inc=releases&fmt=json"))
-                .andExpect(method(HttpMethod.GET))
+        server.expect(requestTo("https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22%EC%88%98%EC%9E%94%22+OR+artist%3A%22%EC%88%98%EC%9E%94%22&fmt=json&limit=10"))
                 .andRespond(withSuccess("""
-                        {"releases":[{"id":"release-id"}]}
-                        """, MediaType.APPLICATION_JSON));
-        server.expect(requestTo("https://musicbrainz.org/ws/2/release/release-id?inc=recordings%2Bmedia&fmt=json"))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("""
-                        {"media":[{"tracks":[{"position":1,"recording":{"id":"recording-1","title":"Actual Track"}}]}]}
+                        {"release-groups":[
+                          {"id":"fuzzy-ep","title":"Somewhere Else","score":61,"primary-type":"EP","artist-credit":[{"name":"김사월"}]},
+                          {"id":"exact-album","title":"수잔","score":100,"primary-type":"Album","artist-credit":[{"name":"김사월"}]},
+                          {"id":"single","title":"수잔","score":100,"primary-type":"Single","artist-credit":[{"name":"김사월"}]}
+                        ]}
                         """, MediaType.APPLICATION_JSON));
 
-        var tracks = client.tracks("release-group-id");
+        var albums = client.search("수잔");
 
-        assertThat(tracks).containsExactly(new MusicCatalogGateway.Track("recording-1", "Actual Track", 1));
+        assertThat(albums).extracting(MusicCatalogGateway.Album::releaseGroupMbid)
+                .containsExactly("exact-album", "fuzzy-ep");
+        assertThat(albums).extracting(MusicCatalogGateway.Album::primaryType)
+                .containsExactly("Album", "EP");
+        assertThat(albums).extracting(MusicCatalogGateway.Album::searchScore)
+                .containsExactly(100, 61);
         server.verify();
     }
 
@@ -130,7 +158,7 @@ class MusicBrainzClientTest {
         var server = MockRestServiceServer.bindTo(builder).build();
         var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
 
-        server.expect(requestTo("https://musicbrainz.org/ws/2/release-group/release-group-id?inc=releases&fmt=json"))
+        server.expect(requestTo("https://musicbrainz.org/ws/2/release?release-group=release-group-id&limit=20&offset=0&fmt=json"))
                 .andRespond(withBadRequest());
         server.expect(requestTo("https://musicbrainz.org/ws/2/recording?query=rgid%3Arelease-group-id&fmt=json&limit=100"))
                 .andRespond(withSuccess("""

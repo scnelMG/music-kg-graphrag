@@ -1,6 +1,7 @@
 package org.musickg.backend.connected;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.musickg.backend.catalog.MusicCatalogGateway;
+import org.musickg.backend.catalog.MusicBrainzClient;
 import org.musickg.backend.notion.NotionClient;
 import org.musickg.backend.notion.PersonalMusicRecordGateway;
 
@@ -91,6 +93,61 @@ class ConnectedMusicServiceTest {
         assertThat(result.operation()).isEqualTo(ConnectedMusicService.SaveOperation.UPDATED);
         assertThat(result.notionPageId()).isEqualTo("page-1");
         assertThat(records.records()).hasSize(1);
+    }
+
+    @Test
+    void updatesTheExistingReleaseGroupRecordWithTheNewlyChosenReleaseEdition() {
+        var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
+                "page-1", "Existing Album", "Artist", "", "Loved", "Old track", false,
+                "release-group-id", "old-release-id", List.of("Artist"), Instant.EPOCH)));
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records);
+
+        var result = service.save(new ConnectedMusicService.RecordInput(
+                "release-group-id", "selected-release-id", "Existing Album", "Artist", "", "Loved", "New track", true,
+                List.of("Artist")));
+
+        assertThat(result.operation()).isEqualTo(ConnectedMusicService.SaveOperation.UPDATED);
+        assertThat(result.notionPageId()).isEqualTo("page-1");
+        assertThat(records.records()).singleElement().extracting(NotionClient.ExistingRecord::releaseMbid)
+                .isEqualTo("selected-release-id");
+    }
+
+    @Test
+    void rejectsAReleaseThatDoesNotBelongToTheSelectedReleaseGroupBeforeWritingToNotion() {
+        var records = new InMemoryRecords(List.of());
+        MusicCatalogGateway catalog = new InMemoryCatalog() {
+            @Override
+            public List<MusicCatalogGateway.Edition> editions(String releaseGroupMbid) {
+                return List.of(new MusicCatalogGateway.Edition(
+                        "allowed-release-id", releaseGroupMbid, "Existing Album", "2024-01-01", "KR", "Official", "", true));
+            }
+        };
+        var service = new ConnectedMusicService(catalog, records);
+
+        assertThatThrownBy(() -> service.save(new ConnectedMusicService.RecordInput(
+                "release-group-id", "foreign-release-id", "Existing Album", "Artist", "", "Loved", "New track", true,
+                List.of("Artist"))))
+                .isInstanceOf(MusicBrainzClient.CatalogAccessException.class)
+                .hasMessage("MUSICBRAINZ_RELEASE_NOT_IN_GROUP");
+
+        assertThat(records.records()).isEmpty();
+    }
+
+    @Test
+    void keepsGraphRecommendationsStableWhenOnlyTheSelectedReleaseEditionChanges() {
+        var original = new NotionClient.ExistingRecord(
+                "page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true,
+                "recorded-a", "original-release", List.of("Artist A"), Instant.EPOCH);
+        var remaster = new NotionClient.ExistingRecord(
+                "page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true,
+                "recorded-a", "remaster-release", List.of("Artist A"), Instant.EPOCH);
+
+        var originalRecommendations = new ConnectedMusicService(new InMemoryCatalog(), new InMemoryRecords(List.of(original)))
+                .personalInsights().graphTaste();
+        var remasterRecommendations = new ConnectedMusicService(new InMemoryCatalog(), new InMemoryRecords(List.of(remaster)))
+                .personalInsights().graphTaste();
+
+        assertThat(remasterRecommendations).isEqualTo(originalRecommendations);
     }
 
     @Test
@@ -211,6 +268,18 @@ class ConnectedMusicServiceTest {
         var tracks = service.tracks("release-group-id");
 
         assertThat(tracks).containsExactly(new MusicCatalogGateway.Track("recording-1", "Actual Track", 1));
+    }
+
+    @Test
+    void findsAnExistingRecordByReleaseGroupWithoutDependingOnTheLoadedRecordPage() {
+        var hiddenBeyondFirstPage = new NotionClient.ExistingRecord(
+                "page-13", "Later record", "Artist", "", "Loved", "Saved favourite", true,
+                "release-group-later", "release-later", List.of("Artist"), Instant.parse("2026-08-10T00:00:00Z"));
+        var service = new ConnectedMusicService(new InMemoryCatalog(), new InMemoryRecords(List.of(hiddenBeyondFirstPage)));
+
+        var found = service.recordByReleaseGroupMbid("release-group-later");
+
+        assertThat(found).contains(hiddenBeyondFirstPage);
     }
 
     @Test
@@ -382,13 +451,14 @@ class ConnectedMusicServiceTest {
     }
 
     @Test
-    void readsOnlyNotionChangesAfterThePrivateGraphHasBeenBootstrapped() {
+    void readsOnlyNotionChangesWhenTheOwnerExplicitlyRefreshesThePrivateGraph() {
         var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
                 "page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a")));
         var graph = new InMemoryPersonalGraphProjectionGateway();
         var service = new ConnectedMusicService(new InMemoryCatalog(), records, graph);
 
         service.discover();
+        service.refreshPersonalGraph();
         service.discover();
 
         assertThat(records.listCalls()).isEqualTo(1);
@@ -448,7 +518,11 @@ class ConnectedMusicServiceTest {
 
         @Override
         public List<Album> search(String albumTitle, String artist) {
-            return List.of(new Album("release-group-id", albumTitle, artist, "2024-01-01", "https:" + "//cover.example/album.jpg"));
+            return List.of(
+                    new Album("release-group-id", albumTitle, artist, "2024-01-01", "https:" + "//cover.example/album.jpg"),
+                    new Album("second-release-group", albumTitle, artist, "2024-01-01", "https:" + "//cover.example/album.jpg"),
+                    new Album("recorded-a", albumTitle, artist, "2024-01-01", "https:" + "//cover.example/album.jpg"),
+                    new Album("release-new", albumTitle, artist, "2024-01-01", "https:" + "//cover.example/album.jpg"));
         }
 
         @Override
@@ -456,6 +530,19 @@ class ConnectedMusicServiceTest {
             return List.of(
                     new Album("recorded-a", "Recorded A", artist, "2024-01-01", ""),
                     new Album("unrecorded", "Unrecorded Album", artist, "2025-01-01", ""));
+        }
+
+        @Override
+        public List<MusicCatalogGateway.Edition> editions(String releaseGroupMbid) {
+            return List.of(new MusicCatalogGateway.Edition(
+                    "selected-release-id", releaseGroupMbid, "Existing Album", "2024-01-01", "KR", "Official", "", true));
+        }
+
+        @Override
+        public List<MusicCatalogGateway.Track> tracks(String releaseGroupMbid, String releaseMbid) {
+            return List.of(
+                    new MusicCatalogGateway.Track("recording-1", "New track", 1),
+                    new MusicCatalogGateway.Track("recording-2", "Favourite", 2));
         }
     }
 
@@ -576,14 +663,14 @@ class ConnectedMusicServiceTest {
         @Override
         public NotionClient.SavedRecord create(NotionClient.Record record) {
             String pageId = "created-page";
-            values.add(new NotionClient.ExistingRecord(pageId, record.albumTitle(), record.artist(), record.coverUrl(), record.sentiment(), record.favouriteTrack(), record.owned(), record.releaseGroupMbid(), record.artistCredits()));
+            values.add(new NotionClient.ExistingRecord(pageId, record.albumTitle(), record.artist(), record.coverUrl(), record.sentiment(), record.favouriteTrack(), record.owned(), record.releaseGroupMbid(), record.releaseMbid(), record.artistCredits(), Instant.EPOCH));
             return new NotionClient.SavedRecord(pageId, Instant.parse("2026-08-10T00:00:00Z"));
         }
 
         @Override
         public NotionClient.SavedRecord update(String pageId, NotionClient.Record record) {
             values.removeIf(value -> value.pageId().equals(pageId));
-            values.add(new NotionClient.ExistingRecord(pageId, record.albumTitle(), record.artist(), record.coverUrl(), record.sentiment(), record.favouriteTrack(), record.owned(), record.releaseGroupMbid(), record.artistCredits()));
+            values.add(new NotionClient.ExistingRecord(pageId, record.albumTitle(), record.artist(), record.coverUrl(), record.sentiment(), record.favouriteTrack(), record.owned(), record.releaseGroupMbid(), record.releaseMbid(), record.artistCredits(), Instant.EPOCH));
             return new NotionClient.SavedRecord(pageId, Instant.parse("2026-08-10T00:00:00Z"));
         }
 

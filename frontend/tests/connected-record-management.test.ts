@@ -6,15 +6,28 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GET as getTracks } from "../app/api/music/albums/[releaseGroupMbid]/tracks/route";
 import { POST as restoreRecord } from "../app/api/music/records/[pageId]/restore/route";
 import { GET as getRecords, POST as saveRecord } from "../app/api/music/records/route";
+import { createOwnerSession } from "../lib/owner-session";
 import { issueRecordHandle } from "../lib/record-handle";
 
 const originalBackendBaseUrl = process.env.BACKEND_BASE_URL;
 const originalBackendSecret = process.env.BACKEND_BFF_SHARED_SECRET;
+const originalOwnerSetupToken = process.env.MUSIC_KG_OWNER_SETUP_TOKEN;
+const originalOwnerSessionSecret = process.env.MUSIC_KG_OWNER_SESSION_SECRET;
 const originalVercelEnvironment = process.env.VERCEL_ENV;
+
+function ownerHeaders(headers: Readonly<Record<string, string>> = {}): Record<string, string> {
+  process.env.MUSIC_KG_OWNER_SETUP_TOKEN = "test-owner-setup-token-that-is-long-enough";
+  process.env.MUSIC_KG_OWNER_SESSION_SECRET = "test-owner-session-secret-that-is-long-enough";
+  const session = createOwnerSession("test-owner-setup-token-that-is-long-enough");
+  if (session === null) throw new TypeError("Expected a signed owner session for the test request");
+  return { ...headers, cookie: `music_kg_owner_session=${session}` };
+}
 
 afterEach(() => {
   process.env.BACKEND_BASE_URL = originalBackendBaseUrl;
   process.env.BACKEND_BFF_SHARED_SECRET = originalBackendSecret;
+  process.env.MUSIC_KG_OWNER_SETUP_TOKEN = originalOwnerSetupToken;
+  process.env.MUSIC_KG_OWNER_SESSION_SECRET = originalOwnerSessionSecret;
   process.env.VERCEL_ENV = originalVercelEnvironment;
 });
 
@@ -34,16 +47,16 @@ async function withBackend(
 }
 
 describe("connected personal record BFF", () => {
-  it("returns only recording titles supplied by the selected real release group", async () => {
+  it("returns only recording titles supplied by the selected real edition", async () => {
     await withBackend((request, response) => {
-      expect(request.url).toBe("/api/v1/catalog/albums/release-group-id/tracks");
+      expect(request.url).toBe("/api/v1/catalog/albums/release-group-id/tracks?edition=release-id");
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify([{ recordingMbid: "recording-id", title: "Actual track", position: 1 }]));
     }, async (baseUrl) => {
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
 
-      const response = await getTracks(new NextRequest("http://localhost/api/music/albums/release-group-id/tracks"), {
+      const response = await getTracks(new NextRequest("http://localhost/api/music/albums/release-group-id/tracks?edition=release-id"), {
         params: Promise.resolve({ releaseGroupMbid: "release-group-id" })
       });
 
@@ -68,6 +81,7 @@ describe("connected personal record BFF", () => {
           owned: true,
           pageId: "notion-page-id",
           releaseGroupMbid: "release-group-id",
+          releaseMbid: "release-id",
           sentiment: "Loved"
         }]
       }));
@@ -75,7 +89,7 @@ describe("connected personal record BFF", () => {
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
 
-      const response = await getRecords(new NextRequest("http://localhost/api/music/records"));
+      const response = await getRecords(new NextRequest("http://localhost/api/music/records", { headers: ownerHeaders() }));
 
       expect(response.status).toBe(200);
       const body = await response.json();
@@ -95,7 +109,7 @@ describe("connected personal record BFF", () => {
 
     const response = await saveRecord(new NextRequest("http://localhost/api/music/records", {
       body: JSON.stringify({ albumTitle: "Collaborative album", artist: "Primary artist", artistCredits: ["Primary artist", "Collaborator"], coverUrl: "", favouriteTrack: "Actual track", owned: false, releaseGroupMbid: "release-group-id", sentiment: "Loved" }),
-      headers: { "content-type": "application/json" },
+      headers: ownerHeaders({ "content-type": "application/json" }),
       method: "POST"
     }));
 
@@ -103,13 +117,22 @@ describe("connected personal record BFF", () => {
     await expect(response.json()).resolves.toEqual({ code: "WRITE_CONFIRMATION_REQUIRED", retryable: false });
   });
 
-  it("forwards every selected artist credit when it saves a collaborative album", async () => {
+  it("forwards every selected artist credit and release edition when it saves a collaborative album", async () => {
     await withBackend((request, response) => {
       expect(request.url).toBe("/api/v1/listening-records");
       let body = "";
       request.on("data", (chunk: Buffer) => { body += chunk.toString("utf8"); });
       request.on("end", () => {
-        expect(JSON.parse(body).artistCredits).toEqual(["Primary artist", "Collaborator"]);
+        const savedRecord: unknown = JSON.parse(body);
+        expect(savedRecord).toMatchObject({
+          artistCredits: ["Primary artist", "Collaborator"],
+          releaseGroupMbid: "release-group-id",
+          releaseMbid: "release-id",
+          youtubeChannelTitle: "Primary artist official",
+          youtubeRecordingMbid: "recording-id",
+          youtubeVideoId: "dQw4w9WgXcQ",
+          youtubeVideoTitle: "Primary artist - Actual track"
+        });
         response.setHeader("content-type", "application/json");
         response.end(JSON.stringify({ notionLastEditedAt: "2026-08-11T00:00:00.000Z", notionPageId: "notion-page-id", operation: "CREATED" }));
       });
@@ -119,8 +142,8 @@ describe("connected personal record BFF", () => {
       process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
 
       const response = await saveRecord(new NextRequest("http://localhost/api/music/records", {
-        body: JSON.stringify({ albumTitle: "Collaborative album", artist: "Primary artist", artistCredits: ["Primary artist", "Collaborator"], coverUrl: "", favouriteTrack: "Actual track", owned: false, releaseGroupMbid: "release-group-id", sentiment: "Loved" }),
-        headers: { "content-type": "application/json", "x-music-kg-write-confirmed": "true" },
+        body: JSON.stringify({ albumTitle: "Collaborative album", artist: "Primary artist", artistCredits: ["Primary artist", "Collaborator"], coverUrl: "", favouriteTrack: "Actual track", owned: false, releaseGroupMbid: "release-group-id", releaseMbid: "release-id", sentiment: "Loved", youtubeChannelTitle: "Primary artist official", youtubeRecordingMbid: "recording-id", youtubeVideoId: "dQw4w9WgXcQ", youtubeVideoTitle: "Primary artist - Actual track" }),
+        headers: ownerHeaders({ "content-type": "application/json", "x-music-kg-write-confirmed": "true" }),
         method: "POST"
       }));
 
@@ -144,7 +167,7 @@ describe("connected personal record BFF", () => {
 
       const recordHandle = issueRecordHandle("notion-page-id", "test-only-secret");
       const response = await restoreRecord(
-        new NextRequest(`http://localhost/api/music/records/${recordHandle}/restore`, { method: "POST" }),
+        new NextRequest(`http://localhost/api/music/records/${recordHandle}/restore`, { headers: ownerHeaders(), method: "POST" }),
         { params: Promise.resolve({ pageId: recordHandle }) }
       );
 

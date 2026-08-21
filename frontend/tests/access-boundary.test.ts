@@ -34,12 +34,43 @@ describe("connected application routing boundary", () => {
     expect(response.status).toBe(404);
   });
 
-  it("rejects a personal record request without an owner session when the owner boundary is enabled", async () => {
-    vi.stubEnv("MUSIC_KG_OWNER_SESSION_REQUIRED", "true");
+  it("rejects a personal record request without an owner session when production is misconfigured fail-open", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_REQUIRED", "false");
     vi.stubEnv("MUSIC_KG_OWNER_SESSION_SECRET", "a-session-secret-that-is-long-enough");
     const { GET } = await import("../app/api/music/records/route");
 
     const response = await GET(new NextRequest("https://music.example.test/api/music/records"));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ code: "OWNER_SESSION_REQUIRED", retryable: false });
+  });
+
+  it("rejects an exact Notion record lookup without an owner session", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_REQUIRED", "false");
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_SECRET", "a-session-secret-that-is-long-enough");
+    const { GET } = await import("../app/api/music/records/by-release-group/[releaseGroupMbid]/route");
+
+    const response = await GET(
+      new NextRequest("https://music.example.test/api/music/records/by-release-group/release-group-id"),
+      { params: Promise.resolve({ releaseGroupMbid: "release-group-id" }) }
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ code: "OWNER_SESSION_REQUIRED", retryable: false });
+  });
+
+  it("rejects a public visitor's Notion write while leaving public archive reads configurable", async () => {
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_REQUIRED", "false");
+    vi.stubEnv("MUSIC_KG_OWNER_WRITE_SESSION_REQUIRED", "true");
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_SECRET", "a-session-secret-that-is-long-enough");
+    const { POST } = await import("../app/api/music/records/route");
+
+    const response = await POST(new NextRequest("https://music.example.test/api/music/records", {
+      body: JSON.stringify({}),
+      method: "POST"
+    }));
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ code: "OWNER_SESSION_REQUIRED", retryable: false });

@@ -2,20 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
+import { catalogAlbumSchema } from "../../../../lib/music-catalog-contract";
 
-const albumSchema = z.object({
-  artist: z.string().min(1),
-  artistCredits: z.array(z.string().min(1)).min(1),
-  coverUrl: z.string().url().or(z.literal("")),
-  firstReleaseDate: z.string(),
-  releaseGroupMbid: z.string().min(1),
-  title: z.string().min(1)
-});
+const publicCatalogCacheControl = "public, s-maxage=600, stale-while-revalidate=86400";
+const catalogQuerySchema = z.string().trim().min(1).max(200);
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-  if (q.length === 0) return NextResponse.json({ code: "MALFORMED_REQUEST", retryable: false }, { status: 400 });
-  const result = await callBackend("api/v1/catalog/albums", { searchParams: new URLSearchParams({ q }) });
+  const query = catalogQuerySchema.safeParse(request.nextUrl.searchParams.get("q"));
+  if (!query.success) return NextResponse.json({ code: "MALFORMED_REQUEST", retryable: false }, { status: 400 });
+  const result = await callBackend("api/v1/catalog/albums", { searchParams: new URLSearchParams({ q: query.data }) });
   if (result.kind === "handled") return result.response;
   let payload: unknown;
   try {
@@ -24,6 +19,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (error instanceof SyntaxError) return backendContractError();
     throw error;
   }
-  const albums = z.array(albumSchema).safeParse(payload);
-  return albums.success ? NextResponse.json({ albums: albums.data }) : backendContractError();
+  const albums = z.array(catalogAlbumSchema).safeParse(payload);
+  return albums.success
+    ? NextResponse.json({ albums: albums.data }, { headers: { "cache-control": publicCatalogCacheControl } })
+    : backendContractError();
 }

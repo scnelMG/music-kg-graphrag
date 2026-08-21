@@ -1,26 +1,42 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { NextRequest } from "next/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createOwnerSession } from "../lib/owner-session";
 import { GET as getCandidates } from "../app/api/fixture/candidates/route";
 import { GET as getHealth } from "../app/api/fixture/health/route";
 import { GET as getConnectedHealth } from "../app/api/music/health/route";
 import { GET as getAlbums } from "../app/api/music/albums/route";
+import { GET as getEditions } from "../app/api/music/albums/[releaseGroupMbid]/editions/route";
+import { GET as getTracks } from "../app/api/music/albums/[releaseGroupMbid]/tracks/route";
 import { GET as getTasteGraph } from "../app/api/music/graphrag/route";
 import { GET as getPersonalInsights } from "../app/api/music/insights/route";
 import { POST as postGroundedExplanation } from "../app/api/music/insights/explanation/route";
+import { GET as getRecordByReleaseGroup } from "../app/api/music/records/by-release-group/[releaseGroupMbid]/route";
 import { GET as getPersonalSync, POST as postPersonalSync } from "../app/api/music/sync/route";
 
 const originalBackendBaseUrl = process.env.BACKEND_BASE_URL;
 const originalBackendSecret = process.env.BACKEND_BFF_SHARED_SECRET;
+const originalOwnerSetupToken = process.env.MUSIC_KG_OWNER_SETUP_TOKEN;
+const originalOwnerSessionSecret = process.env.MUSIC_KG_OWNER_SESSION_SECRET;
 
 function personalRequest(path: string, method = "GET"): NextRequest {
-  return new NextRequest(`http://localhost${path}`, { method });
+  process.env.MUSIC_KG_OWNER_SETUP_TOKEN = "test-owner-setup-token-that-is-long-enough";
+  process.env.MUSIC_KG_OWNER_SESSION_SECRET = "test-owner-session-secret-that-is-long-enough";
+  const session = createOwnerSession("test-owner-setup-token-that-is-long-enough");
+  if (session === null) throw new TypeError("Expected a signed owner session for the test request");
+  return new NextRequest(`http://localhost${path}`, {
+    headers: { cookie: `music_kg_owner_session=${session}` },
+    method
+  });
 }
 
 afterEach(() => {
   process.env.BACKEND_BASE_URL = originalBackendBaseUrl;
   process.env.BACKEND_BFF_SHARED_SECRET = originalBackendSecret;
+  process.env.MUSIC_KG_OWNER_SETUP_TOKEN = originalOwnerSetupToken;
+  process.env.MUSIC_KG_OWNER_SESSION_SECRET = originalOwnerSessionSecret;
+  vi.unstubAllEnvs();
 });
 
 async function withBackend(
@@ -41,6 +57,294 @@ async function withBackend(
 }
 
 describe("fixture BFF backend integration", () => {
+  it("rejects an oversized public catalog query before it reaches the backend", async () => {
+    const response = await getAlbums(new NextRequest(`http://localhost/api/music/albums?q=${"a".repeat(201)}`));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ code: "MALFORMED_REQUEST", retryable: false });
+  });
+
+  it("returns one server-authoritative record even when it is outside the loaded client page", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/listening-records/by-release-group/release-group-later");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        albumTitle: "Later record",
+        artist: "Artist",
+        artistCredits: ["Artist"],
+        coverUrl: "",
+        favouriteTrack: "Saved favourite",
+        lastEditedAt: "2026-08-10T00:00:00.000Z",
+        owned: true,
+        pageId: "page-13",
+        releaseGroupMbid: "release-group-later",
+        releaseMbid: "release-later",
+        sentiment: "Loved",
+        youtubeChannelTitle: "Artist Official",
+        youtubeRecordingMbid: "recording-later",
+        youtubeVideoId: "dQw4w9WgXcQ",
+        youtubeVideoTitle: "Artist - Saved favourite (Official Audio)"
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getRecordByReleaseGroup(
+        personalRequest("/api/music/records/by-release-group/release-group-later"),
+        { params: Promise.resolve({ releaseGroupMbid: "release-group-later" }) }
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        record: {
+          favouriteTrack: "Saved favourite",
+          recordHandle: expect.any(String),
+          releaseMbid: "release-later",
+          sentiment: "Loved",
+          youtubeChannelTitle: "Artist Official",
+          youtubeRecordingMbid: "recording-later",
+          youtubeVideoId: "dQw4w9WgXcQ",
+          youtubeVideoTitle: "Artist - Saved favourite (Official Audio)"
+        }
+      });
+    });
+  });
+
+  it("rejects catalog albums without an Album or EP primary type", async () => {
+    // Given a backend catalog response that omits the required scope marker
+    await withBackend((_request, response) => {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([{
+        artist: "Artist",
+        artistCredits: ["Artist"],
+        coverUrl: "",
+        firstReleaseDate: "",
+        releaseGroupMbid: "release-group-id",
+        title: "Unscoped release"
+      }]));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      // When the public catalog boundary receives the unscoped item
+      const response = await getAlbums(new NextRequest("http://localhost/api/music/albums?q=Unscoped"));
+
+      // Then it rejects the backend contract rather than exposing the item.
+      expect(response.status).toBe(502);
+      await expect(response.json()).resolves.toEqual({ code: "BACKEND_CONTRACT_ERROR", retryable: false });
+    });
+  });
+
+  it("rejects catalog singles at the public album boundary", async () => {
+    await withBackend((_request, response) => {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([{
+        artist: "Artist",
+        artistCredits: ["Artist"],
+        coverUrl: "",
+        firstReleaseDate: "2020-01-01",
+        primaryType: "Single",
+        releaseGroupMbid: "release-group-id",
+        searchScore: 100,
+        title: "Single only"
+      }]));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getAlbums(new NextRequest("http://localhost/api/music/albums?q=Single"));
+
+      expect(response.status).toBe(502);
+      await expect(response.json()).resolves.toEqual({ code: "BACKEND_CONTRACT_ERROR", retryable: false });
+    });
+  });
+
+  it("rejects an edition that belongs to a different release group", async () => {
+    // Given a backend catalog response containing a cross-group edition
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/catalog/albums/release-group-id/editions");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        editions: [{
+          country: "KR",
+          disambiguation: "Original release",
+          recommended: true,
+          releaseDate: "2020-01-01",
+          releaseGroupMbid: "another-release-group",
+          releaseMbid: "release-id",
+          status: "Official",
+          title: "Different album"
+        }],
+        hasMore: false,
+        nextCursor: null
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      // When the path group and payload group disagree
+      const response = await getEditions(new NextRequest("http://localhost/api/music/albums/release-group-id/editions"), {
+        params: Promise.resolve({ releaseGroupMbid: "release-group-id" })
+      });
+
+      // Then the public boundary rejects the invalid association.
+      expect(response.status).toBe(502);
+      await expect(response.json()).resolves.toEqual({ code: "BACKEND_CONTRACT_ERROR", retryable: false });
+    });
+  });
+
+  it("caches a validated bounded public edition page", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/catalog/albums/release-group-id/editions");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        editions: [{
+          country: "KR",
+          disambiguation: "Original release",
+          recommended: true,
+          releaseDate: "2020-01-01",
+          releaseGroupMbid: "release-group-id",
+          releaseMbid: "release-id",
+          status: "Official",
+          title: "Album title"
+        }],
+        hasMore: true,
+        nextCursor: "20"
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getEditions(new NextRequest("http://localhost/api/music/albums/release-group-id/editions"), {
+        params: Promise.resolve({ releaseGroupMbid: "release-group-id" })
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("public, s-maxage=600, stale-while-revalidate=86400");
+      await expect(response.json()).resolves.toEqual({
+        editions: [expect.objectContaining({ recommended: true, releaseMbid: "release-id" })],
+        hasMore: true,
+        nextCursor: "20"
+      });
+    });
+  });
+
+  it("forwards one opaque edition cursor and keeps a high-count next page bounded", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/catalog/albums/release-group-id/editions?cursor=20");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        editions: [{
+          country: "JP",
+          disambiguation: "",
+          recommended: false,
+          releaseDate: "2024-01-01",
+          releaseGroupMbid: "release-group-id",
+          releaseMbid: "release-20",
+          status: "Official",
+          title: "Album title"
+        }],
+        hasMore: true,
+        nextCursor: "40"
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getEditions(new NextRequest("http://localhost/api/music/albums/release-group-id/editions?cursor=20"), {
+        params: Promise.resolve({ releaseGroupMbid: "release-group-id" })
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ hasMore: true, nextCursor: "40" });
+    });
+  });
+
+  it("rejects an edition cursor outside the Java integer domain before contacting the backend", async () => {
+    let requestCount = 0;
+    await withBackend((_request, response) => {
+      requestCount += 1;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ editions: [], hasMore: false, nextCursor: null }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getEditions(
+        new NextRequest("http://localhost/api/music/albums/release-group-id/editions?cursor=999999999999999999999"),
+        { params: Promise.resolve({ releaseGroupMbid: "release-group-id" }) }
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ code: "MALFORMED_REQUEST", retryable: false });
+      expect(requestCount).toBe(0);
+    });
+  });
+
+  it("requires exactly one nonblank edition before loading tracks", async () => {
+    let requestCount = 0;
+    // Given a configured backend that would otherwise return tracks
+    await withBackend((_request, response) => {
+      requestCount += 1;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([{ position: 1, recordingMbid: "recording-id", title: "Actual track" }]));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      // When the browser omits the selected edition
+      const response = await getTracks(new NextRequest("http://localhost/api/music/albums/release-group-id/tracks"), {
+        params: Promise.resolve({ releaseGroupMbid: "release-group-id" })
+      });
+
+      // Then it fails before making an ambiguous catalog request.
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ code: "MALFORMED_REQUEST", retryable: false });
+      expect(requestCount).toBe(0);
+    });
+  });
+
+  it("forwards only the selected edition to the catalog tracks endpoint", async () => {
+    // Given a valid selected edition
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/catalog/albums/release-group-id/tracks?edition=release-id");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([{ position: 1, recordingMbid: "recording-id", title: "Actual track" }]));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      // When the browser requests tracks for one selected edition
+      const response = await getTracks(new NextRequest("http://localhost/api/music/albums/release-group-id/tracks?edition=release-id"), {
+        params: Promise.resolve({ releaseGroupMbid: "release-group-id" })
+      });
+
+      // Then the BFF forwards only that catalog parameter.
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ tracks: [{ position: 1, recordingMbid: "recording-id", title: "Actual track" }] });
+    });
+  });
+
+  it("rejects unknown track query parameters", async () => {
+    let requestCount = 0;
+    await withBackend((_request, response) => {
+      requestCount += 1;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([]));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getTracks(new NextRequest("http://localhost/api/music/albums/release-group-id/tracks?edition=release-id&extra=value"), {
+        params: Promise.resolve({ releaseGroupMbid: "release-group-id" })
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ code: "MALFORMED_REQUEST", retryable: false });
+      expect(requestCount).toBe(0);
+    });
+  });
+
   it("forwards an explicit grounded explanation request without exposing the BFF secret", async () => {
     await withBackend((request, response) => {
       expect(request.url).toBe("/api/v1/personal-insights/explanation");
@@ -66,6 +370,22 @@ describe("fixture BFF backend integration", () => {
     });
   });
 
+  it("preserves an honest no-evidence explanation state instead of turning it into a backend failure", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/personal-insights/explanation");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ answer: "", citations: [], status: "NO_EVIDENCE" }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await postGroundedExplanation(personalRequest("/api/music/insights/explanation", "POST"));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ answer: "", citations: [], status: "NO_EVIDENCE" });
+    });
+  });
+
   it("preserves a real MusicBrainz result without confirmed front artwork", async () => {
     await withBackend((_request, response) => {
       response.setHeader("content-type", "application/json");
@@ -74,7 +394,9 @@ describe("fixture BFF backend integration", () => {
         artistCredits: ["Artist"],
         coverUrl: "",
         firstReleaseDate: "",
+        primaryType: "Album",
         releaseGroupMbid: "release-group-id",
+        searchScore: 100,
         title: "No Front Art"
       }]));
     }, async (baseUrl) => {
@@ -84,14 +406,36 @@ describe("fixture BFF backend integration", () => {
       const response = await getAlbums(new NextRequest("http://localhost/api/music/albums?q=No+Front+Art"));
 
       expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("public, s-maxage=600, stale-while-revalidate=86400");
       await expect(response.json()).resolves.toEqual({ albums: [{
         artist: "Artist",
         artistCredits: ["Artist"],
         coverUrl: "",
         firstReleaseDate: "",
+        primaryType: "Album",
         releaseGroupMbid: "release-group-id",
+        searchScore: 100,
         title: "No Front Art"
       }] });
+    });
+  });
+
+  it("caches validated public track metadata without placing personal routes in a shared cache", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/catalog/albums/release-group-id/tracks?edition=release-id");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify([{ position: 1, recordingMbid: "recording-id", title: "Actual track" }]));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getTracks(new NextRequest("http://localhost/api/music/albums/release-group-id/tracks?edition=release-id"), {
+        params: Promise.resolve({ releaseGroupMbid: "release-group-id" })
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("public, s-maxage=600, stale-while-revalidate=86400");
+      await expect(response.json()).resolves.toEqual({ tracks: [{ position: 1, recordingMbid: "recording-id", title: "Actual track" }] });
     });
   });
 
@@ -172,7 +516,7 @@ describe("fixture BFF backend integration", () => {
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
 
-      const response = await getPersonalInsights(personalRequest("/api/music/insights"));
+      const response = await getPersonalInsights(personalRequest("/api/music/insights?scope=owner"));
 
       expect(response.status).toBe(200);
       const body = await response.json();
@@ -191,12 +535,77 @@ describe("fixture BFF backend integration", () => {
     });
   });
 
-  it("proxies aggregate personal graph synchronization through the server-only BFF", async () => {
+  it("shows only curated discovery to a visitor and never exposes a recorded album", async () => {
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_REQUIRED", "true");
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_SECRET", "a-session-secret-that-is-long-enough");
+    await withBackend((_request, response) => {
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        graphTaste: {
+          evidencePageIds: ["private-notion-page-id"],
+          personalRecordCount: 1,
+          retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+          relisten: [{
+            artist: "Artist One",
+            coverUrl: "https://cover.example/recorded-album.jpg",
+            evidenceMethod: "PERSONAL_RECORD_RELISTEN",
+            evidencePageId: "private-notion-page-id",
+            favouriteTrack: "Track One",
+            owned: true,
+            releaseGroupMbid: "recorded-release-group",
+            title: "Recorded Album"
+          }],
+          recommendations: [{
+            artist: "Artist Two",
+            coverUrl: "https://cover.example/new-album.jpg",
+            evidenceMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+            evidencePaths: [{ recordPageId: "private-notion-page-id", relation: "SHARES_MUSICBRAINZ_TAG", value: "dream pop" }],
+            firstReleaseDate: "2025-01-01",
+            releaseGroupMbid: "new-release-group",
+            score: 1,
+            title: "New Album"
+          }],
+          seedArtist: "Artist One"
+        },
+        taste: {
+          artists: [{ count: 1, value: "Artist One" }],
+          favouriteTracks: [{ count: 1, value: "Track One" }],
+          recordCount: 1,
+          sentiments: [{ count: 1, value: "Loved" }]
+        }
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getPersonalInsights(new NextRequest("http://localhost/api/music/insights"));
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.graphTaste.recommendations[0].title).toBe("New Album");
+      expect(body.graphTaste.relisten).toEqual([]);
+      expect(body.graphTaste.personalRecordCount).toBeUndefined();
+      expect(body.graphTaste.retrievalMethod).toBeUndefined();
+      expect(body.graphTaste.seedArtist).toBeUndefined();
+      expect(body.graphTaste.recommendations[0].score).toBeUndefined();
+      expect(body.graphTaste.recommendations[0].evidenceMethod).toBeUndefined();
+      expect(body.graphTaste.recommendations[0].evidencePaths).toBeUndefined();
+      expect(body.taste).toBeUndefined();
+      expect(body.syncState).toBeUndefined();
+      expect(JSON.stringify(body)).not.toContain("Track One");
+      expect(JSON.stringify(body)).not.toContain("Recorded Album");
+      expect(JSON.stringify(body)).not.toContain("recorded-release-group");
+      expect(JSON.stringify(body)).not.toContain("recorded-album.jpg");
+      expect(JSON.stringify(body)).not.toContain("private-notion-page-id");
+    });
+  });
+
+  it("uses incremental synchronization by default and reserves reconciliation for an explicit request", async () => {
     let requestCount = 0;
     await withBackend((request, response) => {
       requestCount += 1;
       expect(request.method).toBe(requestCount === 1 ? "GET" : "POST");
-      expect(request.url).toBe(requestCount === 1 ? "/api/v1/personal-sync" : "/api/v1/personal-sync/reconcile");
+      expect(request.url).toBe(requestCount === 3 ? "/api/v1/personal-sync/reconcile" : "/api/v1/personal-sync");
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({
         changedRecordCount: 2,
@@ -210,9 +619,11 @@ describe("fixture BFF backend integration", () => {
 
       const status = await getPersonalSync(personalRequest("/api/music/sync"));
       const refreshed = await postPersonalSync(personalRequest("/api/music/sync", "POST"));
+      const reconciled = await postPersonalSync(personalRequest("/api/music/sync?mode=reconcile", "POST"));
 
       expect(status.status).toBe(200);
       expect(refreshed.status).toBe(200);
+      expect(reconciled.status).toBe(200);
       await expect(refreshed.json()).resolves.toMatchObject({
         changedRecordCount: 2,
         stale: false,
@@ -261,7 +672,7 @@ describe("fixture BFF backend integration", () => {
       process.env.BACKEND_BASE_URL = baseUrl;
       process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
 
-      const response = await getPersonalInsights(personalRequest("/api/music/insights"));
+      const response = await getPersonalInsights(personalRequest("/api/music/insights?scope=owner"));
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject({ taste: { recordCount: 1 } });

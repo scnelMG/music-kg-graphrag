@@ -10,6 +10,7 @@ foreach ($required in @(
         'ValidateSet\("fixture", "connected"\)',
         'CONNECTED_PRODUCTION_NOTION_WRITE_BLOCKED',
         'CONNECTED_SMOKE_CONFIGURATION_READY',
+        'NOTION_RELEASE_MBID_FIELD',
         'X-Music-Kg-Bff-Secret',
         '/api/v1/ready')) {
     if ($source -notmatch $required) { throw "CONNECTED_SMOKE_CONTRACT_MISSING: $required" }
@@ -29,6 +30,7 @@ try {
         'NOTION_FAVOURITE_TRACK_FIELD=Favourite track',
         'NOTION_OWNED_FIELD=Owned',
         'NOTION_RELEASE_GROUP_MBID_FIELD=MusicBrainz MBID',
+        'NOTION_RELEASE_MBID_FIELD=MusicBrainz Release MBID',
         'MUSICBRAINZ_USER_AGENT=music-kg-test/1.0 (test@example.invalid)',
         'MUSIC_KG_GRAPHDB_BASE_URL=http://127.0.0.1:7200',
         'MUSIC_KG_GRAPHDB_REPOSITORY=music-kg-personal',
@@ -39,6 +41,20 @@ try {
     $connected = & $powerShellExecutable -NoLogo -NoProfile -ExecutionPolicy Bypass -File $scriptPath -Mode connected -CheckOnly -EnvironmentPath $environmentPath
     if ($LASTEXITCODE -ne 0 -or $connected -notcontains "CONNECTED_SMOKE_CONFIGURATION_READY") {
         throw "CONNECTED_SMOKE_CHECK_ONLY_FAILED"
+    }
+    $missingReleaseMbidFieldEnvironmentPath = Join-Path $temporaryRoot ".env-missing-release-mbid-field"
+    Get-Content -LiteralPath $environmentPath | Where-Object { $_ -notmatch '^NOTION_RELEASE_MBID_FIELD=' } |
+        Set-Content -LiteralPath $missingReleaseMbidFieldEnvironmentPath -Encoding utf8
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $missingReleaseMbidField = & $powerShellExecutable -NoLogo -NoProfile -ExecutionPolicy Bypass -File $scriptPath -Mode connected -CheckOnly -EnvironmentPath $missingReleaseMbidFieldEnvironmentPath 2>&1
+        $missingReleaseMbidFieldExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($missingReleaseMbidFieldExitCode -eq 0 -or ($missingReleaseMbidField | Out-String) -notmatch 'CONNECTED_ENV_VALUE_REQUIRED: NOTION_RELEASE_MBID_FIELD') {
+        throw "CONNECTED_SMOKE_RELEASE_MBID_FIELD_GUARD_MISSING"
     }
     $fallbackEnvironmentPath = Join-Path $temporaryRoot ".env-generic-graphdb"
     Get-Content -LiteralPath $environmentPath | Where-Object { $_ -notmatch '^MUSIC_KG_GRAPHDB_' } |
@@ -68,3 +84,4 @@ try {
 }
 
 Write-Output "CONNECTED_SMOKE_SCRIPT_PASS"
+exit 0
