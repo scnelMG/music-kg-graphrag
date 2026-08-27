@@ -26,7 +26,7 @@ export function OwnerSessionForm(): React.JSX.Element {
       setSubmitting(false);
       return;
     }
-    window.location.assign("/");
+    window.location.assign("/owner/workspace");
   }
 
   return <form className="access-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>

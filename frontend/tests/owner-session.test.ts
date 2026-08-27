@@ -2,9 +2,11 @@ import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createOwnerSession, isOwnerSession, isOwnerWriteSession } from "../lib/owner-session";
+import { resetRateLimitsForTest } from "../lib/request-rate-limit";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  resetRateLimitsForTest();
 });
 
 describe("owner session", () => {
@@ -66,6 +68,26 @@ describe("owner session", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("set-cookie")).toContain("music_kg_owner_session=");
     expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+  });
+
+  it("slows repeated owner-token guesses from the same client", async () => {
+    vi.stubEnv("MUSIC_KG_OWNER_SETUP_TOKEN", "a-setup-token-that-is-long-enough");
+    vi.stubEnv("MUSIC_KG_OWNER_SESSION_SECRET", "a-session-secret-that-is-long-enough");
+    const { POST } = await import("../app/api/owner/session/route");
+    const headers = { "content-type": "application/json", "x-forwarded-for": "198.51.100.8" };
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await POST(new NextRequest("https://music.example.test/api/owner/session", {
+        body: JSON.stringify({ token: "wrong" }), headers, method: "POST"
+      }));
+      expect(response.status).toBe(401);
+    }
+
+    const blocked = await POST(new NextRequest("https://music.example.test/api/owner/session", {
+      body: JSON.stringify({ token: "wrong" }), headers, method: "POST"
+    }));
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("retry-after")).not.toBeNull();
   });
 
   it("reports whether the current request can access the personal workspace without revealing a secret", async () => {

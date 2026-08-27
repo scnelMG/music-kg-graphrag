@@ -22,7 +22,7 @@ test("Given insufficient personal history, when insight retrieval responds with 
     status: 409
   }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.locator("#album-search")).toBeEditable();
   await expect(page.locator(".insight-state")).toHaveCount(1);
@@ -37,7 +37,7 @@ test("Given an unavailable personal graph, when the workspace opens, then the re
     status: 503
   }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.locator(".insight-state")).toHaveCount(1);
   await expect(page.locator(".today-recommendation, .recommendation-note .discovery-entry")).toHaveCount(0);
@@ -50,7 +50,7 @@ test("Given a configuration or outage process, when the connected desk opens, th
   test.skip(!configurationFailure && !outage, "requires a real configured failure-mode process");
 
   const health = await request.get("/api/music/health");
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   expect(health.status()).toBe(503);
   await expect(page.locator("#album-search")).toBeEditable();

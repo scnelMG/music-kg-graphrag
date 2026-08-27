@@ -25,7 +25,7 @@ test("Given an owner verifies a YouTube candidate for a selected recording, when
     await route.fulfill({ body: JSON.stringify({ nextCursor: null, records: [] }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill(albumFixture.title);
   await page.locator("form.search-row button").click();
   await page.locator(".candidate-row").filter({ hasText: albumFixture.title }).click();
@@ -40,6 +40,9 @@ test("Given an owner verifies a YouTube candidate for a selected recording, when
 
   await page.getByRole("button", { name: "영상 확인" }).click();
   await expect(page.getByText("이 영상이 1. Track One과 같은 곡인가요?")).toBeVisible();
+  await expect(page.locator(".youtube-confirmation")).toHaveAttribute("aria-describedby", "youtube-confirmation-description");
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("youtube-candidate-confirmation.png"), fullPage: true });
   await page.getByRole("button", { name: "확인하고 이 곡에 연결" }).click();
   await expect(page.getByText("선택한 영상은 저장 후에도 이 곡에만 연결됩니다.")).toBeVisible();
   await expect(page.locator("iframe[title='YouTube 미리 듣기']")).toHaveCount(0);
@@ -86,7 +89,7 @@ test("Given two tracks with the same title, when the owner chooses the second tr
     await route.fulfill({ body: JSON.stringify({ nextCursor: null, records: [] }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill(albumFixture.title);
   await page.locator("form.search-row button").click();
   await page.locator(".candidate-row").filter({ hasText: albumFixture.title }).click();

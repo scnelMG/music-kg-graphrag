@@ -14,11 +14,12 @@ const apiErrorSchema = z.object({
 
 const retryableDependencyCodes = new Set([
   "GRAPHDB_UNAVAILABLE",
+  "ITUNES_RATE_LIMITED",
   "MUSICBRAINZ_RATE_LIMITED",
   "NOTION_RATE_LIMITED"
 ]);
 
-export const backendRequestTimeoutMilliseconds = 25_000;
+export const backendRequestTimeoutMilliseconds = 60_000;
 
 function clientErrorMessage(code: string): string {
   if (code === "INVALID_RATING") return "평점은 1에서 5 사이의 정수여야 합니다.";
@@ -40,12 +41,16 @@ type BackendPath =
 
 type ConnectedBackendPath =
   | "api/v1/catalog/albums"
+  | "api/v1/catalog/explore"
   | `api/v1/catalog/albums/${string}/editions`
   | `api/v1/catalog/albums/${string}/tracks`
+  | `api/v1/catalog/itunes/albums/${string}/tracks`
   | "api/v1/health"
   | "api/v1/ready"
   | "api/v1/listening-records"
   | "api/v1/listening-records/page"
+  | "api/v1/listening-records/by-catalog-identity"
+  | `api/v1/listening-records/by-release-group/${string}`
   | `api/v1/listening-records/${string}`
   | "api/v1/listening-records/form-options"
   | "api/v1/personal-insights"

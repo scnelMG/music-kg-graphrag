@@ -8,9 +8,11 @@ describe("connected music failure classification", () => {
     ["NOTION_CONNECTION_UNAUTHORIZED", "notion-unauthorized"],
     ["NOTION_RATE_LIMITED", "notion-rate-limited"],
     ["MUSICBRAINZ_RATE_LIMITED", "catalog-rate-limited"],
+    ["ITUNES_RATE_LIMITED", "catalog-rate-limited"],
     ["GRAPHDB_UNAVAILABLE", "personal-graph-unavailable"],
     ["INSUFFICIENT_PERSONAL_HISTORY", "insufficient-history"],
     ["OWNER_SESSION_REQUIRED", "owner-session-required"],
+    ["CATALOG_IDENTITY_CONFIGURATION_REQUIRED", "configuration"],
     ["BACKEND_CONFIGURATION_ERROR", "configuration"],
     ["BACKEND_UNAVAILABLE", "unavailable"]
   ] as const)("classifies %s without interpreting upstream details", (message, expected) => {

@@ -26,6 +26,14 @@ const providerResponseSchema = z.object({
 });
 
 const apiBaseUrlSchema = z.string().url().default("https://www.googleapis.com/youtube/v3/search");
+const productionYouTubeSearchUrl = "https://www.googleapis.com/youtube/v3/search";
+
+function configuredYouTubeSearchUrl(): string | null {
+  const configured = apiBaseUrlSchema.safeParse(process.env.YOUTUBE_DATA_API_BASE_URL);
+  if (!configured.success) return null;
+  if (process.env.NODE_ENV === "production" && configured.data !== productionYouTubeSearchUrl) return null;
+  return configured.data;
+}
 
 function comparable(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/[^\p{L}\p{N}]+/gu, "");
@@ -55,10 +63,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (apiKey === undefined || apiKey.trim().length === 0) {
     return NextResponse.json({ code: "YOUTUBE_CONFIGURATION_ERROR", retryable: false }, { status: 503 });
   }
-  const apiBaseUrl = apiBaseUrlSchema.safeParse(process.env.YOUTUBE_DATA_API_BASE_URL);
-  if (!apiBaseUrl.success) return NextResponse.json({ code: "YOUTUBE_CONFIGURATION_ERROR", retryable: false }, { status: 503 });
+  const apiBaseUrl = configuredYouTubeSearchUrl();
+  if (apiBaseUrl === null) return NextResponse.json({ code: "YOUTUBE_CONFIGURATION_ERROR", retryable: false }, { status: 503 });
   try {
-    const payload: unknown = await ky.get(apiBaseUrl.data, {
+    const payload: unknown = await ky.get(apiBaseUrl, {
       retry: 0,
       searchParams: {
         key: apiKey.trim(),

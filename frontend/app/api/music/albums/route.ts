@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
-import { sameOriginCoverUrl } from "../../../../lib/cover-art";
-import { catalogAlbumSchema } from "../../../../lib/music-catalog-contract";
+import { directCoverArtArchiveUrl } from "../../../../lib/cover-art";
+import { catalogAlbumSchema, type CatalogAlbum } from "../../../../lib/music-catalog-contract";
 
 const publicCatalogCacheControl = "public, s-maxage=600, stale-while-revalidate=86400";
 const catalogQuerySchema = z.string().trim().min(1).max(200);
+
+function directCatalogCoverUrl(album: CatalogAlbum): string {
+  switch (album.catalogSource) {
+    case "MUSICBRAINZ": return directCoverArtArchiveUrl(album.coverUrl, album.releaseGroupMbid);
+    case "ITUNES": return album.coverUrl;
+  }
+}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const query = catalogQuerySchema.safeParse(request.nextUrl.searchParams.get("q"));
@@ -25,7 +32,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ? NextResponse.json({
       albums: albums.data.map((album) => ({
         ...album,
-        coverUrl: sameOriginCoverUrl(album.coverUrl, album.releaseGroupMbid, request.url)
+        coverUrl: directCatalogCoverUrl(album)
       }))
     }, { headers: { "cache-control": publicCatalogCacheControl } })
     : backendContractError();

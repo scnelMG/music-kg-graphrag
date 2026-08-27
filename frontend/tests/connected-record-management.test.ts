@@ -82,6 +82,7 @@ describe("connected personal record BFF", () => {
           pageId: "notion-page-id",
           releaseGroupMbid: "release-group-id",
           releaseMbid: "release-id",
+          favouriteRecordingMbid: "recording-id",
           sentiment: "Loved"
         }]
       }));
@@ -99,6 +100,42 @@ describe("connected personal record BFF", () => {
       });
       expect(JSON.stringify(body)).not.toContain("notion-page-id");
       expect(body.records[0].recordHandle).toEqual(expect.any(String));
+    });
+  });
+
+  it("keeps an unnormalized historical record visible without fabricating a catalog identity", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/listening-records/page?limit=12");
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({
+        nextCursor: null,
+        records: [{
+          albumTitle: "Legacy album",
+          artist: "Legacy artist",
+          artistCredits: ["Legacy artist"],
+          catalogId: "",
+          catalogSource: "",
+          coverUrl: "",
+          favouriteTrack: "",
+          lastEditedAt: "2026-08-11T00:00:00.000Z",
+          owned: false,
+          pageId: "legacy-notion-page-id",
+          releaseGroupMbid: "",
+          releaseMbid: "",
+          sentiment: "Reflective"
+        }]
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
+
+      const response = await getRecords(new NextRequest("http://localhost/api/music/records", { headers: ownerHeaders() }));
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        nextCursor: null,
+        records: [{ albumTitle: "Legacy album", catalogId: "", catalogSource: "LEGACY" }]
+      });
     });
   });
 
@@ -142,7 +179,33 @@ describe("connected personal record BFF", () => {
       process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
 
       const response = await saveRecord(new NextRequest("http://localhost/api/music/records", {
-        body: JSON.stringify({ albumTitle: "Collaborative album", artist: "Primary artist", artistCredits: ["Primary artist", "Collaborator"], coverUrl: "", favouriteTrack: "Actual track", owned: false, releaseGroupMbid: "release-group-id", releaseMbid: "release-id", sentiment: "Loved", youtubeChannelTitle: "Primary artist official", youtubeRecordingMbid: "recording-id", youtubeVideoId: "dQw4w9WgXcQ", youtubeVideoTitle: "Primary artist - Actual track" }),
+        body: JSON.stringify({ albumTitle: "Collaborative album", artist: "Primary artist", artistCredits: ["Primary artist", "Collaborator"], coverUrl: "", favouriteTrack: "Actual track", favouriteRecordingMbid: "recording-id", owned: false, releaseGroupMbid: "release-group-id", releaseMbid: "release-id", sentiment: "Loved", youtubeChannelTitle: "Primary artist official", youtubeRecordingMbid: "recording-id", youtubeVideoId: "dQw4w9WgXcQ", youtubeVideoTitle: "Primary artist - Actual track" }),
+        headers: ownerHeaders({ "content-type": "application/json", "x-music-kg-write-confirmed": "true" }),
+        method: "POST"
+      }));
+
+      expect(response.status).toBe(201);
+    });
+  });
+
+  it("forwards an iTunes collection identity without fabricating MusicBrainz IDs", async () => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/listening-records");
+      let body = "";
+      request.on("data", (chunk: Buffer) => { body += chunk.toString("utf8"); });
+      request.on("end", () => {
+        const savedRecord: unknown = JSON.parse(body);
+        expect(savedRecord).toMatchObject({ catalogId: "123456789", catalogSource: "ITUNES", releaseGroupMbid: "", releaseMbid: "" });
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify({ notionLastEditedAt: "2026-08-11T00:00:00.000Z", notionPageId: "notion-page-id", operation: "CREATED" }));
+      });
+    }, async (baseUrl) => {
+      process.env.VERCEL_ENV = "production";
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
+
+      const response = await saveRecord(new NextRequest("http://localhost/api/music/records", {
+        body: JSON.stringify({ albumTitle: "새 음반", artist: "극동아시아타이거즈", artistCredits: ["극동아시아타이거즈"], coverUrl: "https://is1-ssl.mzstatic.com/image/thumb/Music/v4/artwork/100x100bb.jpg", favouriteTrack: "첫 곡", owned: false, releaseGroupMbid: "", releaseMbid: "", catalogSource: "ITUNES", catalogId: "123456789", sentiment: "Loved" }),
         headers: ownerHeaders({ "content-type": "application/json", "x-music-kg-write-confirmed": "true" }),
         method: "POST"
       }));

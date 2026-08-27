@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import { NextRequest } from "next/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GET } from "../app/api/music/youtube/candidates/route";
 import { createOwnerSession } from "../lib/owner-session";
@@ -24,6 +24,7 @@ afterEach(() => {
   process.env.YOUTUBE_DATA_API_BASE_URL = originalBaseUrl;
   process.env.MUSIC_KG_OWNER_SETUP_TOKEN = originalOwnerSetupToken;
   process.env.MUSIC_KG_OWNER_SESSION_SECRET = originalOwnerSessionSecret;
+  vi.unstubAllEnvs();
 });
 
 async function withYouTubeApi(
@@ -123,6 +124,20 @@ describe("verified YouTube candidate BFF", () => {
 
   it("fails closed when the server-only YouTube key is absent", async () => {
     delete process.env.YOUTUBE_DATA_API_KEY;
+
+    const response = await GET(new NextRequest(
+      "http://localhost/api/music/youtube/candidates?recordingMbid=recording-id&title=Track&artist=Artist",
+      { headers: ownerHeaders() }
+    ));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ code: "YOUTUBE_CONFIGURATION_ERROR", retryable: false });
+  });
+
+  it("rejects a production YouTube endpoint outside the Google allow-list before sending the API key", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.YOUTUBE_DATA_API_KEY = "test-server-only-key";
+    process.env.YOUTUBE_DATA_API_BASE_URL = "https://untrusted.example/youtube/v3/search";
 
     const response = await GET(new NextRequest(
       "http://localhost/api/music/youtube/candidates?recordingMbid=recording-id&title=Track&artist=Artist",

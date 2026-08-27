@@ -72,6 +72,9 @@ describe("fixture BFF backend integration", () => {
         albumTitle: "Later record",
         artist: "Artist",
         artistCredits: ["Artist"],
+        catalogId: "release-group-id",
+        catalogSource: "MUSICBRAINZ",
+        catalogUrl: "",
         coverUrl: "",
         favouriteTrack: "Saved favourite",
         lastEditedAt: "2026-08-10T00:00:00.000Z",
@@ -159,14 +162,14 @@ describe("fixture BFF backend integration", () => {
     });
   });
 
-  it("rewrites a Cover Art Archive catalog URL to the same-origin image route", async () => {
+  it("preserves a Cover Art Archive catalog URL for direct browser delivery", async () => {
     const releaseGroupMbid = "f9b61a7e-0c86-4cc7-b94e-48d3b643c554";
     await withBackend((_request, response) => {
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify([{
         artist: "Artist",
         artistCredits: ["Artist"],
-        coverUrl: `https://coverartarchive.org/release-group/${releaseGroupMbid}/front-250`,
+        coverUrl: `https://archive.example/api/music/covers/${releaseGroupMbid}`,
         firstReleaseDate: "2020-01-01",
         primaryType: "Album",
         releaseGroupMbid,
@@ -181,7 +184,7 @@ describe("fixture BFF backend integration", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({ albums: [expect.objectContaining({
-        coverUrl: `https://archive.example/api/music/covers/${releaseGroupMbid}`
+        coverUrl: `https://coverartarchive.org/release-group/${releaseGroupMbid}/front-250`
       })] });
     });
   });
@@ -437,6 +440,9 @@ describe("fixture BFF backend integration", () => {
       await expect(response.json()).resolves.toEqual({ albums: [{
         artist: "Artist",
         artistCredits: ["Artist"],
+        catalogId: "release-group-id",
+        catalogSource: "MUSICBRAINZ",
+        catalogUrl: "",
         coverUrl: "",
         firstReleaseDate: "",
         primaryType: "Album",
@@ -565,41 +571,23 @@ describe("fixture BFF backend integration", () => {
   it("shows only curated discovery to a visitor and never exposes a recorded album", async () => {
     vi.stubEnv("MUSIC_KG_OWNER_SESSION_REQUIRED", "true");
     vi.stubEnv("MUSIC_KG_OWNER_SESSION_SECRET", "a-session-secret-that-is-long-enough");
-    await withBackend((_request, response) => {
+    await withBackend((request, response) => {
+      expect(request.url).toBe("/api/v1/recommendations/discover");
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({
-        graphTaste: {
-          evidencePageIds: ["private-notion-page-id"],
-          personalRecordCount: 1,
-          retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
-          relisten: [{
-            artist: "Artist One",
-            coverUrl: "https://cover.example/recorded-album.jpg",
-            evidenceMethod: "PERSONAL_RECORD_RELISTEN",
-            evidencePageId: "private-notion-page-id",
-            favouriteTrack: "Track One",
-            owned: true,
-            releaseGroupMbid: "recorded-release-group",
-            title: "Recorded Album"
-          }],
-          recommendations: [{
-            artist: "Artist Two",
-            coverUrl: "https://coverartarchive.org/release-group/f9b61a7e-0c86-4cc7-b94e-48d3b643c554/front-250",
-            evidenceMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
-            evidencePaths: [{ recordPageId: "private-notion-page-id", relation: "SHARES_MUSICBRAINZ_TAG", value: "dream pop" }],
-            firstReleaseDate: "2025-01-01",
-            releaseGroupMbid: "f9b61a7e-0c86-4cc7-b94e-48d3b643c554",
-            score: 1,
-            title: "New Album"
-          }],
-          seedArtist: "Artist One"
-        },
-        taste: {
-          artists: [{ count: 1, value: "Artist One" }],
-          favouriteTracks: [{ count: 1, value: "Track One" }],
-          recordCount: 1,
-          sentiments: [{ count: 1, value: "Loved" }]
-        }
+        albums: [{
+          artist: "Artist Two",
+          artistCredits: ["Artist Two"],
+          coverUrl: "https://coverartarchive.org/release-group/f9b61a7e-0c86-4cc7-b94e-48d3b643c554/front-250",
+          evidenceMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+          evidencePaths: [{ relation: "SHARES_MUSICBRAINZ_TAG", value: "dream pop" }],
+          firstReleaseDate: "2025-01-01",
+          releaseGroupMbid: "f9b61a7e-0c86-4cc7-b94e-48d3b643c554",
+          score: 1,
+          title: "New Album"
+        }],
+        retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+        seedArtist: "Artist One"
       }));
     }, async (baseUrl) => {
       process.env.BACKEND_BASE_URL = baseUrl;
@@ -617,14 +605,10 @@ describe("fixture BFF backend integration", () => {
       expect(body.graphTaste.recommendations[0].score).toBeUndefined();
       expect(body.graphTaste.recommendations[0].evidenceMethod).toBeUndefined();
       expect(body.graphTaste.recommendations[0].evidencePaths).toBeUndefined();
-      expect(body.graphTaste.recommendations[0].coverUrl).toBe("http://localhost/api/music/covers/f9b61a7e-0c86-4cc7-b94e-48d3b643c554");
+      expect(body.graphTaste.recommendations[0].coverUrl).toBe("https://coverartarchive.org/release-group/f9b61a7e-0c86-4cc7-b94e-48d3b643c554/front-250");
       expect(body.taste).toBeUndefined();
       expect(body.syncState).toBeUndefined();
-      expect(JSON.stringify(body)).not.toContain("Track One");
-      expect(JSON.stringify(body)).not.toContain("Recorded Album");
-      expect(JSON.stringify(body)).not.toContain("recorded-release-group");
-      expect(JSON.stringify(body)).not.toContain("recorded-album.jpg");
-      expect(JSON.stringify(body)).not.toContain("private-notion-page-id");
+      expect(JSON.stringify(body)).not.toContain("Artist One");
     });
   });
 
@@ -842,6 +826,26 @@ describe("fixture BFF backend integration", () => {
       expect(response.status).toBe(503);
       await expect(response.json()).resolves.toEqual({
         code: "GRAPHDB_UNAVAILABLE",
+        message: "The music backend is temporarily unavailable.",
+        retryable: true
+      });
+    });
+  });
+
+  it("preserves an iTunes rate limit as a recoverable catalog failure", async () => {
+    await withBackend((_request, response) => {
+      response.statusCode = 503;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ code: "ITUNES_RATE_LIMITED", requestId: "backend-request" }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getAlbums(new NextRequest("http://localhost/api/music/albums?q=%EA%B7%B9%EB%8F%99"));
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        code: "ITUNES_RATE_LIMITED",
         message: "The music backend is temporarily unavailable.",
         retryable: true
       });

@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   }));
 });
 
-test("shows curated public discovery without exposing a recorded album or Notion writes", async ({ page }, testInfo) => {
+test("shows public discovery cards without exposing a recorded album or Notion writes", async ({ page }, testInfo) => {
   await routeConnectedWorkspace(page);
   await page.route("**/api/owner/session", (route) => route.fulfill({
     body: JSON.stringify({ owner: false }),
@@ -19,13 +19,11 @@ test("shows curated public discovery without exposing a recorded album or Notion
   }));
 
   await page.goto("/");
-  await expect(page.locator("#personal-insights")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "이 아카이브에서 발견한 앨범" })).toBeVisible();
+  await expect(page.getByTestId("public-discovery-deck")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "한 장씩 골라 보세요." })).toBeVisible();
   await expect(page.getByText("Album One", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Album Two", { exact: true })).toBeVisible();
-  const reasons = page.locator(".recommendation-reason");
-  await reasons.nth(0).locator("summary").click();
-  await expect(page.getByText("이 아카이브의 공개 추천에서 고른 앨범입니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("이 아카이브의 공개 추천에서 고른 앨범입니다.", { exact: true })).toHaveCount(0);
   await expect(page.getByText("추천 근거를 바탕으로 다시 들을 한 장을 골랐습니다.")).toHaveCount(0);
   await expect(page.locator(".record-list")).toHaveCount(0);
   await expect(page.getByText(/최애곡/)).toHaveCount(0);
@@ -37,7 +35,7 @@ test("shows curated public discovery without exposing a recorded album or Notion
   await page.locator(".candidate-row").filter({ hasText: "Album One" }).click();
   await page.locator(".edition-option").filter({ hasText: "2024-01-01" }).click();
   await expect(page.locator(".catalog-track-list")).toContainText("Track One");
-  await expect(page.getByRole("link", { name: "내 기록 열기" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "아카이브 관리" })).toBeVisible();
   await expect(page.locator("#favourite-track-select")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Notion/ })).toHaveCount(0);
   for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
@@ -54,7 +52,7 @@ test("shows the private archive and record controls only after owner authenticat
     recordHandle: "record-one", releaseGroupMbid: "release-group-one", releaseMbid: "release-one", sentiment: "Loved"
   }] });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.locator(".insight-region")).toBeVisible();
   await expect(page.locator(".record-list")).toBeVisible();
@@ -91,7 +89,7 @@ test("Given Korean Album and EP candidates, when the owner chooses a reissue, th
     return route.fulfill({ body: JSON.stringify({ notionLastEditedAt: "2026-08-15T00:00:00.000Z", operation: "CREATED" }), contentType: "application/json", status: 201 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill("김사월");
   await page.locator("form.search-row button").click();
   await expect(page.getByText("수잔", { exact: true })).toBeVisible();
@@ -161,7 +159,7 @@ test("Given visible personal recommendations, when an incremental refresh fails,
     });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await expect(page.getByText("Album Two", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "새로 고침" }).click();
@@ -197,7 +195,7 @@ test("Given a settled personal workspace, when the owner refreshes recommendatio
     });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await expect(page.getByText("Album Two", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "새로 고침" }).click();
@@ -209,7 +207,7 @@ test("Given a settled personal workspace, when the owner refreshes recommendatio
 test("shows one primary relisten and keeps technical recommendation details closed by default", async ({ page }) => {
   await routeConnectedWorkspace(page);
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.getByRole("heading", { name: "오늘 다시 들을 앨범" })).toBeVisible();
   await expect(page.getByText("GraphRAG", { exact: false })).toHaveCount(0);
@@ -229,7 +227,7 @@ test("Given graph-backed recommendations, when the listener explicitly requests 
     status: 200
   }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.getByText("추천을 문장으로 보기", { exact: true }).click();
   await expect(page.getByRole("button", { name: "설명 만들기" })).toBeVisible();
   await page.getByRole("button", { name: "설명 만들기" }).click();
@@ -251,7 +249,7 @@ test("Given a synchronized personal graph, when the listener requests a refresh,
     });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator(".insight-heading .insight-refresh").click();
 
   await expect.poll(() => syncRequests).toBe(1);
@@ -259,7 +257,7 @@ test("Given a synchronized personal graph, when the listener requests a refresh,
 
 test("offers a keyboard skip link to the listening workspace", async ({ page }) => {
   await routeConnectedWorkspace(page);
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await page.keyboard.press("Tab");
   await expect(page.locator(".skip-link")).toBeFocused();
@@ -318,7 +316,7 @@ test("shows recorded relistens before new MusicBrainz discoveries with their dis
     status: 200
   }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   const today = page.locator(".today-recommendation");
   const recommendation = page.locator(".recommendation-note");
@@ -367,20 +365,20 @@ test("keeps the connected personal-insights workspace legible at every supported
 
   for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
-    await page.goto("/");
+    await page.goto("/owner/workspace");
     await expect(page.locator(".today-recommendation")).toContainText("Recorded Album");
     await expect(page.locator("html")).toHaveJSProperty("scrollWidth", viewport.width);
     await page.screenshot({ path: testInfo.outputPath(`connected-music-insights-${viewport.width}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.locator("#album-search").focus();
   await expect(page.locator("#album-search")).toBeFocused();
   await page.waitForTimeout(250);
   await page.screenshot({ path: testInfo.outputPath("connected-music-focus-375.png") });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.keyboard.press("Tab");
   await expect(page.locator(".skip-link")).toBeFocused();
   await page.screenshot({ path: testInfo.outputPath("connected-music-skip-focus-375.png") });
@@ -396,7 +394,7 @@ test("loads actual MusicBrainz tracks before a listener can choose a favourite t
   await page.route("**/api/music/albums/release-group-id/editions", (route) => route.fulfill({ body: JSON.stringify({ editions: [{ country: "US", disambiguation: "", recommended: true, releaseDate: "2024-01-01", releaseGroupMbid: "release-group-id", releaseMbid: "release-id", status: "Official", title: "Selected Album" }], hasMore: false, nextCursor: null }), contentType: "application/json", status: 200 }));
   await page.route("**/api/music/albums/release-group-id/tracks*", (route) => route.fulfill({ body: JSON.stringify({ tracks: [{ position: 1, recordingMbid: "recording-id", title: "Actual Track" }] }), contentType: "application/json", status: 200 }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill("Selected Album");
   await page.locator("form.search-row button").click();
   await page.getByText("Selected Album", { exact: true }).click();
@@ -416,7 +414,7 @@ test("prefills an existing Notion record and makes its update explicit when the 
   await page.route("**/api/music/albums/recorded-release-group/editions*", (route) => route.fulfill({ body: JSON.stringify({ editions: [{ country: "US", disambiguation: "", recommended: true, releaseDate: "2024-01-01", releaseGroupMbid: "recorded-release-group", releaseMbid: "recorded-release", status: "Official", title: "Recorded Album" }], hasMore: false, nextCursor: null }), contentType: "application/json", status: 200 }));
   await page.route("**/api/music/albums/recorded-release-group/tracks*", (route) => route.fulfill({ body: JSON.stringify({ tracks: [{ position: 1, recordingMbid: "existing-track", title: "Existing Track" }] }), contentType: "application/json", status: 200 }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill("Recorded Album");
   await page.locator("form.search-row button").click();
   const recordedCandidate = page.locator(".candidate-row").filter({ hasText: "Recorded Album" });
@@ -472,7 +470,7 @@ test("Given the owner record snapshot is delayed, when the same album is found, 
     } }), contentType: "application/json", status: 200
   }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill("Album One");
   await page.locator("form.search-row button").click();
   const candidate = page.locator(".candidate-row").filter({ hasText: "Album One" });

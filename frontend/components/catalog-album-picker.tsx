@@ -1,6 +1,7 @@
 "use client";
 
 import type { CatalogAlbum, CatalogEdition, CatalogTrack } from "../lib/music-catalog-contract";
+import { catalogTypeLabel } from "../lib/catalog-display";
 
 import { AlbumArt } from "./album-art";
 
@@ -42,6 +43,7 @@ export function CatalogAlbumPicker({
   trackState,
   tracks
 }: CatalogAlbumPickerProps): React.JSX.Element {
+  const isITunesAlbum = selectedAlbum?.catalogSource === "ITUNES";
   return <section className="catalog-album-detail" aria-live="polite">
     <p className="section-kicker">선택한 음반</p>
     {selectedAlbum === null
@@ -49,9 +51,9 @@ export function CatalogAlbumPicker({
       : <>
         <header className="catalog-selection-heading">
           <AlbumArt album={selectedAlbum} />
-          <div><h3>{selectedAlbum.title}</h3><p>{selectedAlbum.artist} · {selectedAlbum.primaryType}</p></div>
+          <div><h3>{selectedAlbum.title}</h3><p>{selectedAlbum.artist} · {catalogTypeLabel(selectedAlbum.primaryType)}</p></div>
         </header>
-        <fieldset className="edition-picker" disabled={editionState === "loading"}>
+        {!isITunesAlbum && <fieldset className="edition-picker" disabled={editionState === "loading"}>
           <legend>발매판 선택</legend>
           <p className="edition-picker-description"><span>추천 판본을 먼저 보여드려요.</span><span>다른 판본도 직접 고를 수 있어요.</span></p>
           {editionState === "loading" && <p>발매판을 불러오는 중입니다.</p>}
@@ -72,10 +74,10 @@ export function CatalogAlbumPicker({
           {editionState === "ready" && hasMoreEditions && <button className="edition-more" type="button" disabled={loadingMoreEditions} onClick={onLoadMoreEditions}>
             {loadingMoreEditions ? "더 불러오는 중" : editionMessage.length > 0 ? "발매판 다시 불러오기" : "발매판 더 보기"}
           </button>}
-        </fieldset>
+        </fieldset>}
         <section className="catalog-tracks" aria-labelledby="catalog-tracks-heading">
-          <p className="section-kicker">수록곡</p><h4 id="catalog-tracks-heading">{selectedEdition === null ? "발매판을 고르면 수록곡을 확인합니다." : selectedEdition.title}</h4>
-          {trackState === "idle" && selectedEdition !== null && <p>선택한 발매판의 실제 수록곡을 준비합니다.</p>}
+          <p className="section-kicker">수록곡</p><h4 id="catalog-tracks-heading">{isITunesAlbum ? selectedAlbum.title : selectedEdition === null ? "발매판을 고르면 수록곡을 확인합니다." : selectedEdition.title}</h4>
+          {trackState === "idle" && (isITunesAlbum || selectedEdition !== null) && <p>선택한 음반의 수록곡을 준비합니다.</p>}
           {trackState === "loading" && <p>수록곡을 불러오는 중입니다.</p>}
           {trackState === "error" && <p className="notice error" role="status">{trackMessage}</p>}
           {trackState === "empty" && <p>{trackMessage}</p>}

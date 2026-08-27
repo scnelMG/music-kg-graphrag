@@ -31,7 +31,7 @@ test("Given a duplicate exists after the first twelve records, when its album is
   });
   await routeConnectedWorkspace(page, { records });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill("Album One");
   await page.locator("form.search-row button").click();
   await page.locator(".candidate-row").filter({ hasText: "Album One" }).click();
@@ -77,7 +77,7 @@ test("Given an older lookup is slow, when another album is selected, then the st
     } }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill("Album");
   await page.locator("form.search-row button").click();
   await page.locator(".candidate-row").filter({ hasText: "Album One" }).click();
@@ -131,7 +131,7 @@ test("Given owner access and records are unresolved, when an album is found, the
     });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill("Album One");
   await page.locator("form.search-row button").click();
   const candidate = page.locator(".candidate-row").filter({ hasText: "Album One" });

@@ -19,8 +19,8 @@ export function PersonalCoverRail({ onSelectRecord, records }: PersonalCoverRail
       <span>{records.length}개 기록</span>
     </div>
     <div className={`cover-rail-scroller${records.length === 1 ? " is-single" : ""}`} role="list">
-      {records.slice(0, 7).map((record) => <div key={record.recordHandle} role="listitem"><button className={`cover-rail-item${records.length === 1 ? " is-single" : ""}`} type="button" onClick={() => onSelectRecord(record)} aria-label={`${record.albumTitle} 기록 수정`}>
-        <AlbumArt album={record} size="cover-rail" />
+      {records.slice(0, 7).map((record, index) => <div className="cover-rail-list-item" key={record.recordHandle} role="listitem"><button className={`cover-rail-item${records.length === 1 ? " is-single" : ""}`} type="button" onClick={() => onSelectRecord(record)} aria-label={`${record.albumTitle} 기록 수정`}>
+        <AlbumArt album={record} priority={index < 4} size="cover-rail" />
         <span className="cover-rail-copy"><strong>{record.albumTitle}</strong><small>{record.artistCredits.join(", ")}</small></span>
         <ArrowUpRight size={16} weight="bold" aria-hidden="true" />
       </button></div>)}

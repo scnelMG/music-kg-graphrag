@@ -56,9 +56,9 @@ export function YouTubeCandidatePicker({
       <div><strong>{candidate.title}</strong><span>{candidate.channelTitle}</span></div>
       <div className="youtube-candidate-actions"><a href={videoUrl(candidate.videoId)} rel="noreferrer" target="_blank">YouTube에서 확인</a><button className="record-edit" type="button" onClick={() => setCandidateToConfirm(candidate)}>영상 확인</button></div>
     </article>)}</div>}
-    {candidateToConfirm !== null && <section className="youtube-confirmation" role="alertdialog" aria-labelledby="youtube-confirmation-title">
+    {candidateToConfirm !== null && <section className="youtube-confirmation" aria-labelledby="youtube-confirmation-title" aria-describedby="youtube-confirmation-description">
       <strong id="youtube-confirmation-title">이 영상이 {track.position}. {track.title}과 같은 곡인가요?</strong>
-      <p>{candidateToConfirm.title} · {candidateToConfirm.channelTitle}</p>
+      <p id="youtube-confirmation-description">{candidateToConfirm.title} · {candidateToConfirm.channelTitle}</p>
       <div><button className="record-edit" type="button" onClick={() => setCandidateToConfirm(null)}>연결하지 않기</button><button className="save-button" type="button" onClick={() => { onConfirmCandidate(candidateToConfirm); setCandidateToConfirm(null); }}>확인하고 이 곡에 연결</button></div>
     </section>}
     {selectedVideo !== null && <div className="youtube-selected" role="status"><strong>{selectedVideo.title}</strong><span>{selectedVideo.channelTitle}</span><p>선택한 영상은 저장 후에도 이 곡에만 연결됩니다.</p><YouTubePlayback video={selectedVideo} /></div>}

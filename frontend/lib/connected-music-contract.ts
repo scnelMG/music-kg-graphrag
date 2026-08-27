@@ -1,9 +1,11 @@
 import { z } from "zod";
 
 import { connectedMusicFailureKind } from "./connected-music-failure";
-import { catalogAlbumSchema, catalogEditionPageSchema, catalogTrackSchema } from "./music-catalog-contract";
+import { catalogAlbumSchema, catalogEditionPageSchema, catalogIdentity, catalogTrackSchema, type CatalogAlbum } from "./music-catalog-contract";
 
-export const albumsSchema = z.object({ albums: z.array(catalogAlbumSchema) });
+export type AlbumsPayload = Readonly<{ readonly albums: readonly CatalogAlbum[] }>;
+
+export const albumsSchema: z.ZodType<AlbumsPayload, z.ZodTypeDef, unknown> = z.object({ albums: z.array(catalogAlbumSchema) });
 export const editionsPageSchema = catalogEditionPageSchema;
 export const tracksSchema = z.object({ tracks: z.array(catalogTrackSchema) });
 export const ownerSessionSchema = z.object({ owner: z.boolean(), writeOwner: z.boolean().optional() }).transform((value) => ({
@@ -27,12 +29,37 @@ export const existingRecordSchema = z.object({
   releaseGroupMbid: z.string(),
   releaseMbid: z.string(),
   sentiment: z.string(),
+  catalogSource: z.enum(["LEGACY", "MUSICBRAINZ", "ITUNES"]).optional(),
+  catalogId: z.string().optional(),
   youtubeChannelTitle: z.string().optional(),
   youtubeRecordingMbid: z.string().optional(),
   youtubeVideoId: z.string().optional(),
   youtubeVideoTitle: z.string().optional()
+}).superRefine((record, context) => {
+  const source = record.catalogSource ?? (record.releaseGroupMbid.length > 0 ? "MUSICBRAINZ" : "LEGACY");
+  switch (source) {
+    case "MUSICBRAINZ":
+      if (record.releaseGroupMbid.length === 0 || (record.catalogId !== undefined && record.catalogId !== record.releaseGroupMbid)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "MusicBrainz records require their release-group identity." });
+      }
+      return;
+    case "ITUNES":
+      if (record.releaseGroupMbid.length > 0 || record.releaseMbid.length > 0 || record.catalogId === undefined || !/^[0-9]+$/.test(record.catalogId)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "iTunes records require a collection identity without MusicBrainz IDs." });
+      }
+      return;
+    case "LEGACY":
+      if (record.releaseGroupMbid.length > 0 || record.releaseMbid.length > 0 || (record.catalogId !== undefined && record.catalogId.length > 0)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Legacy records cannot claim a partial catalog identity." });
+      }
+      return;
+    default:
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Records require a supported catalog identity." });
+  }
 }).transform((record) => ({
   ...record,
+  catalogId: record.catalogSource === "ITUNES" ? record.catalogId ?? "" : record.releaseGroupMbid,
+  catalogSource: record.catalogSource ?? (record.releaseGroupMbid.length > 0 ? "MUSICBRAINZ" : "LEGACY"),
   youtubeChannelTitle: record.youtubeChannelTitle ?? "",
   youtubeRecordingMbid: record.youtubeRecordingMbid ?? "",
   youtubeVideoId: record.youtubeVideoId ?? "",
@@ -45,6 +72,7 @@ export const recordsSchema = z.object({
 });
 const recommendationAlbumSchema = z.object({
   artist: z.string().min(1),
+  artistCredits: z.array(z.string().min(1)).min(1).optional(),
   coverUrl: z.string().url().or(z.literal("")),
   evidenceMethod: z.enum(["PERSONAL_EVIDENCE_GRAPH_TRAVERSAL", "PERSISTENT_GRAPHDB_PERSONAL_EVIDENCE_RETRIEVAL"]).optional(),
   evidencePaths: z.array(z.object({
@@ -52,9 +80,16 @@ const recommendationAlbumSchema = z.object({
     value: z.string().min(1)
   })).optional(),
   firstReleaseDate: z.string(),
+  primaryType: z.enum(["Album", "EP"]).optional(),
+  publicCurationReason: z.enum(["same-artist", "shared-tag"]).optional(),
   releaseGroupMbid: z.string(),
+  sharedMusicBrainzTag: z.string().min(1).optional(),
   title: z.string().min(1)
-});
+}).transform((album) => ({
+  ...album,
+  artistCredits: album.artistCredits ?? [album.artist],
+  primaryType: album.primaryType ?? "Album"
+}));
 const graphTastePayloadSchema = z.object({
   relisten: z.array(z.object({
     artist: z.string().min(1),
@@ -108,18 +143,20 @@ export type OwnerAccess = "checking" | "owner" | "visitor";
 export type RecordState = "error" | "loading" | "ready";
 export type RecordLookupState = "error" | "idle" | "loading" | "ready";
 export type SaveState = "error" | "idle" | "saving" | "success";
-export type SearchState = "empty" | "error" | "idle" | "loading" | "results";
+export type SearchState = "empty" | "error" | "guidance" | "idle" | "loading" | "results";
 export type SyncState = z.infer<typeof syncStateSchema>;
 export type Track = z.infer<typeof catalogTrackSchema>;
 export type TrackState = "empty" | "error" | "idle" | "loading" | "ready";
 
 type ExistingRecordWithOptionalYouTube = Omit<ExistingRecord,
-  "youtubeChannelTitle" | "youtubeRecordingMbid" | "youtubeVideoId" | "youtubeVideoTitle"> & Partial<Pick<ExistingRecord,
-  "youtubeChannelTitle" | "youtubeRecordingMbid" | "youtubeVideoId" | "youtubeVideoTitle">>;
+  "catalogId" | "catalogSource" | "youtubeChannelTitle" | "youtubeRecordingMbid" | "youtubeVideoId" | "youtubeVideoTitle"> & Partial<Pick<ExistingRecord,
+  "catalogId" | "catalogSource" | "youtubeChannelTitle" | "youtubeRecordingMbid" | "youtubeVideoId" | "youtubeVideoTitle">>;
 
 export function normalizeExistingRecord(record: ExistingRecordWithOptionalYouTube): ExistingRecord {
   return {
     ...record,
+    catalogId: record.catalogId ?? record.releaseGroupMbid,
+  catalogSource: record.catalogSource ?? (record.releaseGroupMbid.length > 0 ? "MUSICBRAINZ" : "LEGACY"),
     youtubeChannelTitle: record.youtubeChannelTitle ?? "",
     youtubeRecordingMbid: record.youtubeRecordingMbid ?? "",
     youtubeVideoId: record.youtubeVideoId ?? "",
@@ -142,8 +179,6 @@ export function failureText(failure: Readonly<{ code?: string; message: string }
 }
 
 export function existingRecordFor(album: Album, records: readonly ExistingRecord[]): ExistingRecord | undefined {
-  return records.find((record) => record.releaseGroupMbid === album.releaseGroupMbid
-    || (record.releaseGroupMbid.length === 0
-      && record.albumTitle.trim().toLowerCase() === album.title.trim().toLowerCase()
-      && record.artist.trim().toLowerCase() === album.artist.trim().toLowerCase()));
+  const identity = catalogIdentity(album);
+  return records.find((record) => record.catalogSource !== "LEGACY" && `${record.catalogSource}:${record.catalogId}` === identity);
 }
