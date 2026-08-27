@@ -2,7 +2,7 @@
 
 import ky from "ky";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { isKoreanConsonantOnly } from "../lib/catalog-display";
 import type { CatalogAlbum, CatalogEdition, CatalogTrack } from "../lib/music-catalog-contract";
@@ -12,6 +12,7 @@ import type { CatalogEditionState } from "./catalog-album-picker";
 
 type PublicSearchState = "empty" | "error" | "guidance" | "idle" | "loading" | "results";
 type PublicTrackState = "empty" | "error" | "idle" | "loading" | "ready";
+const maxCatalogQueryLength = 200;
 
 function publicFailureText(failure: Readonly<{ code?: string }>): string {
   return failure.code === "MUSICBRAINZ_RATE_LIMITED" || failure.code === "ITUNES_RATE_LIMITED"
@@ -41,11 +42,12 @@ export function usePublicCatalogWorkflow() {
   const requestGeneration = useRef(0);
   const editionGeneration = useRef(0);
   const trackGeneration = useRef(0);
+  const searchAbortController = useRef<AbortController | null>(null);
   const executedSearchQuery = useRef<string | null>(null);
   const observedSearchQuery = useRef<string | null>(null);
   const pendingUrlQuery = useRef<string | null>(null);
 
-  function resetSelection(): void {
+  const resetSelection = useCallback((): void => {
     editionGeneration.current += 1;
     trackGeneration.current += 1;
     setSelected(null);
@@ -59,7 +61,16 @@ export function usePublicCatalogWorkflow() {
     setTracks([]);
     setTrackState("idle");
     setTrackMessage("");
-  }
+  }, []);
+
+  const showQueryLengthGuidance = useCallback((): void => {
+    searchAbortController.current?.abort();
+    requestGeneration.current += 1;
+    setAlbums([]);
+    resetSelection();
+    setSearchMessage(`검색어는 ${maxCatalogQueryLength}자 이하로 입력해 주세요.`);
+    setSearchState("guidance");
+  }, [resetSelection]);
 
   async function loadTracks(album: CatalogAlbum, edition: CatalogEdition | null): Promise<void> {
     const generation = trackGeneration.current + 1;
@@ -165,9 +176,13 @@ export function usePublicCatalogWorkflow() {
     void loadTracks(selected, edition);
   }
 
-  async function search(nextQuery = query.trim()): Promise<void> {
+  const search = useCallback((nextQuery: string): (() => void) | undefined => {
     const normalizedQuery = nextQuery.trim();
     if (normalizedQuery.length === 0) return;
+    if (normalizedQuery.length > maxCatalogQueryLength) {
+      showQueryLengthGuidance();
+      return;
+    }
     const generation = requestGeneration.current + 1;
     requestGeneration.current = generation;
     executedSearchQuery.current = normalizedQuery;
@@ -178,34 +193,47 @@ export function usePublicCatalogWorkflow() {
       setSearchState("guidance");
       return;
     }
+    searchAbortController.current?.abort();
+    const abortController = new AbortController();
+    searchAbortController.current = abortController;
     setSearchState("loading");
     setAlbums([]);
     resetSelection();
-    const outcome = await requestBff(publicBffGet("/api/music/albums", {
-      searchParams: { q: normalizedQuery }
-    }), publicAlbumsSchema);
-    if (generation !== requestGeneration.current) return;
-    if (outcome.kind === "failure") {
-      setSearchState("error");
-      setSearchMessage(publicFailureText(outcome));
-      return;
-    }
-    setAlbums(outcome.value.albums);
-    setSearchState(outcome.value.albums.length === 0 ? "empty" : "results");
-  }
+    void requestBff(publicBffGet("/api/music/albums", {
+      searchParams: { q: normalizedQuery },
+      signal: abortController.signal
+    }), publicAlbumsSchema).then((outcome) => {
+      if (abortController.signal.aborted || generation !== requestGeneration.current) return;
+      if (outcome.kind === "failure") {
+        setSearchState("error");
+        setSearchMessage(publicFailureText(outcome));
+        return;
+      }
+      setAlbums(outcome.value.albums);
+      setSearchState(outcome.value.albums.length === 0 ? "empty" : "results");
+    }).finally(() => {
+      if (searchAbortController.current === abortController) searchAbortController.current = null;
+    });
+    return () => abortController.abort();
+  }, [resetSelection, showQueryLengthGuidance]);
 
   function submitSearch(): void {
     const normalizedQuery = query.trim();
     if (normalizedQuery.length === 0) return;
+    if (normalizedQuery.length > maxCatalogQueryLength) {
+      showQueryLengthGuidance();
+      return;
+    }
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.set("q", normalizedQuery);
     pendingUrlQuery.current = normalizedQuery;
     router.replace(`${pathname}?${nextParams.toString()}`, { scroll: false });
-    void search(normalizedQuery);
+    search(normalizedQuery);
   }
 
   function clearSearch(): void {
     requestGeneration.current += 1;
+    searchAbortController.current?.abort();
     executedSearchQuery.current = null;
     setQuery("");
     setAlbums([]);
@@ -224,7 +252,7 @@ export function usePublicCatalogWorkflow() {
     nextParams.set("q", example);
     pendingUrlQuery.current = example;
     router.replace(`${pathname}?${nextParams.toString()}`, { scroll: false });
-    void search(example);
+    search(example);
   }
 
   useEffect(() => {
@@ -237,8 +265,13 @@ export function usePublicCatalogWorkflow() {
     observedSearchQuery.current = sharedQuery;
     if (sharedQuery.length === 0 || executedSearchQuery.current === sharedQuery) return;
     setQuery(sharedQuery);
-    void search(sharedQuery);
-  }, [searchParams]);
+    const cancelSearch = search(sharedQuery);
+    return () => {
+      cancelSearch?.();
+      if (observedSearchQuery.current === sharedQuery) observedSearchQuery.current = null;
+      if (executedSearchQuery.current === sharedQuery) executedSearchQuery.current = null;
+    };
+  }, [search, searchParams]);
 
   return { albums, editionMessage, editionState, editions, hasMoreEditions, loadingMoreEditions,
     pathname, query, searchMessage, searchState, selected, selectedEdition, selectionReady: true,

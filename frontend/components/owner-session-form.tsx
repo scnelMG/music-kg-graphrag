@@ -17,16 +17,19 @@ export function OwnerSessionForm(): React.JSX.Element {
     if (token.trim().length === 0 || submitting) return;
     setSubmitting(true);
     setMessage("");
-    const outcome = await requestBff(
-      ky.post("/api/owner/session", { json: { token: token.trim() }, throwHttpErrors: false }),
-      sessionSchema
-    );
-    if (outcome.kind === "failure") {
-      setMessage("소유자 확인에 실패했습니다. 설정한 토큰을 다시 확인해 주세요.");
+    try {
+      const outcome = await requestBff(
+        ky.post("/api/owner/session", { json: { token: token.trim() }, throwHttpErrors: false }),
+        sessionSchema
+      );
+      if (outcome.kind === "failure") {
+        setMessage("소유자 확인에 실패했습니다. 설정한 토큰을 다시 확인해 주세요.");
+        return;
+      }
+      window.location.assign("/owner/workspace");
+    } finally {
       setSubmitting(false);
-      return;
     }
-    window.location.assign("/owner/workspace");
   }
 
   return <form className="access-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>

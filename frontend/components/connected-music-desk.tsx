@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Album, ExistingRecord } from "../lib/connected-music-contract";
 import { catalogIdentity } from "../lib/music-catalog-contract";
 import { ArchiveMasthead } from "./archive-masthead";
+import { ArchiveNavigation } from "./archive-navigation";
 import { ListeningRecordSection } from "./listening-record-section";
 import { MusicCatalogSection } from "./music-catalog-section";
 import { MusicInsightsPanel } from "./music-insights-panel";
@@ -65,7 +66,8 @@ export function ConnectedMusicDesk(): React.JSX.Element {
 
   if (workspace.ownerAccess === "visitor") {
     return <><a className="skip-link" href="#main-content">본문으로 건너뛰기</a><main className="music-journal access-page" id="main-content" tabIndex={-1}>
-      <section className="access-sheet" aria-live="polite"><p className="section-kicker">개인 기록 관리</p><h1>개인 기록을 열 수 없습니다.</h1><p className="instruction">소유자 확인 후 개인 기록을 관리할 수 있습니다.</p><Link className="owner-access-link" href="/owner">소유자 확인으로 돌아가기</Link></section>
+      <ArchiveNavigation mode="service" />
+      <section className="access-sheet access-denied" aria-live="polite"><div className="access-copy"><p className="section-kicker">개인 기록 관리</p><h1>개인 기록에 접근할 수 없습니다</h1><p className="instruction">소유자 확인을 다시 마치면 개인 기록을 열 수 있습니다.</p></div><Link className="owner-access-link" href="/owner">소유자 확인</Link></section>
     </main></>;
   }
 

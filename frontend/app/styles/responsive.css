@@ -1,0 +1,123 @@
+@media (max-width: 56.25rem) {
+  .music-journal { padding-inline: var(--space-6); }
+  .masthead-composition { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+  .masthead-meta { text-align: left; }
+  .owner-workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: "insights" "work"; }
+  .genre-actions,
+  .genre-collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .public-workspace { padding-top: var(--space-16); }
+  .access-sheet { gap: var(--space-10); }
+}
+
+@media (max-width: 47.9375rem) {
+  .masthead-composition { padding: var(--space-16) 0 var(--space-14); }
+  .journal-header h1 { max-width: 9ch; font-size: var(--type-display-tablet); }
+  .discovery-card { grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--space-8); }
+  .public-discovery-skeleton { grid-template-columns: minmax(0, 1fr); }
+  .public-discovery-skeleton > p { grid-column: 1; margin: 0; }
+  .discovery-card .album-art-hero { width: min(100%, 25rem); }
+  .discovery-card-copy h3 { max-width: none; }
+  .deck-actions,
+  .deck-keyboard-hint { width: 100%; }
+  .genre-actions,
+  .genre-collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .candidate-collection,
+  .edition-list,
+  .record-list-grid { grid-template-columns: minmax(0, 1fr); }
+  .access-sheet { grid-template-columns: minmax(0, 1fr); min-height: auto; }
+  .access-sheet h1 { max-width: 8ch; }
+  .field-grid,
+  .save-record { grid-template-columns: minmax(0, 1fr); }
+  .archive-footer { align-items: flex-start; flex-direction: column; gap: var(--space-5); }
+  .archive-footer nav { justify-content: flex-start; }
+}
+
+@media (max-width: 39.9375rem) {
+  .music-journal { padding: var(--space-4) var(--space-5) var(--space-14); }
+  .archive-navigation { min-height: 4rem; }
+  .archive-navigation-links { gap: var(--space-4); }
+  .archive-navigation-links > :nth-child(-n+2) { display: none; }
+  .masthead-composition { padding: var(--space-14) 0 var(--space-12); }
+  .journal-header h1 { font-size: var(--type-display-mobile); }
+  .journal-intro { font-size: var(--type-body); }
+  .public-discovery-home { gap: var(--space-12); padding-bottom: var(--space-14); }
+  .public-discovery-heading { align-items: start; }
+  .public-discovery-heading h2 { max-width: 12ch; }
+  .discovery-stage-frame,
+  .discovery-card,
+  .deck-finish { min-height: 37rem; }
+  .discovery-card { padding: var(--space-5); }
+  .public-discovery-skeleton,
+  .public-discovery-unavailable { min-height: 37rem; padding: var(--space-5); }
+  .discovery-card .album-art-hero { width: min(100%, 18rem); }
+  .discovery-card-copy h3 { font-size: var(--type-discovery-title-mobile); }
+  .discovery-card-copy .public-reason { margin-top: var(--space-3); }
+  .discovery-open { width: 100%; }
+  .deck-actions { margin-top: var(--space-4); }
+  .public-explore-fallback,
+  .genre-collection { padding: var(--space-6); }
+  .genre-actions,
+  .genre-collection-grid { grid-template-columns: minmax(0, 1fr); }
+  .genre-actions button,
+  .genre-option { min-height: 6rem; }
+  .public-workspace { padding-top: var(--space-14); }
+  .search-row { grid-template-columns: minmax(0, 1fr); }
+  .search-row button { width: 100%; }
+  .candidate-row { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .candidate-actions { grid-template-columns: auto 1fr; align-items: center; justify-items: start; }
+  .selection-label { justify-self: end; }
+  .catalog-album-detail { padding: var(--space-5); }
+  .catalog-selection-heading { align-items: flex-start; }
+  .access-page { align-items: start; }
+  .access-sheet { padding: var(--space-8) var(--space-5); background: transparent; }
+  .access-sheet h1 { max-width: 7ch; font-size: var(--type-access-title-mobile); }
+  .access-form { padding: var(--space-5); }
+  .task-navigation { margin-bottom: var(--space-8); }
+  .personal-cover-rail { padding: var(--space-5); }
+  .cover-rail-scroller { grid-auto-columns: 7.5rem; margin-right: calc(var(--space-5) * -1); padding-right: var(--space-5); }
+  .cover-rail-scroller.is-single { grid-auto-columns: minmax(0, 1fr); margin-right: 0; padding-right: 0; }
+  .cover-rail-item.is-single { grid-template-columns: 7.5rem minmax(0, 1fr); }
+  .cover-rail-item.is-single .album-art-cover-rail { width: 7.5rem; height: 7.5rem; }
+  .today-recommendation { grid-template-columns: 7.75rem minmax(0, 1fr); gap: var(--space-4); }
+  .today-recommendation-copy strong { font-size: var(--type-subsection); }
+  .record-entry { grid-template-columns: auto minmax(0, 1fr); }
+  .record-actions,
+  .archive-confirmation { grid-column: 1 / -1; flex-direction: row; }
+  .youtube-candidate { grid-template-columns: minmax(0, 1fr); }
+  .service-page-header h1 { max-width: 9ch; }
+  .service-page-content { grid-template-columns: minmax(0, 1fr); }
+  .service-page-content section:first-child { grid-column: 1; }
+  .service-page-content section { padding: var(--space-6) 0 var(--space-8); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  a,
+  .candidate-row,
+  .cover-rail-item .album-art {
+    transition:
+      color var(--motion-state),
+      background-color var(--motion-state),
+      border-color var(--motion-state),
+      box-shadow var(--motion-state),
+      opacity var(--motion-state),
+      transform var(--motion-press);
+  }
+
+  .discovery-card > .album-art,
+  .discovery-card > .discovery-card-copy { transition: opacity var(--motion-state), transform var(--motion-state); }
+  .discovery-skeleton-cover,
+  .discovery-skeleton-copy span { animation: editorial-loading-pulse 1.6s ease-in-out infinite; }
+  .cover-rail-item:hover .album-art { transform: translateY(-.125rem); }
+  button:active:not(:disabled) { transform: scale(.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}

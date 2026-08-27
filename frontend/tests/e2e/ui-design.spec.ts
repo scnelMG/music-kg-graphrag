@@ -95,7 +95,10 @@ test("Given a visitor, when the archive home opens, then private archive content
   }));
   for (const viewport of visitorViewports) {
     await page.setViewportSize({ height: viewport.height, width: viewport.width });
-    await page.goto("/");
+  await page.goto("/");
+
+  await expect(page.getByRole("navigation", { name: "주요 탐색" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "오늘, 다시 들을 한 장" })).toBeVisible();
 
     await expect(page.getByTestId("personal-cover-rail")).toHaveCount(0);
     await expect(page.getByTestId("public-discovery-deck")).toHaveCount(1);
@@ -118,6 +121,9 @@ test("Given a typed private-insights configuration failure, when the connected w
   }));
 
   await page.goto("/owner/workspace");
+
+  await expect(page.getByRole("navigation", { name: "주요 탐색" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "나의 음악 기록" })).toBeVisible();
 
   await expect(page.locator("#album-search")).toBeEditable();
   await expect(page.locator("form.search-row button")).toBeEnabled();

@@ -54,18 +54,18 @@ export function MusicCatalogSection(props: MusicCatalogSectionProps): React.JSX.
         {props.searchState === "guidance" && <div className="search-recovery" role="status"><p>{props.searchMessage}</p><button type="button" onClick={props.onClearSearch}>입력 지우기</button></div>}
         {props.searchState === "empty" && <div className="search-recovery" role="status"><p>일치하는 앨범을 찾지 못했습니다. 표기나 가수명을 바꿔 다시 검색해 보세요.</p><div><button type="button" onClick={props.onClearSearch}>입력 지우기</button><button type="button" onClick={() => props.onSearchExample("Kind of Blue")}>Kind of Blue 검색</button></div></div>}
         {props.searchState === "error" && <p className="result-message">{props.searchMessage}</p>}
-        {props.albums.map((album) => {
+        {props.albums.length > 0 && <div className="candidate-collection">{props.albums.map((album) => {
           const identity = catalogIdentity(album);
           const priority = album.coverUrl.length > 0 && prioritizedCoverCount++ < 3;
           const action = props.ownerAccess === "owner" && !props.selectionReady
             ? "기록 확인 중"
-            : props.writeAccess ? "기록 열기" : "수록곡 보기";
+            : props.writeAccess ? "기록 열기" : "열기";
           const recorded = props.ownerAccess === "owner" && props.recordedCatalogIdentities.has(identity);
           return <button className={`candidate-row${props.selected === null || catalogIdentity(props.selected) !== identity ? "" : " selected"}`} type="button" disabled={!props.selectionReady} key={identity} onClick={() => props.onSelectAlbum(album)} aria-pressed={props.selected !== null && catalogIdentity(props.selected) === identity}>
             <span className="candidate-main"><AlbumArt album={album} priority={priority} /><span><strong>{album.title}</strong><small>{album.artist}{album.firstReleaseDate.length > 0 && <> · <time className="release-date" dateTime={album.firstReleaseDate}>{album.firstReleaseDate}</time></>}</small></span></span>
             <span className="candidate-actions"><small className="catalog-type">{catalogTypeLabel(album.primaryType)}</small>{recorded && <small className="recorded-label">기록 있음</small>}<span className="selection-label"><ArrowRight size={16} weight="bold" aria-hidden="true" />{action}</span></span>
           </button>;
-        })}
+        })}</div>}
       </div>}
     </section>
     {props.selected !== null && <CatalogAlbumPicker editionMessage={props.editionMessage} editionState={props.editionState} editions={props.editions}

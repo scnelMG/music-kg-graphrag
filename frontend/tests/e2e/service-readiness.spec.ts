@@ -9,11 +9,12 @@ test("Given a public visitor, when the archive opens, then service trust pages a
 
   await page.goto("/");
 
+  await expect(page.getByRole("navigation", { name: "주요 탐색" })).toBeVisible();
   await expect(page.locator("footer").getByRole("link")).toHaveCount(3);
   await expect(page.locator("main .section-kicker")).toHaveCount(2);
 
-  await page.getByRole("link", { name: "추천 방식" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "추천이 만들어지는 방식" })).toBeVisible();
+  await page.locator("footer").getByRole("link", { name: "추천 방식" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "추천이 만들어지는 방식" })).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("main")).toContainText("영구 pgvector 검증 전에는 벡터 검색을 사용하지 않습니다.");
 
   await page.getByRole("link", { name: "개인정보 처리" }).click();

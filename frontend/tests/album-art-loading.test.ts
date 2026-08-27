@@ -13,7 +13,8 @@ describe("AlbumArt loading state", () => {
       album: { coverUrl: "https://coverartarchive.org/release-group/example/front-250", title: "Kind of Blue" }
     }));
 
-    expect(markup).toContain("표지 불러오는 중");
+    expect(markup).toContain("불러오는 중");
+    expect(markup).not.toContain("표지 불러오는 중");
     expect(markup).toContain("album-art-image is-loading");
   });
 

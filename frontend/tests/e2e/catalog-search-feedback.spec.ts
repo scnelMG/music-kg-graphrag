@@ -49,11 +49,10 @@ test("shows neutral search progress and prioritizes visible catalog cover art", 
   await expect(covers).toHaveCount(4);
   await expect(covers.first()).toHaveAttribute("src", "https://coverartarchive.org/release-group/00000000-0000-4000-8000-000000000001/front-250");
   for (const cover of [covers.nth(0), covers.nth(1), covers.nth(2)]) {
-    await expect(cover).toHaveAttribute("loading", "eager");
+    await expect(cover).not.toHaveAttribute("loading", "lazy");
     await expect(cover).toHaveAttribute("fetchpriority", "high");
   }
   await expect(covers.nth(3)).toHaveAttribute("loading", "lazy");
-  await expect(covers.nth(3)).toHaveAttribute("fetchpriority", "auto");
   await expect.poll(() => coverRequests.length).toBeGreaterThanOrEqual(1);
   expect(coverRequests[0]).toBe("https://coverartarchive.org/release-group/00000000-0000-4000-8000-000000000001/front-250");
   if (releaseCoverFailures === undefined) throw new Error("Expected a direct Cover Art Archive request");

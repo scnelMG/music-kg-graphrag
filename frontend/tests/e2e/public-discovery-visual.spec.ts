@@ -36,7 +36,7 @@ test("captures the public discovery deck, liked state, recovery, focus, and redu
   for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/");
-    await expect(page.locator("main")).not.toContainText("실제 앨범");
+    await expect(page.getByTestId("public-discovery-deck")).not.toContainText("실제 앨범");
     await expect(page.locator(".discovery-card img")).toHaveAttribute("src", factualCoverUrl);
     await expect.poll(() => page.locator(".discovery-card img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
     await expect(page.locator("body")).toHaveCSS("font-family", /Malgun Gothic/);
@@ -70,7 +70,7 @@ test("captures the public empty-curation recovery and Korean consonant guidance"
   await routePublicDiscovery(page, []);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  await expect(page.locator(".public-explore-fallback")).toBeVisible();
+  await expect(page.locator(".genre-collection")).toBeVisible();
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-empty-genre-375.png") });
   await page.locator("#album-search").fill("ㅇㄴㄹ");
   await page.locator("form.search-row button").click();

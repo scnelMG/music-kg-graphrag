@@ -19,7 +19,8 @@ export function AlbumArt({ album, priority = false, size = "row" }: { readonly a
   const prioritized = priority || size === "hero";
   const loading = loadedCoverUrl !== album.coverUrl;
   return <span className={className} aria-busy={loading}>
-    {loading && <span className="album-art-status" role="status">표지 불러오는 중</span>}
-    <Image className={`album-art-image${loading ? " is-loading" : ""}`} src={album.coverUrl} alt={`${title} 앨범 커버`} width={dimension} height={dimension} priority={prioritized} unoptimized onLoad={() => setLoadedCoverUrl(album.coverUrl)} onError={() => setFailedCoverUrl(album.coverUrl)} />
+    {loading && <span className="album-art-status" role="status">불러오는 중</span>}
+    <Image className={`album-art-image${loading ? " is-loading" : ""}`} src={album.coverUrl} alt={`${title} 앨범 커버`} width={dimension} height={dimension}
+      fetchPriority={prioritized ? "high" : "auto"} priority={prioritized} unoptimized onLoad={() => setLoadedCoverUrl(album.coverUrl)} onError={() => setFailedCoverUrl(album.coverUrl)} />
   </span>;
 }

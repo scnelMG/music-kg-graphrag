@@ -5,7 +5,7 @@ import { routeConnectedWorkspace } from "./connected-workspace-fixtures";
 test("Given personal listening evidence, when the workspace opens, then relistens precede new graph-supported discoveries", async ({ page }) => {
   await routeConnectedWorkspace(page);
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   const rows = page.locator(".today-recommendation, .recommendation-note .discovery-entry");
   await expect(rows).toHaveCount(2);
