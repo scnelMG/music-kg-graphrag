@@ -1,19 +1,19 @@
-# Music Knowledge Graph & GraphRAG
+# 근거 중심 개인 음악 아카이브
 
 ![Java](https://img.shields.io/badge/Java-Spring%20Boot-6DB33F?logo=springboot&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-Data%20Pipeline-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)
 ![GraphDB](https://img.shields.io/badge/GraphDB-RDF%20%7C%20SPARQL-0F766E)
 
-한국어 음악 기록을 위한 개인 음악 서비스입니다. 실제 MusicBrainz에서 앨범을
-찾고, 선택한 앨범을 사용자의 Notion 데이터베이스에 기록한 뒤, 저장된 개인
+한국어 음악 기록을 위한 근거 중심 개인 음악 아카이브입니다. MusicBrainz를 정체성 기준으로
+검색하고, 결과가 없을 때는 한국 iTunes Store 카탈로그를 보조 검색으로 사용합니다. 선택한 앨범을 사용자의 Notion 데이터베이스에 기록한 뒤, 저장된 개인
 기록을 근거로 취향과 다음 앨범 후보를 보여 줍니다. 기본 테스트와 레거시
 fixture 경로는 회귀 검증용으로만 남아 있으며, 연결 모드의 사용자 화면은 이를
 읽거나 표시하지 않습니다.
 
 ## 현재 제공하는 기능
 
-- Spring Boot API: MusicBrainz 앨범/아티스트 검색, Notion 개인 기록 읽기·쓰기,
+- Spring Boot API: MusicBrainz 앨범/아티스트 검색과 iTunes KR 보조 검색, Notion 개인 기록 읽기·쓰기,
   취향 집계, 사설 GraphDB SPARQL 개인 근거 투영·조회, 오류 계약
 - Next.js 음악 기록장: 실제 앨범 검색, 커버 확인, 최애곡·감상·보유 여부 저장,
   개인 취향과 근거가 있는 다음 앨범 후보 확인
@@ -24,8 +24,9 @@ fixture 경로는 회귀 검증용으로만 남아 있으며, 연결 모드의 �
 
 ## 연결 모드의 정직한 범위
 
-- 앨범·아티스트·발매일은 MusicBrainz 실시간 검색 결과이며, 커버는 Cover Art
-  Archive가 실제 커버를 제공할 때만 표시합니다.
+- 앨범·아티스트·발매일은 MusicBrainz 실시간 검색 결과를 우선 사용합니다. 결과가 없을 때만
+  iTunes KR 카탈로그의 출처·collection ID를 함께 보존해 선택할 수 있습니다. MBID가 없는 보조
+  기록은 GraphRAG 정본으로 가장하지 않으며, 커버는 각 제공자가 실제로 제공할 때만 표시합니다.
 - 개인 기록의 원본은 사용자가 연결한 Notion 데이터베이스입니다. 저장은
   `앨범명`과 `가수`가 같은 기존 항목을 갱신하거나 새 페이지를 생성합니다.
 - 추천은 현재 Notion 기록의 최소 근거(페이지 ID·아티스트·발매 그룹 ID·가중치)를
@@ -33,8 +34,9 @@ fixture 경로는 회귀 검증용으로만 남아 있으며, 연결 모드의 �
   MusicBrainz의 실제 다른 발매 그룹을 찾는 결정론적 경로입니다. 근거로 사용된
   Notion 페이지 ID와 시드 아티스트를 함께 제공합니다. GraphDB가 없거나 응답하지
   않으면 인메모리 추천으로 가장하지 않고 503을 반환합니다.
-- 외부 LLM 문장 생성과 벡터 검색은 아직 사용하지 않습니다. 따라서 그 기능이
-  동작하는 것처럼 표시하지 않습니다.
+- 추천 후보와 순위에는 외부 LLM을 사용하지 않습니다. 선택형 설명 기능은 이미 고른 그래프 근거만
+  문장으로 정리하며 기본적으로 비활성화됩니다. 벡터 검색은 영구 pgvector 검증이 통과하기 전까지
+  연결 서비스에서 사용하지 않으며, fixture 평가 결과를 실제 서비스 성능으로 표시하지 않습니다.
 
 원격 배포는 별도 서비스 설정이 필요합니다. 이 README는 특정 Preview 또는
 Production URL의 가용성을 보장하지 않습니다.
@@ -72,7 +74,7 @@ record list, and before it saves, archives, restores, refreshes, or generates an
 There is no production flag that turns an unauthenticated visitor into an owner. The browser never
 receives a Notion credential, Notion page ID, provider credential, or BFF shared secret.
 
-The owner opens `/owner` once with the setup token to create an HttpOnly cookie; ordinary
+The owner opens `/owner` once with the setup token to create an HttpOnly cookie, then continues to `/owner/workspace`; ordinary
 visitors are never asked for that token. This prevents automated or casual public requests from
 changing the connected Notion database while keeping the archive itself shareable.
 

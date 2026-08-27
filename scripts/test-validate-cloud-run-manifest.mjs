@@ -280,11 +280,15 @@ test("connected production template requires a server-side Notion secret and exp
   assert.match(template, /name: MUSIC_KG_API_CORS_ALLOWED_ORIGINS\n\s+value: \$\{VERCEL_PRODUCTION_ORIGIN\}/);
   assert.match(template, /name: NOTION_RELEASE_GROUP_MBID_FIELD\n\s+value: \$\{NOTION_RELEASE_GROUP_MBID_FIELD\}/);
   assert.match(template, /name: NOTION_RELEASE_MBID_FIELD\n\s+value: \$\{NOTION_RELEASE_MBID_FIELD\}/);
+  assert.match(template, /name: NOTION_CATALOG_SOURCE_FIELD\n\s+value: \$\{NOTION_CATALOG_SOURCE_FIELD\}/);
+  assert.match(template, /name: NOTION_CATALOG_ID_FIELD\n\s+value: \$\{NOTION_CATALOG_ID_FIELD\}/);
   assert.match(template, /name: NOTION_YOUTUBE_RECORDING_MBID_FIELD\n\s+value: \$\{NOTION_YOUTUBE_RECORDING_MBID_FIELD\}/);
   assert.match(template, /name: NOTION_YOUTUBE_VIDEO_ID_FIELD\n\s+value: \$\{NOTION_YOUTUBE_VIDEO_ID_FIELD\}/);
   assert.match(template, /name: NOTION_YOUTUBE_VIDEO_TITLE_FIELD\n\s+value: \$\{NOTION_YOUTUBE_VIDEO_TITLE_FIELD\}/);
   assert.match(template, /name: NOTION_YOUTUBE_CHANNEL_TITLE_FIELD\n\s+value: \$\{NOTION_YOUTUBE_CHANNEL_TITLE_FIELD\}/);
   assert.match(template, /name: MUSICBRAINZ_USER_AGENT\n\s+value: "\$\{MUSICBRAINZ_USER_AGENT\}"/);
+  assert.match(template, /name: NOTION_CATALOG_SOURCE_FIELD\n\s+value: \$\{NOTION_CATALOG_SOURCE_FIELD\}/);
+  assert.match(template, /name: NOTION_CATALOG_ID_FIELD\n\s+value: \$\{NOTION_CATALOG_ID_FIELD\}/);
   assert.match(template, /name: MUSIC_KG_GRAPHDB_BASE_URL\n\s+value: \$\{PERSONAL_GRAPHDB_BASE_URL\}/);
   assert.match(template, /name: MUSIC_KG_GRAPHDB_REPOSITORY\n\s+value: music-kg-personal/);
   assert.match(template, /run\.googleapis\.com\/network-interfaces: '\[\{"network":"\$\{PERSONAL_GRAPHDB_VPC_NETWORK\}","subnetwork":"\$\{PERSONAL_GRAPHDB_VPC_SUBNETWORK\}"\}\]'/);
@@ -310,7 +314,7 @@ test("connected preview template quotes the operator MusicBrainz user agent", as
   assert.match(template, /run\.googleapis\.com\/network-interfaces: '\[\{"network":"\$\{PERSONAL_GRAPHDB_VPC_NETWORK\}","subnetwork":"\$\{PERSONAL_GRAPHDB_VPC_SUBNETWORK\}"\}\]'/);
   assert.match(template, /run\.googleapis\.com\/vpc-access-egress: private-ranges-only/);
   assert.match(template, /containerConcurrency: 1/);
-  assert.match(template, /timeoutSeconds: 30/);
+  assert.match(template, /timeoutSeconds: 120/);
   assert.match(template, /name: MUSIC_KG_LLM_ENABLED\n\s+value: "false"/);
 });
 
@@ -328,6 +332,8 @@ test("connected templates render only when every server-side data binding is sup
     "${NOTION_OWNED_FIELD}": "앨범 보유",
     "${NOTION_RELEASE_GROUP_MBID_FIELD}": "MusicBrainz MBID",
     "${NOTION_RELEASE_MBID_FIELD}": "MusicBrainz Release MBID",
+    "${NOTION_CATALOG_SOURCE_FIELD}": "Catalog Source",
+    "${NOTION_CATALOG_ID_FIELD}": "Catalog ID",
     "${NOTION_YOUTUBE_RECORDING_MBID_FIELD}": "MusicBrainz Recording MBID",
     "${NOTION_YOUTUBE_VIDEO_ID_FIELD}": "YouTube Video ID",
     "${NOTION_YOUTUBE_VIDEO_TITLE_FIELD}": "YouTube Video Title",

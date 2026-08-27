@@ -87,6 +87,24 @@ chrome in those captures.
    but reset with a Cloud Run instance. A production alerting backend and
    retention policy still need an operator-owned monitoring destination.
 
+## Follow-up measurement — 2026-08-14
+
+This follow-up keeps the original 2026-08-12 result intact and records the
+current worktree behavior separately.
+
+| Surface | Observation | Correction or decision |
+| --- | --- | --- |
+| Deployed public catalog search | The first observed Korean album query completed in **16.7 s**; two immediate repeats completed in **0.824 s** and **0.515 s**. | This identifies a cold path rather than persistent provider latency. Validated public album and track BFF responses now declare `s-maxage=600, stale-while-revalidate=86400`. Personal Notion, insight, recommendation, and write responses do not receive this header. |
+| Current frontend regression | `pnpm --dir frontend typecheck`, `pnpm --dir frontend test`, and the optimized production build completed successfully. | **54 / 54** unit and BFF tests passed. The two cache headers are covered by a BFF contract test. |
+| Browser workflow | Local Spring + Next + Chromium exercised the visitor catalog path and the selected album → track → record-save path. | Both focused desktop workflows passed. The first sandbox attempt was blocked by a local socket policy; the same tests passed in the native allowed environment. |
+| Current backend regression | The initial full report contained **125 assertions**: **123 passed** and **2 Testcontainers integration tests blocked** while Docker Desktop was stopped. | Docker Desktop was then started and `OutboxIntegrationTest` (**5**) plus `OutboxFailureRecoveryTest` (**1**) reran with **0 failures / 0 errors**. The environment prerequisite is restored and all **129** observed backend assertions are green across the two runs. |
+
+The cache header reduces repeat public lookups after deployment; it cannot remove
+the very first Cloud Run cold start without keeping an instance warm. The latter
+would increase the monthly cost and is intentionally not enabled by this low-cost
+deployment configuration. The currently deployed frontend predates this follow-up;
+the improvement becomes user-visible only after a new Vercel deployment.
+
 ## Reproduction
 
 ```powershell

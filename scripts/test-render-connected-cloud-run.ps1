@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $output = Join-Path ([System.IO.Path]::GetTempPath()) "music-kg-connected-render-test.yaml"
+$previewOutput = Join-Path ([System.IO.Path]::GetTempPath()) "music-kg-connected-preview-render-test.yaml"
 $script = Join-Path $PSScriptRoot "render-connected-cloud-run.ps1"
 $digest = "asia-northeast3-docker.pkg.dev/project/music-kg/backend@sha256:$('a' * 64)"
 
@@ -20,6 +21,8 @@ try {
         OwnedField = "owned"
         ReleaseGroupMbidField = "MusicBrainz MBID"
         ReleaseMbidField = "MusicBrainz Release MBID"
+        CatalogSourceField = "Catalog Source"
+        CatalogIdField = "Catalog ID"
         YoutubeRecordingMbidField = "MusicBrainz Recording MBID"
         YoutubeVideoIdField = "YouTube Video ID"
         YoutubeVideoTitleField = "YouTube Video Title"
@@ -34,7 +37,21 @@ try {
     if ($rendered -match '\$\{[A-Z0-9_]+\}') { throw "CONNECTED_MANIFEST_BINDING_REQUIRED" }
     if ($rendered -notmatch 'MUSIC_KG_GRAPHDB_BASE_URL') { throw "CONNECTED_MANIFEST_GRAPHDB_REQUIRED" }
     if ($rendered -notmatch 'run.googleapis.com/network-interfaces') { throw "CONNECTED_MANIFEST_VPC_REQUIRED" }
+    if ($rendered -match 'MUSIC_KG_CONNECTED_READ_ONLY') { throw "PRODUCTION_READ_ONLY_MUST_DEFAULT_OFF" }
+    if ($rendered -notmatch 'timeoutSeconds:\s*30') { throw "PRODUCTION_TIMEOUT_BASELINE_REQUIRED" }
+
+    $previewArguments = $arguments.Clone()
+    $previewArguments.Template = Join-Path $repositoryRoot "deployment\cloud-run\connected-preview-service.yaml.tmpl"
+    $previewArguments.Output = $previewOutput
+    $previewArguments.ServiceAccount = "music-kg-preview@project.iam.gserviceaccount.com"
+    & $script @previewArguments
+    $previewRendered = Get-Content -LiteralPath $previewOutput -Raw -Encoding utf8
+    if ($previewRendered -notmatch '(?s)name:\s*MUSIC_KG_CONNECTED_READ_ONLY\s+value:\s*"true"') {
+        throw "PREVIEW_READ_ONLY_REQUIRED"
+    }
+    if ($previewRendered -notmatch 'timeoutSeconds:\s*120') { throw "PREVIEW_COLD_INSIGHTS_TIMEOUT_REQUIRED" }
     Write-Output "CONNECTED_MANIFEST_RENDER_STATIC_CONTRACT_PASS"
 } finally {
     Remove-Item -LiteralPath $output -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $previewOutput -Force -ErrorAction SilentlyContinue
 }

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import psycopg
+import pytest
 from testcontainers.postgres import PostgresContainer
 
 from pipeline import pgvector_retrieval
@@ -15,9 +16,9 @@ from pipeline.query_suite import decode_json
 from pipeline.retrieval_ablation import evaluate
 from pipeline.retrieval_suite import load_suite
 
-if TYPE_CHECKING:
-    import pytest
+pytestmark = pytest.mark.integration
 
+if TYPE_CHECKING:
     from pipeline.query_models import JsonValue
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]

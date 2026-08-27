@@ -1,5 +1,83 @@
 # Connected Service Test Runbook
 
+## Release-quality gate split
+
+Run the deterministic unit and contract gate without Docker:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\run-service-quality.ps1
+```
+
+Run Docker-backed PostgreSQL, outbox, and persistent pgvector integration tests explicitly:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts\run-service-quality.ps1 -Integration
+```
+
+The integration command is not allowed to degrade into a skip or a unit-test pass when Docker is unavailable. Start Docker Desktop first, then rerun the same command. Persistent vector retrieval and production LLM wording remain disabled until their authenticated evidence reports pass.
+
+## Authenticated release evidence
+
+Run the persistent pgvector gate against a non-production PostgreSQL database. The command exits non-zero and leaves vector retrieval disabled unless the real store passes ranking, persistence, concurrency, and latency checks:
+
+```powershell
+if ([string]::IsNullOrWhiteSpace($env:PERSISTENT_PGVECTOR_DSN)) { throw "PERSISTENT_PGVECTOR_DSN is required." }
+New-Item -ItemType Directory -Force -Path .omo\evidence\persistent-pgvector | Out-Null
+pipeline\.venv\Scripts\python.exe -m pipeline.ablate_retrieval `
+  --suite data\evaluations\retrieval-golden.jsonl `
+  --output .omo\evidence\persistent-pgvector\report.json `
+  --postgres-dsn $env:PERSISTENT_PGVECTOR_DSN
+if ($LASTEXITCODE -ne 0) { throw "Persistent pgvector evidence gate failed." }
+```
+
+Run the optional external-LLM explanation gate only against an authenticated non-production connected backend. It stores status, latency, model ID, and citation count, but never persists the generated answer or private record identifiers:
+
+```powershell
+if ([string]::IsNullOrWhiteSpace($env:CONNECTED_BACKEND_URL)) { throw "CONNECTED_BACKEND_URL is required." }
+if ([string]::IsNullOrWhiteSpace($env:BACKEND_BFF_SHARED_SECRET)) { throw "BACKEND_BFF_SHARED_SECRET is required." }
+if ([string]::IsNullOrWhiteSpace($env:MUSIC_KG_LLM_MODEL)) { throw "MUSIC_KG_LLM_MODEL is required." }
+$headers = @{ "X-Music-Kg-Bff-Secret" = $env:BACKEND_BFF_SHARED_SECRET }
+$response = $null
+$elapsed = Measure-Command {
+  $response = Invoke-RestMethod -Method Post -Headers $headers `
+    -Uri "$($env:CONNECTED_BACKEND_URL.TrimEnd('/'))/api/v1/personal-insights/explanation"
+}
+if ($response.status -ne "GENERATED" -or @($response.citations).Count -eq 0) { throw "External LLM evidence gate did not produce a grounded explanation." }
+New-Item -ItemType Directory -Force -Path .omo\evidence\external-llm | Out-Null
+[ordered]@{
+  measuredAt = [DateTimeOffset]::UtcNow.ToString("O")
+  model = $env:MUSIC_KG_LLM_MODEL
+  status = $response.status
+  citationCount = @($response.citations).Count
+  latencyMilliseconds = [Math]::Round($elapsed.TotalMilliseconds, 3)
+} | ConvertTo-Json | Set-Content -Encoding UTF8 .omo\evidence\external-llm\report.json
+```
+
+Do not run either command with production personal data. Keep both related feature flags disabled until the resulting report is reviewed and attested through the release-evidence workflow.
+
+## Production browser audit
+
+For a dependency-independent public audit, start the read-only audit backend and the optimized frontend in separate terminals:
+
+```powershell
+pnpm --dir frontend start:audit-backend
+```
+
+```powershell
+$env:BACKEND_BASE_URL = "http://127.0.0.1:18082"
+$env:BACKEND_BFF_SHARED_SECRET = "audit-local-secret"
+pnpm --dir frontend start --port 3000
+```
+
+Then run the public production-browser audit:
+
+```powershell
+$env:AUDIT_BASE_URL = "http://127.0.0.1:3000"
+pnpm --dir frontend audit:production
+```
+
+This command uses installed Chrome through Playwright, audits `/`, `/method`, `/privacy`, and `/terms` at 375px, 768px, and 1280px, writes full-page screenshots with the reports, fails below 100 in any Lighthouse category, and fails on browser warnings or errors. It also rejects performance evidence when Lighthouse reports a local CPU benchmark below 2000; rerun on an idle machine instead of accepting a throttled score. The audit backend exposes only an empty, schema-valid public recommendation response; it does not replace connected-service integration tests.
+
 ## Read-only local readiness
 
 When `.env` has a connected Notion data source, start the private local GraphDB

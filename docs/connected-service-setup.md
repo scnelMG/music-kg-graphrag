@@ -3,12 +3,13 @@
 ## 현재 데이터 경로
 
 브라우저는 `/api/music/*`만 호출한다. Next.js BFF는 서버에서 Spring 연결 API에
-인증하고, Spring API는 MusicBrainz·사용자가 공유한 Notion 데이터 소스·사설
+인증하고, Spring API는 MusicBrainz 우선 및 iTunes KR 보조 카탈로그·사용자가 공유한 Notion 데이터 소스·사설
 GraphDB에만 접근한다. Notion API 토큰과 BFF 공유 비밀, GraphDB 내부 주소는
 브라우저, Git, 로그에 노출하지 않는다.
 
 ```text
-브라우저 → Next.js BFF → Spring 연결 API → MusicBrainz
+브라우저 → Next.js BFF → Spring 연결 API → MusicBrainz (우선)
+                                      ├→ iTunes KR (MusicBrainz 결과가 없을 때만)
                                       ├→ Notion 개인 음악 데이터베이스
                                       └→ 사설 GraphDB 개인 근거 그래프
 ```
@@ -38,8 +39,8 @@ GraphDB 컨테이너는 `127.0.0.1:7200`에만 바인딩되고, 개인 Notion �
 
 ## 직접 확인할 순서
 
-1. 앨범명 또는 아티스트를 검색한다. 결과는 실시간 MusicBrainz 발매 그룹이다.
-2. 하나를 고른다. Cover Art Archive에 실제 표지가 있을 때만 표지가 나타난다.
+1. 앨범명 또는 아티스트를 검색한다. MusicBrainz 앨범·EP를 먼저 보여 주고, 결과가 없을 때만 iTunes KR 앨범을 보조 후보로 보여 준다.
+2. 하나를 고른다. MusicBrainz 후보는 발매판을 고르고, iTunes 후보는 수록곡으로 바로 이어진다. 각 제공자가 실제 표지를 줄 때만 표지가 나타난다.
 3. Notion 데이터베이스에 정의된 감상 선택지, 최애곡, 보유 여부를 작성하고
    저장한다.
 4. Notion에서 생성 또는 갱신된 `앨범명`, `가수`, `앨범커버`, `개인 감상평`,
@@ -94,6 +95,18 @@ Notion에 제목 또는 가수가 비어 있는 미완성 페이지가 있어도
 예를 들어 리마스터를 골라도 중복 판정은 위 release-group ID로 유지하고, 수록곡과 이후
 기록 수정은 선택한 발매판을 기준으로 복원한다. 이 속성은 connected 배포와 로컬 실행에서
 필수이며, 서비스가 Notion 데이터베이스 스키마를 자동으로 변경하지는 않는다.
+
+MusicBrainz에 아직 없는 한국 스토어 카탈로그 음반은 MBID를 만들어 내지 않는다. Notion에
+`Catalog Source`, `Catalog ID` Rich text 속성을 만들고 아래 환경 변수를 같은 속성명으로 설정한다.
+`ITUNES`와 Apple collection ID가 함께 저장되며, 이 기록은 개인 감상·집계에는 남지만 MBID 기반
+GraphRAG 추천 그래프에는 포함되지 않는다.
+이 보조 검색은 공개 iTunes Search API를 사용하므로 Apple Developer Program, Apple Music 구독,
+기기 종류와 무관하다. 표지는 서버에 복제·캐시하지 않고 제공자가 준 HTTPS URL을 그대로 표시한다.
+
+```text
+NOTION_CATALOG_SOURCE_FIELD=Catalog Source
+NOTION_CATALOG_ID_FIELD=Catalog ID
+```
 
 ### 확인된 YouTube 재생
 
@@ -168,7 +181,7 @@ MUSIC_KG_OWNER_SESSION_SECRET=<different 32 bytes or more, random>
 
 Notion 토큰, Notion 페이지 ID, BFF 비밀은 브라우저 저장소, URL, 로그, 소스에 보내지지
 않는다. 방문자는 공개 검색과 요약 추천만 볼 수 있고 개인 기록 및 변경 버튼은 보이지 않는다.
-운영자는 `/owner`에서 설정 토큰으로 한 번 확인해 HttpOnly 세션을 만든 뒤에만 개인 작업공간을
+운영자는 `/owner`에서 설정 토큰으로 한 번 확인해 HttpOnly 세션을 만든 뒤 `/owner/workspace`에서만 개인 작업공간을
 읽고 변경한다. 여러 사용자 계정, 공유, 권한 회수, 감사 로그가 필요해지는 시점에는 이 단일
 소유자 세션을 OAuth/OIDC 공급자로 교체해야 한다. Preview에는 Production과 분리된 Notion
 데이터 소스와 비밀을 사용한다.

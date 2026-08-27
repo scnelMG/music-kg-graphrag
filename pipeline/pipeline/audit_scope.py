@@ -43,6 +43,11 @@ EXCLUDED_PARTS: Final = frozenset(
         "tests",
     },
 )
+EXCLUDED_PREFIXES: Final = (".next-", ".playwright-", ".tmp-")
+
+
+def _excluded_directory(name: str) -> bool:
+    return name in EXCLUDED_PARTS or name.startswith(EXCLUDED_PREFIXES)
 
 
 def _source_files(root: Path) -> tuple[Path, ...]:
@@ -52,7 +57,7 @@ def _source_files(root: Path) -> tuple[Path, ...]:
     files: list[Path] = []
     for source_root in selected:
         for directory, directories, filenames in source_root.walk():
-            directories[:] = [name for name in directories if name not in EXCLUDED_PARTS]
+            directories[:] = [name for name in directories if not _excluded_directory(name)]
             files.extend(
                 directory / filename
                 for filename in filenames
