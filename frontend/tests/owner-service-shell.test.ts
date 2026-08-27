@@ -31,6 +31,7 @@ describe("owner and service editorial shell", () => {
     expect(markup).toContain("service-page-content");
     expect(markup).toContain("aria-label=\"이 페이지의 내용\"");
     expect(markup).toContain("aria-current=\"page\"");
+    expect(markup).toContain("href=\"/method\"");
     expect(markup).toContain("추천이 만들어지는 방식");
   });
 });

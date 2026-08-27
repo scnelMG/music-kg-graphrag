@@ -18,10 +18,10 @@
 .public-discovery-skeleton,
 .public-discovery-unavailable {
   display: grid;
-  grid-template-columns: minmax(16rem, 7fr) minmax(18rem, 5fr);
+  grid-template-columns: var(--layout-discovery-columns);
   gap: clamp(var(--space-8), 5vw, var(--space-16));
   align-items: center;
-  min-height: clamp(25rem, 52vw, 38rem);
+  min-height: var(--layout-discovery-stage);
   padding: clamp(var(--space-6), 5vw, var(--space-14));
   background: var(--surface-elevated);
   border: .0625rem solid var(--line);
@@ -39,7 +39,7 @@
 
 .discovery-skeleton-copy { display: grid; gap: var(--space-4); }
 .discovery-skeleton-copy span { display: block; height: 1rem; background: var(--surface-muted); border-radius: var(--radius-control); }
-.discovery-skeleton-copy span:first-child { width: 72%; height: 3.5rem; }
+.discovery-skeleton-copy span:first-child { width: 72%; height: var(--layout-control-tall); }
 .discovery-skeleton-copy span:last-child { width: 48%; }
 .public-discovery-skeleton > p { grid-column: 2; margin: calc(var(--space-20) * -1) 0 0; color: var(--text-secondary); }
 
@@ -84,7 +84,7 @@
 
 .discovery-stage-frame {
   position: relative;
-  min-height: clamp(25rem, 52vw, 38rem);
+  min-height: var(--layout-discovery-stage);
   overflow: hidden;
   background: var(--surface-elevated);
   border: .0625rem solid var(--line);
@@ -96,7 +96,7 @@
   z-index: 0;
   top: clamp(var(--space-8), 7vw, var(--space-16));
   left: clamp(var(--space-8), 8vw, var(--space-20));
-  width: min(38%, 28rem);
+  width: var(--layout-discovery-preview);
   opacity: .2;
   transform: translate(var(--space-5), var(--space-5));
   pointer-events: none;
@@ -106,10 +106,10 @@
 
 .discovery-card {
   display: grid;
-  grid-template-columns: minmax(16rem, 7fr) minmax(18rem, 5fr);
+  grid-template-columns: var(--layout-discovery-columns);
   gap: clamp(var(--space-8), 5vw, var(--space-16));
   align-items: center;
-  min-height: clamp(25rem, 52vw, 38rem);
+  min-height: var(--layout-discovery-stage);
   padding: clamp(var(--space-6), 5vw, var(--space-14));
   background: transparent;
 }
@@ -200,7 +200,7 @@
 .deck-finish {
   display: grid;
   align-content: center;
-  min-height: clamp(25rem, 52vw, 38rem);
+  min-height: var(--layout-discovery-stage);
   padding: clamp(var(--space-8), 8vw, var(--space-20));
   background: var(--surface-elevated);
   border: .0625rem solid var(--line);
@@ -246,7 +246,7 @@
 .genre-option {
   display: grid;
   align-content: space-between;
-  min-height: 8rem;
+  min-height: var(--layout-region-min);
   padding: var(--space-5);
   color: var(--text);
   text-align: left;
@@ -272,7 +272,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: end;
-  max-width: 58rem;
+  max-width: var(--layout-search-max);
 }
 
 .search-row label,
@@ -286,7 +286,7 @@
 .field-grid select {
   width: 100%;
   min-width: 0;
-  min-height: 3.5rem;
+  min-height: var(--layout-control-tall);
   padding: var(--space-3) var(--space-4);
   color: var(--text);
   background: var(--surface-elevated);
@@ -304,7 +304,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 3.5rem;
+  min-height: var(--layout-control-tall);
   padding: var(--space-3) var(--space-5);
   color: var(--surface-elevated);
   background: var(--accent);
@@ -324,7 +324,7 @@
 
 .loading-record,
 .search-recovery {
-  min-height: 8rem;
+  min-height: var(--layout-region-min);
   padding: var(--space-6);
   color: var(--text-secondary);
   background: var(--surface);

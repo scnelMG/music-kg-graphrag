@@ -17,6 +17,6 @@ export function ServicePage({ children, contents = [], currentPath, eyebrow, tit
     <header className="service-page-header"><p className="section-kicker">{eyebrow}</p><h1>{title}</h1></header>
     {contents.length > 0 && <nav className="service-contents" aria-label="이 페이지의 내용"><span>이 페이지에서</span><ol>{contents.map((item) => <li key={item.id}><a href={`#${item.id}`}>{item.label}</a></li>)}</ol></nav>}
     <article className="service-page-content">{children}</article>
-    <ArchiveFooter />
+    <ArchiveFooter currentPath={currentPath} />
   </main></>;
 }

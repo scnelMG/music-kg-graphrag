@@ -114,7 +114,7 @@ export function PublicDiscoveryDeck({ albums, label, onOpenAlbum }: PublicDiscov
 
   return <><section className="public-discovery-deck" data-testid="public-discovery-deck" tabIndex={0} onKeyDown={onKeyDown} aria-label={`${label} 카드 탐색`}>
     <header className="public-discovery-heading"><div><p className="section-kicker">{label}</p><h2>한 장씩 골라 보세요.</h2></div><p className="deck-count" aria-live="polite">{current === null ? albums.length : index + 1} / {albums.length}</p></header>
-    <div className="discovery-stage-frame">{nextAlbum !== null && nextAlbum.coverUrl.trim().length > 0 && <div className="discovery-next-preview" aria-hidden="true">
+    <div className="discovery-stage-frame">{nextAlbum !== null && nextAlbum.coverUrl.length > 0 && <div className="discovery-next-preview" aria-hidden="true">
       <AlbumArt album={nextAlbum} size="hero" />
     </div>}{current === null
       ? <div className="deck-finish" role="status"><strong>살펴볼 앨범을 모두 봤습니다.</strong><p>좋아요한 앨범은 아래에서 다시 열 수 있습니다.</p><button type="button" className="discovery-open" onClick={restart}>처음부터 보기</button></div>

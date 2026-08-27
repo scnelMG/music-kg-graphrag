@@ -32,6 +32,9 @@ test("Given a public visitor, when real discovery cards are liked or skipped, th
   await deck.focus();
   await page.keyboard.press("ArrowLeft");
   await expect(deck.locator(".discovery-card")).toHaveAttribute("data-transition-state", "exiting");
+  await expect(deck.getByRole("button", { name: "수록곡 보기", exact: true })).toBeDisabled();
+  await expect(deck.getByRole("button", { name: "넘기기", exact: true })).toBeDisabled();
+  await expect(deck.getByRole("button", { name: "좋아요", exact: true })).toBeDisabled();
   await expect(deck).toContainText("Public One");
   await page.clock.runFor(80);
   await expect(deck).toContainText("Public One");
@@ -56,6 +59,25 @@ test("Given a public visitor, when real discovery cards are liked or skipped, th
   await expect(page.getByTestId("public-liked-list")).toContainText("Public One");
   await page.getByTestId("public-liked-list").getByRole("button", { name: "열기", exact: true }).click();
   await expect(page.locator(".catalog-album-detail")).toContainText("Public One");
+});
+
+test("Given public curation is unavailable, when a visitor retries, then a fresh request restores the deck", async ({ page }) => {
+  let attempts = 0;
+  await routeConnectedWorkspace(page);
+  await page.unroute("**/api/music/insights*");
+  await page.route("**/api/music/insights*", (route) => {
+    attempts += 1;
+    return attempts === 1
+      ? route.fulfill({ body: JSON.stringify({ code: "BACKEND_UNAVAILABLE", message: "연결이 지연되고 있습니다." }), contentType: "application/json", status: 503 })
+      : route.fulfill({ body: JSON.stringify({ graphTaste: { recommendations: [{ artist: "Artist One", coverUrl: "", firstReleaseDate: "2024-01-01", publicCurationReason: "same-artist", releaseGroupMbid: "public-one", title: "Public One" }], relisten: [] } }), contentType: "application/json", status: 200 });
+  });
+
+  await page.goto("/");
+  const retry = page.getByRole("button", { name: "다시 불러오기" });
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect(page.getByTestId("public-discovery-deck")).toContainText("Public One");
+  expect(attempts).toBe(2);
 });
 
 test("Given a public search, when a Korean consonant-only or empty result query is entered, then it explains and recovers without dead detail", async ({ page }) => {

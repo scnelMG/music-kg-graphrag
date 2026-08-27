@@ -40,6 +40,7 @@ test("captures the public discovery deck, liked state, recovery, focus, and redu
     await expect(page.getByTestId("public-discovery-deck")).not.toContainText("실제 앨범");
     await expect(page.locator(".discovery-card img")).toHaveAttribute("src", factualCoverUrl);
     await expect(page.locator(".discovery-next-preview img")).toHaveAttribute("src", nextFactualCoverUrl);
+    await expect.poll(() => page.locator(".discovery-next-preview img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
     await expect.poll(() => page.locator(".discovery-card img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
     await expect(page.locator("body")).toHaveCSS("font-family", /Malgun Gothic/);
     await expect.poll(() => page.evaluate(() => Array.from(document.fonts).some((font) => font.family === "Noto Serif KR Variable" && font.status === "loaded"))).toBe(true);
@@ -49,13 +50,31 @@ test("captures the public discovery deck, liked state, recovery, focus, and redu
   }
 
   await page.setViewportSize({ width: 375, height: 812 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await expect.poll(() => page.locator(".discovery-card img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
+  await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-dark-375.png") });
+
+  await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
   const deck = page.getByTestId("public-discovery-deck");
+  await expect.poll(() => deck.locator(".discovery-card img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
+  await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-rest-375.png") });
   await deck.focus();
   await expect(deck).toBeFocused();
   await expect(deck).toHaveCSS("outline-width", "3px");
   await page.screenshot({ path: await evidencePath(testInfo, "public-deck-focus-375.png") });
+  await page.clock.install();
   await page.keyboard.press("ArrowRight");
+  await expect(deck.locator(".deck-skip")).toBeDisabled();
+  await expect(deck.locator(".deck-like")).toBeDisabled();
+  await page.clock.runFor(100);
+  await expect(deck.locator(".discovery-card")).toHaveCount(2);
+  await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-mid-375.png") });
+  await page.clock.runFor(100);
+  await expect(deck.locator(".discovery-card")).toHaveCount(1);
+  await expect(deck.locator(".deck-skip")).toBeEnabled();
+  await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-settled-375.png") });
   await expect(page.getByTestId("public-liked-list")).toContainText("헤븐 (Heaven)");
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-liked-375.png") });
 

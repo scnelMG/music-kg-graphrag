@@ -37,6 +37,16 @@
   --radius-control: .75rem;
   --radius-panel: 1rem;
   --target-min: 2.75rem;
+  --layout-control-tall: 3.5rem;
+  --layout-region-min: 8rem;
+  --layout-discovery-columns: minmax(16rem, 7fr) minmax(18rem, 5fr);
+  --layout-discovery-stage: clamp(25rem, 52vw, 38rem);
+  --layout-discovery-mobile-stage: 37rem;
+  --layout-discovery-preview: min(38%, 28rem);
+  --layout-discovery-preview-tablet: min(76%, 23rem);
+  --layout-discovery-cover-tablet: 25rem;
+  --layout-discovery-cover-mobile: 18rem;
+  --layout-search-max: 58rem;
   --page-max: 80rem;
   --reading-max: 65ch;
   --type-micro: .75rem;

@@ -66,6 +66,11 @@ test("keeps the selected-record and archive-confirmation workflow legible at rev
   await expect(page.locator(".skip-link")).toBeFocused();
   await page.waitForTimeout(200);
   await capture(page, "record-workflow-focus-375.png", testInfo);
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/owner/workspace");
+  await expect(page.locator(".owner-workspace")).toBeVisible();
+  await capture(page, "record-workspace-dark-375.png", testInfo);
 });
 
 test("keeps the restore confirmation visible before it can change a Notion record", async ({ page }, testInfo) => {

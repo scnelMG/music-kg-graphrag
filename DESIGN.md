@@ -73,6 +73,8 @@ Semantic feedback tokens use green, amber, and red only for actual success, warn
 
 The base unit is 4 pixels. CSS uses named tokens from `--space-1` through `--space-24`. Page gutters are 20 pixels at 375, 24 pixels at 768, and 32 pixels at 1280. Primary section spacing ranges from 48 to 96 pixels according to hierarchy, not mathematical repetition.
 
+Core editorial geometry is also tokenized: `--layout-discovery-columns`, `--layout-discovery-stage`, `--layout-discovery-mobile-stage`, cover/preview width roles, `--layout-region-min`, `--layout-control-tall`, and `--layout-search-max`. These tokens keep the loading skeleton, factual deck, recovery state, and responsive variants on one shared rhythm.
+
 ### Type
 
 - UI and display: `Malgun Gothic`, `Apple SD Gothic Neo`, `Noto Sans KR`, system sans-serif.
