@@ -10,6 +10,8 @@ import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -19,9 +21,17 @@ class RequestBoundaryFilter extends OncePerRequestFilter {
     static final String BFF_SECRET_HEADER = "X-Music-Kg-Bff-Secret";
     static final String REQUEST_ID = "musicKgRequestId";
     private final ApiProperties properties;
+    private final boolean connectedReadOnly;
     private final SearchRateLimiter rateLimiter = new SearchRateLimiter();
 
-    RequestBoundaryFilter(ApiProperties properties) { this.properties = properties; }
+    RequestBoundaryFilter(ApiProperties properties) { this(properties, false); }
+
+    @Autowired
+    RequestBoundaryFilter(ApiProperties properties,
+                          @Value("${music-kg.connected.read-only:false}") boolean connectedReadOnly) {
+        this.properties = properties;
+        this.connectedReadOnly = connectedReadOnly;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -42,6 +52,10 @@ class RequestBoundaryFilter extends OncePerRequestFilter {
         if ("OPTIONS".equals(request.getMethod())) {
             response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
             response.setStatus(HttpStatus.NO_CONTENT.value());
+            return;
+        }
+        if (connectedReadOnly && !isReadMethod(request.getMethod())) {
+            reject(response, requestId, HttpStatus.FORBIDDEN, "CONNECTED_READ_ONLY");
             return;
         }
         if (request.getContentLengthLong() > properties.maxPayloadBytes()) {
@@ -70,8 +84,17 @@ class RequestBoundaryFilter extends OncePerRequestFilter {
     }
 
     private boolean isSearchRequest(HttpServletRequest request) {
-        return request.getRequestURI().equals("/api/v1/candidates")
-                || request.getRequestURI().equals("/api/v1/catalog/albums");
+        String path = request.getRequestURI();
+        return path.equals("/api/v1/candidates")
+                || path.equals("/api/v1/catalog/albums")
+                || path.equals("/api/v1/catalog/explore")
+                || path.startsWith("/api/v1/catalog/albums/")
+                || path.startsWith("/api/v1/itunes/albums/")
+                || path.equals("/api/v1/ready");
+    }
+
+    private boolean isReadMethod(String method) {
+        return "GET".equals(method) || "HEAD".equals(method);
     }
 
     private void reject(HttpServletResponse response, String requestId, HttpStatus status, String code) throws IOException {

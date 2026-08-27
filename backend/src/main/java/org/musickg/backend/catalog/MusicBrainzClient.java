@@ -18,8 +18,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 public final class MusicBrainzClient implements MusicCatalogGateway {
-    private static final long MAX_RATE_LIMIT_QUEUE_NANOS = Duration.ofSeconds(2).toNanos();
-    static final int MAX_CATALOG_CACHE_ENTRIES = 128;
     private static final int RELEASE_BROWSE_LIMIT = 20;
     private final RestClient client;
     private final MusicBrainzPayloadParser parser;
@@ -28,7 +26,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
     private final Map<String, CachedEditionPage> editionPageCache = new ConcurrentHashMap<>();
     private final Map<String, CachedEdition> editionCache = new ConcurrentHashMap<>();
     private final Map<String, CachedTags> tagCache = new ConcurrentHashMap<>();
-    private long nextRequestAtNanos;
+    private final MusicBrainzRateLimiter rateLimiter = new MusicBrainzRateLimiter();
 
     public MusicBrainzClient(RestClient client, ObjectMapper objectMapper, ConnectedServiceProperties.MusicBrainz configuration) {
         this.client = client;
@@ -38,25 +36,23 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
 
     public List<MusicCatalogGateway.Album> search(String albumTitle, String artist) {
         if (blank(albumTitle) || blank(artist)) throw new IllegalArgumentException("MUSICBRAINZ_QUERY_REQUIRED");
-        String query = "artist:\"" + escapeTerm(artist) + "\" AND releasegroup:\"" + escapeTerm(albumTitle) + "\"";
-        return searchQuery(query);
+        return searchQuery(MusicBrainzSearchQuery.albumAndArtist(albumTitle, artist));
     }
 
     public List<MusicCatalogGateway.Album> search(String query) {
         if (blank(query)) throw new IllegalArgumentException("MUSICBRAINZ_QUERY_REQUIRED");
-        String term = escapeTerm(query);
-        return searchQuery("releasegroup:\"" + term + "\" OR artist:\"" + term + "\"");
+        return searchQuery(MusicBrainzSearchQuery.freeText(query));
     }
 
     public List<MusicCatalogGateway.Album> searchByArtist(String artist) {
         if (blank(artist)) throw new IllegalArgumentException("MUSICBRAINZ_QUERY_REQUIRED");
-        return searchQuery("artist:\"" + escapeTerm(artist) + "\"");
+        return searchQuery(MusicBrainzSearchQuery.artist(artist));
     }
 
     @Override
     public List<MusicCatalogGateway.Album> searchByTag(String tag) {
         if (blank(tag)) throw new IllegalArgumentException("MUSICBRAINZ_TAG_REQUIRED");
-        return searchQuery("tag:\"" + escapeTerm(tag) + "\"");
+        return searchQuery(MusicBrainzSearchQuery.tag(tag));
     }
 
     @Override
@@ -65,7 +61,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         CachedTags cached = tagCache.get(releaseGroupMbid);
         if (cached != null && !cached.expired()) return cached.tags();
         List<String> tags = parser.tags(get("/release-group/" + encoded(releaseGroupMbid) + "?inc=tags+genres&fmt=json"));
-        cache(tagCache, releaseGroupMbid, new CachedTags(tags, System.nanoTime() + Duration.ofHours(6).toNanos()));
+        MusicBrainzCache.put(tagCache, releaseGroupMbid, new CachedTags(tags, System.nanoTime() + Duration.ofHours(6).toNanos()));
         return tags;
     }
 
@@ -127,7 +123,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
         List<MusicCatalogGateway.Album> albums = parser.albums(
                 get("/release-group?query=" + encodedQuery + "&fmt=json&limit=10"), this::coverUrl);
-        cache(albumCache, query, new CachedAlbums(albums, System.nanoTime() + Duration.ofMinutes(2).toNanos()));
+        MusicBrainzCache.put(albumCache, query, new CachedAlbums(albums, System.nanoTime() + Duration.ofMinutes(2).toNanos()));
         return albums;
     }
 
@@ -149,7 +145,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
                 || offset + providerPage.returnedCount() > providerPage.releaseCount()) throw contractError();
         List<MusicCatalogGateway.Edition> ranked = parser.rankEditions(providerPage.editions());
         long editionExpiry = System.nanoTime() + Duration.ofMinutes(10).toNanos();
-        providerPage.editions().forEach(edition -> cache(editionCache, edition.releaseMbid(), new CachedEdition(edition, editionExpiry)));
+        providerPage.editions().forEach(edition -> MusicBrainzCache.put(editionCache, edition.releaseMbid(), new CachedEdition(edition, editionExpiry)));
         List<MusicCatalogGateway.Edition> editions = offset == 0 ? ranked : ranked.stream()
                 .map(MusicBrainzClient::withoutRecommendation)
                 .toList();
@@ -157,7 +153,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         boolean hasMore = nextOffset < providerPage.releaseCount();
         MusicCatalogGateway.EditionPage page = new MusicCatalogGateway.EditionPage(
                 editions, hasMore ? Integer.toString(nextOffset) : null, hasMore);
-        cache(editionPageCache, cacheKey, new CachedEditionPage(page, System.nanoTime() + Duration.ofMinutes(2).toNanos()));
+        MusicBrainzCache.put(editionPageCache, cacheKey, new CachedEditionPage(page, System.nanoTime() + Duration.ofMinutes(2).toNanos()));
         return page;
     }
 
@@ -171,7 +167,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         }
         MusicCatalogGateway.Edition edition = parser.edition(releaseGroupMbid,
                 get("/release/" + encoded(releaseMbid) + "?inc=release-groups&fmt=json"));
-        cache(editionCache, releaseMbid, new CachedEdition(edition, System.nanoTime() + Duration.ofMinutes(10).toNanos()));
+        MusicBrainzCache.put(editionCache, releaseMbid, new CachedEdition(edition, System.nanoTime() + Duration.ofMinutes(10).toNanos()));
         return edition;
     }
 
@@ -200,7 +196,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         CatalogAccessException failure = null;
         for (int attempt = 1; attempt <= 3; attempt++) {
             try {
-                awaitRateLimit();
+                rateLimiter.awaitRequest(configuration.requestsPerSecond());
                 return client.get()
                         .uri(URI.create(configuration.baseUrl().replaceAll("/+$", "") + pathAndQuery))
                         .header("User-Agent", configuration.userAgent())
@@ -225,17 +221,6 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
         return new CatalogAccessException("MUSICBRAINZ_REQUEST_REJECTED", false, exception);
     }
 
-    private synchronized void awaitRateLimit() {
-        long interval = 1_000_000_000L / configuration.requestsPerSecond();
-        long now = System.nanoTime();
-        long scheduled = Math.max(now, nextRequestAtNanos);
-        if (scheduled - now > MAX_RATE_LIMIT_QUEUE_NANOS) {
-            throw new CatalogAccessException("MUSICBRAINZ_RATE_LIMITED", true, null);
-        }
-        nextRequestAtNanos = scheduled + interval;
-        if (scheduled > now) LockSupport.parkNanos(scheduled - now);
-    }
-
     private String coverUrl(String releaseGroupMbid) {
         return configuration.coverArtArchiveBaseUrl().replaceAll("/+$", "")
                 + "/release-group/" + releaseGroupMbid + "/front-250";
@@ -247,25 +232,6 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
 
     private static String encoded(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
-    }
-
-    private static String escapeTerm(String value) {
-        StringBuilder escaped = new StringBuilder(value.length());
-        for (int index = 0; index < value.length(); index++) {
-            char character = value.charAt(index);
-            if ("+-!(){}[]^\"~*?:\\/".indexOf(character) >= 0) escaped.append('\\');
-            escaped.append(character);
-        }
-        return escaped.toString();
-    }
-
-    private static <T> void cache(Map<String, T> cache, String key, T value) {
-        synchronized (cache) {
-            if (!cache.containsKey(key) && cache.size() >= MAX_CATALOG_CACHE_ENTRIES) {
-                cache.keySet().stream().findFirst().ifPresent(cache::remove);
-            }
-            cache.put(key, value);
-        }
     }
 
     private record CachedAlbums(List<MusicCatalogGateway.Album> albums, long expiresAtNanos) {

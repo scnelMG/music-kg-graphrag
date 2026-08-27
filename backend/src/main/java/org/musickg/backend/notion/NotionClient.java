@@ -187,6 +187,28 @@ public final class NotionClient implements PersonalMusicRecordGateway {
                 pageId, "", "", "", "", "", false, releaseGroupMbid, "", List.of(), Instant.EPOCH));
     }
 
+    @Override
+    public Optional<ExistingRecord> findByCatalogIdentity(String catalogSource, String catalogId) {
+        if ("MUSICBRAINZ".equals(catalogSource)) return findByReleaseGroupMbid(catalogId);
+        if (blank(catalogSource) || blank(catalogId) || !configuration.fields().catalogIdentityConfigured()) {
+            return Optional.empty();
+        }
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("page_size", 1);
+        request.put("filter", Map.of("and", List.of(
+                Map.of("property", configuration.fields().catalogSource(), "rich_text", Map.of("equals", catalogSource)),
+                Map.of("property", configuration.fields().catalogId(), "rich_text", Map.of("equals", catalogId)))));
+        String response = request(() -> client.post()
+                .uri("https://api.notion.com/v1/data_sources/" + configuration.dataSourceId() + "/query")
+                .header("Authorization", authorizationHeader())
+                .header("Notion-Version", NOTION_VERSION)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(String.class));
+        return parsePage(response).records().stream().findFirst();
+    }
+
     public List<String> sentimentOptions() {
         String response = request(() -> client.get()
                 .uri("https://api.notion.com/v1/data_sources/{dataSourceId}", configuration.dataSourceId())
@@ -259,6 +281,14 @@ public final class NotionClient implements PersonalMusicRecordGateway {
                 boolean owned = properties.path(fields.owned()).path("checkbox").asBoolean(false);
                 String releaseGroupMbid = firstText(properties.path(fields.releaseGroupMbid()).path("rich_text"));
                 String releaseMbid = firstText(properties.path(fields.releaseMbid()).path("rich_text"));
+                String catalogSource = fields.catalogIdentityConfigured()
+                        ? firstText(properties.path(fields.catalogSource()).path("rich_text")) : "";
+                String catalogId = fields.catalogIdentityConfigured()
+                        ? firstText(properties.path(fields.catalogId()).path("rich_text")) : "";
+                if (catalogSource.isBlank() && !releaseGroupMbid.isBlank()) {
+                    catalogSource = "MUSICBRAINZ";
+                    catalogId = releaseGroupMbid;
+                }
                 String youtubeRecordingMbid = fields.youtubeMappingConfigured()
                         ? firstText(properties.path(fields.youtubeRecordingMbid()).path("rich_text")) : "";
                 String youtubeVideoId = fields.youtubeMappingConfigured()
@@ -272,7 +302,8 @@ public final class NotionClient implements PersonalMusicRecordGateway {
                 Instant lastEditedAt = parseInstant(result.path("last_edited_time").asText());
                 records.add(new ExistingRecord(
                         pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
-                        artistCredits, lastEditedAt, youtubeRecordingMbid, youtubeVideoId, youtubeVideoTitle, youtubeChannelTitle));
+                        artistCredits, lastEditedAt, youtubeRecordingMbid, youtubeVideoId, youtubeVideoTitle, youtubeChannelTitle,
+                        catalogSource, catalogId));
             }
             String cursor = body.path("has_more").asBoolean(false) ? body.path("next_cursor").asText() : null;
             if (cursor != null && cursor.isBlank()) throw new IllegalStateException("NOTION_RESPONSE_CONTRACT_ERROR");
@@ -357,6 +388,13 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             properties.put(fields.youtubeVideoTitle(), richText(record.youtubeVideoTitle()));
             properties.put(fields.youtubeChannelTitle(), richText(record.youtubeChannelTitle()));
         }
+        if (record.catalogSource().equals("ITUNES") && !fields.catalogIdentityConfigured()) {
+            throw new AccessException("CATALOG_IDENTITY_CONFIGURATION_REQUIRED");
+        }
+        if (fields.catalogIdentityConfigured()) {
+            properties.put(fields.catalogSource(), richText(record.catalogSource()));
+            properties.put(fields.catalogId(), richText(record.catalogId()));
+        }
         return Map.copyOf(properties);
     }
 
@@ -367,11 +405,19 @@ public final class NotionClient implements PersonalMusicRecordGateway {
     public record Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack,
                          boolean owned, String releaseGroupMbid, String releaseMbid, List<String> artistCredits,
                          String youtubeRecordingMbid, String youtubeVideoId, String youtubeVideoTitle,
-                         String youtubeChannelTitle) {
+                         String youtubeChannelTitle, String catalogSource, String catalogId) {
+        public Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack,
+                      boolean owned, String releaseGroupMbid, String releaseMbid, List<String> artistCredits,
+                      String youtubeRecordingMbid, String youtubeVideoId, String youtubeVideoTitle,
+                      String youtubeChannelTitle) {
+            this(albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
+                    artistCredits, youtubeRecordingMbid, youtubeVideoId, youtubeVideoTitle, youtubeChannelTitle, "", "");
+        }
+
         public Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack,
                       boolean owned, String releaseGroupMbid, String releaseMbid, List<String> artistCredits) {
             this(albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
-                    artistCredits, "", "", "", "");
+                    artistCredits, "", "", "", "", "", "");
         }
 
         public Record(String albumTitle, String artist, String coverUrl, String sentiment, String favouriteTrack,
@@ -400,6 +446,16 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             youtubeVideoId = youtubeVideoId == null ? "" : youtubeVideoId.trim();
             youtubeVideoTitle = youtubeVideoTitle == null ? "" : youtubeVideoTitle.trim();
             youtubeChannelTitle = youtubeChannelTitle == null ? "" : youtubeChannelTitle.trim();
+            catalogSource = catalogSource == null ? "" : catalogSource.trim();
+            catalogId = catalogId == null ? "" : catalogId.trim();
+            if (catalogSource.isBlank() && !releaseGroupMbid.isBlank()) {
+                catalogSource = "MUSICBRAINZ";
+                catalogId = releaseGroupMbid;
+            }
+            if (!catalogSource.isBlank() && !catalogSource.equals("MUSICBRAINZ") && !catalogSource.equals("ITUNES")) {
+                throw new IllegalArgumentException("CATALOG_SOURCE_INVALID");
+            }
+            if (!catalogSource.isBlank() && catalogId.isBlank()) throw new IllegalArgumentException("CATALOG_ID_REQUIRED");
             boolean youtubeComplete = !blank(youtubeRecordingMbid) && !blank(youtubeVideoId)
                     && !blank(youtubeVideoTitle) && !blank(youtubeChannelTitle);
             boolean youtubeEmpty = blank(youtubeRecordingMbid) && blank(youtubeVideoId)
@@ -410,6 +466,8 @@ public final class NotionClient implements PersonalMusicRecordGateway {
         }
 
         public boolean hasYoutubeMapping() { return !blank(youtubeVideoId); }
+
+        public boolean hasCatalogIdentity() { return !blank(catalogSource) && !blank(catalogId); }
     }
 
     public record SavedRecord(String pageId, Instant lastEditedAt) {}
@@ -418,7 +476,16 @@ public final class NotionClient implements PersonalMusicRecordGateway {
                                  String favouriteTrack, boolean owned, String releaseGroupMbid, String releaseMbid,
                                  List<String> artistCredits,
                                  Instant lastEditedAt, String youtubeRecordingMbid, String youtubeVideoId,
-                                 String youtubeVideoTitle, String youtubeChannelTitle) {
+                                 String youtubeVideoTitle, String youtubeChannelTitle, String catalogSource, String catalogId) {
+        public ExistingRecord(String pageId, String albumTitle, String artist, String coverUrl, String sentiment,
+                              String favouriteTrack, boolean owned, String releaseGroupMbid, String releaseMbid,
+                              List<String> artistCredits, Instant lastEditedAt, String youtubeRecordingMbid, String youtubeVideoId,
+                              String youtubeVideoTitle, String youtubeChannelTitle) {
+            this(pageId, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
+                    artistCredits, lastEditedAt, youtubeRecordingMbid, youtubeVideoId, youtubeVideoTitle, youtubeChannelTitle,
+                    "", "");
+        }
+
         public ExistingRecord(String pageId, String albumTitle, String artist, String coverUrl, String sentiment,
                               String favouriteTrack, boolean owned, String releaseGroupMbid, String releaseMbid,
                               List<String> artistCredits, Instant lastEditedAt) {
@@ -454,6 +521,12 @@ public final class NotionClient implements PersonalMusicRecordGateway {
             youtubeVideoId = youtubeVideoId == null ? "" : youtubeVideoId.trim();
             youtubeVideoTitle = youtubeVideoTitle == null ? "" : youtubeVideoTitle.trim();
             youtubeChannelTitle = youtubeChannelTitle == null ? "" : youtubeChannelTitle.trim();
+            catalogSource = catalogSource == null ? "" : catalogSource.trim();
+            catalogId = catalogId == null ? "" : catalogId.trim();
+            if (catalogSource.isBlank() && !releaseGroupMbid.isBlank()) {
+                catalogSource = "MUSICBRAINZ";
+                catalogId = releaseGroupMbid;
+            }
         }
 
         public boolean hasYoutubeMapping() { return !blank(youtubeVideoId) && youtubeVideoId.matches("[A-Za-z0-9_-]{11}"); }

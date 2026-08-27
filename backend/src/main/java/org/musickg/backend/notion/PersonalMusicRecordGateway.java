@@ -31,6 +31,11 @@ public interface PersonalMusicRecordGateway {
         return Optional.empty();
     }
 
+    default Optional<NotionClient.ExistingRecord> findByCatalogIdentity(String catalogSource, String catalogId) {
+        if ("MUSICBRAINZ".equals(catalogSource)) return findByReleaseGroupMbid(catalogId);
+        return Optional.empty();
+    }
+
     List<String> sentimentOptions();
 
     default void verifyReadiness() {

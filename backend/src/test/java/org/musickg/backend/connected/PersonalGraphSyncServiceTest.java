@@ -90,6 +90,39 @@ class PersonalGraphSyncServiceTest {
         assertThat(graph.bootstrapped).extracting(NotionClient.ExistingRecord::pageId).containsExactly("page-disliked");
     }
 
+    @Test
+    void leavesAnITunesOnlyRecordOutOfTheMusicBrainzGraph() {
+        var iTunesOnly = new NotionClient.ExistingRecord(
+                "page-itunes", "새 음반", "극동아시아타이거즈", "", "Loved", "첫 곡", false,
+                "", "", List.of("극동아시아타이거즈"), Instant.parse("2026-08-13T00:00:01Z"), "", "", "", "",
+                "ITUNES", "123456789");
+        var records = new RecordingRecords(List.of(iTunesOnly), List.of());
+        var graph = new RecordingGraph(Optional.empty());
+        var sync = new PersonalGraphSyncService(records, graph, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        var state = sync.synchronize();
+
+        assertThat(graph.bootstrapped).isEmpty();
+        assertThat(state.changedRecordCount()).isZero();
+    }
+
+    @Test
+    void removesAProjectedRecordWhenItsLatestNotionRevisionNoLongerHasAGraphIdentity() {
+        Instant checkpoint = Instant.parse("2026-08-13T00:00:05Z");
+        var identityRemoved = new NotionClient.ExistingRecord(
+                "page-a", "Album", "Artist", "", "Loved", "Track", false,
+                "", "", List.of("Artist"), Instant.parse("2026-08-13T00:00:07Z"), "", "", "", "",
+                "ITUNES", "123456789");
+        var records = new RecordingRecords(List.of(), List.of(identityRemoved));
+        var graph = new RecordingGraph(Optional.of(checkpoint));
+        var sync = new PersonalGraphSyncService(records, graph, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        sync.synchronize();
+
+        assertThat(graph.removed).containsExactly("page-a");
+        assertThat(graph.replaced).isEmpty();
+    }
+
     private static NotionClient.ExistingRecord record(String pageId, String lastEditedAt) {
         return new NotionClient.ExistingRecord(pageId, "Album", "Artist", "", "Loved", "Track", false,
                 "release-" + pageId, List.of("Artist"), Instant.parse(lastEditedAt));
@@ -128,6 +161,7 @@ class PersonalGraphSyncServiceTest {
     private static final class RecordingGraph implements PersonalGraphProjectionGateway {
         private final List<NotionClient.ExistingRecord> bootstrapped = new ArrayList<>();
         private final List<NotionClient.ExistingRecord> replaced = new ArrayList<>();
+        private final List<String> removed = new ArrayList<>();
         private Optional<Instant> checkpoint;
 
         private RecordingGraph(Optional<Instant> checkpoint) {
@@ -137,6 +171,7 @@ class PersonalGraphSyncServiceTest {
         @Override public List<ArtistEvidence> projectAndRetrieve(List<NotionClient.ExistingRecord> history) { return List.of(); }
         @Override public void bootstrapRecords(List<NotionClient.ExistingRecord> records) { bootstrapped.addAll(records); }
         @Override public void replaceRecords(List<NotionClient.ExistingRecord> records) { replaced.addAll(records); }
+        @Override public void removeRecord(String pageId) { removed.add(pageId); }
         @Override public SyncSnapshot syncSnapshot() { return new SyncSnapshot(checkpoint); }
         @Override public void markSynchronized(Instant value) { checkpoint = Optional.of(value); }
         @Override public String retrievalMethod() { return "TEST"; }

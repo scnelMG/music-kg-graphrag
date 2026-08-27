@@ -2,6 +2,7 @@ package org.musickg.backend.persistence;
 
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,6 +13,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @SpringBootTest(properties = "music-kg.connected.mode=fixture")
+@Tag("integration")
 @Testcontainers
 abstract class OutboxIntegrationTestSupport {
     @Container static final PostgreSQLContainer POSTGRES = DockerAvailabilityGuard.postgresContainer();

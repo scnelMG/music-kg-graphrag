@@ -67,6 +67,27 @@ class ConnectedMusicServicePersistenceSafetyTest {
     }
 
     @Test
+    void rejectsAnAmbiguousFavouriteTrackWithoutTheSelectedRecordingIdentityBeforeAnyNotionWrite() {
+        MusicCatalogGateway catalog = mock(MusicCatalogGateway.class);
+        PersonalMusicRecordGateway records = mock(PersonalMusicRecordGateway.class);
+        ConnectedMusicService service = new ConnectedMusicService(catalog, records);
+        given(catalog.editionBelongsToReleaseGroup("release-group", "release")).willReturn(true);
+        given(catalog.search("Verified album", "Verified artist")).willReturn(List.of(new MusicCatalogGateway.Album(
+                "release-group", "Verified album", "Verified artist", "2015-10-27", "", List.of("Verified artist"), "Album", 100)));
+        given(catalog.tracks("release-group", "release")).willReturn(List.of(
+                new MusicCatalogGateway.Track("recording-a", "Same title", 1),
+                new MusicCatalogGateway.Track("recording-b", "Same title", 2)));
+
+        assertThatThrownBy(() -> service.save(new ConnectedMusicService.RecordInput(
+                "release-group", "release", "Verified album", "Verified artist", "", "Loved", "Same title", false,
+                List.of("Verified artist"))))
+                .isInstanceOf(CatalogAccessException.class)
+                .hasMessage("MUSICBRAINZ_TRACK_NOT_IN_RELEASE");
+
+        verifyNoInteractions(records);
+    }
+
+    @Test
     void persistsOnlyAYoutubeMappingBoundToTheSelectedMusicBrainzRecording() {
         MusicCatalogGateway catalog = mock(MusicCatalogGateway.class);
         PersonalMusicRecordGateway records = mock(PersonalMusicRecordGateway.class);
@@ -126,7 +147,7 @@ class ConnectedMusicServicePersistenceSafetyTest {
         given(catalog.search("Forged album", "Forged artist")).willReturn(List.of(canonical));
         given(catalog.tracks("release-group", "release"))
                 .willReturn(List.of(new MusicCatalogGateway.Track("track", "Verified track", 1)));
-        given(records.findByReleaseGroupMbid("release-group"))
+        given(records.findByCatalogIdentity("MUSICBRAINZ", "release-group"))
                 .willReturn(Optional.empty(), Optional.of(concurrent));
         given(records.list()).willReturn(List.of());
         given(records.create(any())).willReturn(new NotionClient.SavedRecord("created-page", Instant.parse("2026-08-15T00:00:00Z")));

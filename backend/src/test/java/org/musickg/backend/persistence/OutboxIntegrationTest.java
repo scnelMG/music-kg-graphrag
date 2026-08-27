@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @SpringBootTest(properties = "music-kg.connected.mode=fixture")
+@Tag("integration")
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OutboxIntegrationTest {

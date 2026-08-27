@@ -15,11 +15,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.musickg.backend.catalog.MusicBrainzClient;
 import org.musickg.backend.catalog.MusicCatalogGateway;
+import org.musickg.backend.catalog.SupplementalCatalogGateway;
 import org.musickg.backend.notion.NotionClient;
 import org.musickg.backend.notion.PersonalMusicRecordGateway;
 
 public final class ConnectedMusicService {
     private final MusicCatalogGateway catalog;
+    private final SupplementalCatalogGateway supplementalCatalog;
     private final PersonalMusicRecordGateway records;
     private final PersonalGraphProjectionGateway graph;
     private final PersonalGraphSyncService sync;
@@ -28,23 +30,38 @@ public final class ConnectedMusicService {
     private volatile CachedInsights cachedInsights;
 
     public ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records) {
-        this(catalog, records, new InMemoryPersonalGraphProjectionGateway());
+        this(catalog, records, new InMemoryPersonalGraphProjectionGateway(), Clock.systemUTC(),
+                GroundedExplanationGenerator.disabled(), SupplementalCatalogGateway.disabled());
     }
 
     public ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
                                  PersonalGraphProjectionGateway graph) {
-        this(catalog, records, graph, Clock.systemUTC());
+        this(catalog, records, graph, Clock.systemUTC(), GroundedExplanationGenerator.disabled(), SupplementalCatalogGateway.disabled());
+    }
+
+    public ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
+                                 SupplementalCatalogGateway supplementalCatalog) {
+        this(catalog, records, new InMemoryPersonalGraphProjectionGateway(), Clock.systemUTC(),
+                GroundedExplanationGenerator.disabled(), supplementalCatalog);
     }
 
     ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
                           PersonalGraphProjectionGateway graph, Clock clock) {
-        this(catalog, records, graph, clock, GroundedExplanationGenerator.disabled());
+        this(catalog, records, graph, clock, GroundedExplanationGenerator.disabled(), SupplementalCatalogGateway.disabled());
     }
 
     ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
                           PersonalGraphProjectionGateway graph, Clock clock,
                           GroundedExplanationGenerator explanationGenerator) {
+        this(catalog, records, graph, clock, explanationGenerator, SupplementalCatalogGateway.disabled());
+    }
+
+    ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
+                          PersonalGraphProjectionGateway graph, Clock clock,
+                          GroundedExplanationGenerator explanationGenerator,
+                          SupplementalCatalogGateway supplementalCatalog) {
         this.catalog = catalog;
+        this.supplementalCatalog = supplementalCatalog;
         this.records = records;
         this.graph = graph;
         this.sync = new PersonalGraphSyncService(records, graph, clock);
@@ -56,7 +73,28 @@ public final class ConnectedMusicService {
     }
 
     public List<MusicCatalogGateway.Album> search(String query) {
-        return catalog.search(query);
+        List<MusicCatalogGateway.Album> musicBrainzAlbums = catalog.search(query);
+        if (musicBrainzAlbums.isEmpty() || !hasExactCatalogMatch(query, musicBrainzAlbums)) {
+            try {
+                List<MusicCatalogGateway.Album> supplementalAlbums = supplementalCatalog.search(query);
+                if (!supplementalAlbums.isEmpty()) {
+                    List<MusicCatalogGateway.Album> merged = new ArrayList<>(supplementalAlbums);
+                    for (MusicCatalogGateway.Album album : musicBrainzAlbums) {
+                        boolean duplicate = supplementalAlbums.stream().anyMatch(candidate -> normalized(candidate.title()).equals(normalized(album.title()))
+                                && normalized(candidate.artist()).equals(normalized(album.artist())));
+                        if (!duplicate) merged.add(album);
+                    }
+                    return List.copyOf(merged);
+                }
+            } catch (MusicBrainzClient.CatalogAccessException exception) {
+                if (musicBrainzAlbums.isEmpty()) return List.of();
+            }
+        }
+        return musicBrainzAlbums;
+    }
+
+    public List<MusicCatalogGateway.Album> searchByTag(String tag) {
+        return catalog.searchByTag(tag);
     }
 
     public synchronized SaveResult save(RecordInput input) {
@@ -65,6 +103,14 @@ public final class ConnectedMusicService {
         String recentlySavedPageId = recentlySavedPageIds.get(identity);
         if (recentlySavedPageId != null) {
             return savedAndSynchronize(records.update(recentlySavedPageId, record), SaveOperation.UPDATED, record);
+        }
+        if (!input.catalogSource().isBlank() && !input.catalogId().isBlank()) {
+            NotionClient.ExistingRecord matchedByCatalogIdentity = records
+                    .findByCatalogIdentity(input.catalogSource(), input.catalogId()).orElse(null);
+            if (matchedByCatalogIdentity != null) {
+                recentlySavedPageIds.put(identity, matchedByCatalogIdentity.pageId());
+                return savedAndSynchronize(records.update(matchedByCatalogIdentity.pageId(), record), SaveOperation.UPDATED, record);
+            }
         }
         if (!input.releaseGroupMbid().isBlank()) {
             NotionClient.ExistingRecord matchedByMbid = records.findByReleaseGroupMbid(input.releaseGroupMbid()).orElse(null);
@@ -82,7 +128,10 @@ public final class ConnectedMusicService {
             return savedAndSynchronize(records.update(existing.pageId(), record), SaveOperation.UPDATED, record);
         }
         NotionClient.SavedRecord created = records.create(record);
-        NotionClient.ExistingRecord concurrent = records.findByReleaseGroupMbid(input.releaseGroupMbid())
+        Optional<NotionClient.ExistingRecord> concurrentCandidate = !input.catalogSource().isBlank() && !input.catalogId().isBlank()
+                ? records.findByCatalogIdentity(input.catalogSource(), input.catalogId())
+                : records.findByReleaseGroupMbid(input.releaseGroupMbid());
+        NotionClient.ExistingRecord concurrent = concurrentCandidate
                 .filter(recordAfterCreate -> !recordAfterCreate.pageId().equals(created.pageId()))
                 .orElse(null);
         if (concurrent != null) {
@@ -119,6 +168,10 @@ public final class ConnectedMusicService {
         return records.findByReleaseGroupMbid(releaseGroupMbid);
     }
 
+    public Optional<NotionClient.ExistingRecord> recordByCatalogIdentity(String catalogSource, String catalogId) {
+        return records.findByCatalogIdentity(catalogSource, catalogId);
+    }
+
     public List<String> sentimentOptions() {
         return records.sentimentOptions();
     }
@@ -139,6 +192,10 @@ public final class ConnectedMusicService {
         return catalog.tracks(releaseGroupMbid, releaseMbid);
     }
 
+    public List<MusicCatalogGateway.Track> iTunesTracks(String collectionId) {
+        return supplementalCatalog.tracks(collectionId);
+    }
+
     public TasteProfile tasteProfile() {
         return tasteProfile(synchronizedHistory());
     }
@@ -146,6 +203,14 @@ public final class ConnectedMusicService {
     public Discovery discover() {
         List<NotionClient.ExistingRecord> history = synchronizedHistory();
         return discover(tasteProfile(history), history);
+    }
+
+    public Discovery publicDiscovery() {
+        List<NotionClient.ExistingRecord> projectedHistory = graph.retrieveRecords();
+        if (projectedHistory.isEmpty()) {
+            return new Discovery("", List.of(), List.of(), graph.retrievalMethod());
+        }
+        return discover(tasteProfile(projectedHistory), projectedHistory);
     }
 
     public GraphTaste graphTaste() {
@@ -385,11 +450,12 @@ public final class ConnectedMusicService {
                 saved.pageId(), record.albumTitle(), record.artist(), record.coverUrl(), record.sentiment(),
                 record.favouriteTrack(), record.owned(), record.releaseGroupMbid(), record.releaseMbid(),
                 record.artistCredits(), saved.lastEditedAt(), record.youtubeRecordingMbid(), record.youtubeVideoId(),
-                record.youtubeVideoTitle(), record.youtubeChannelTitle()));
+                record.youtubeVideoTitle(), record.youtubeChannelTitle(), record.catalogSource(), record.catalogId()));
         return savedAndInvalidate(saved, operation);
     }
 
     private void verifySelectedEdition(RecordInput input) {
+        if (input.catalogSource().equals("ITUNES")) return;
         if (input.releaseMbid().isBlank()) return;
         boolean belongsToReleaseGroup = catalog.editionBelongsToReleaseGroup(input.releaseGroupMbid(), input.releaseMbid());
         if (!belongsToReleaseGroup) {
@@ -399,6 +465,16 @@ public final class ConnectedMusicService {
 
     private NotionClient.Record verifiedRecord(RecordInput input) {
         verifySelectedEdition(input);
+        if (input.catalogSource().equals("ITUNES")) {
+            if (input.hasYoutubeMapping()) throw new InvalidYouTubeMappingException();
+            MusicCatalogGateway.Album album = supplementalCatalog.album(input.catalogId());
+            List<MusicCatalogGateway.Track> tracks = supplementalCatalog.tracks(input.catalogId());
+            long matchingTracks = tracks.stream().filter(track -> matchesSelectedTrack(track, input)).count();
+            if (matchingTracks != 1) throw MusicBrainzClient.CatalogAccessException.trackNotInRelease();
+            return new NotionClient.Record(album.title(), album.artist(), album.coverUrl(), input.sentiment(),
+                    input.favouriteTrack(), input.owned(), "", "", album.artistCredits(), "", "", "", "",
+                    "ITUNES", input.catalogId());
+        }
         if (input.releaseMbid().isBlank()) {
             if (input.hasYoutubeMapping()) throw new InvalidYouTubeMappingException();
             return new NotionClient.Record(input.albumTitle(), input.artist(), input.coverUrl(), input.sentiment(),
@@ -410,10 +486,10 @@ public final class ConnectedMusicService {
                 .findFirst()
                 .orElseThrow(MusicBrainzClient.CatalogAccessException::releaseGroupNotFound);
         List<MusicCatalogGateway.Track> tracks = catalog.tracks(input.releaseGroupMbid(), input.releaseMbid());
-        boolean trackBelongsToEdition = tracks.stream().anyMatch(track -> track.title().equals(input.favouriteTrack()));
-        if (!trackBelongsToEdition) throw MusicBrainzClient.CatalogAccessException.trackNotInRelease();
-        if (input.hasYoutubeMapping() && tracks.stream().noneMatch(track -> track.recordingMbid().equals(input.youtubeRecordingMbid())
-                && track.title().equals(input.favouriteTrack()))) {
+        long matchingTracks = tracks.stream().filter(track -> matchesSelectedTrack(track, input)).count();
+        if (matchingTracks != 1) throw MusicBrainzClient.CatalogAccessException.trackNotInRelease();
+        if (input.hasYoutubeMapping() && (!input.favouriteRecordingMbid().isBlank()
+                && !input.youtubeRecordingMbid().equals(input.favouriteRecordingMbid()))) {
             throw MusicBrainzClient.CatalogAccessException.trackNotInRelease();
         }
         return new NotionClient.Record(album.title(), album.artist(), album.coverUrl(), input.sentiment(), input.favouriteTrack(),
@@ -434,6 +510,9 @@ public final class ConnectedMusicService {
     }
 
     private static boolean sameAlbum(NotionClient.ExistingRecord record, RecordInput input) {
+        if (!record.catalogSource().isBlank() && !record.catalogId().isBlank()) {
+            return record.catalogSource().equals(input.catalogSource()) && record.catalogId().equals(input.catalogId());
+        }
         if (!record.releaseGroupMbid().isBlank()) {
             return record.releaseGroupMbid().equals(input.releaseGroupMbid());
         }
@@ -442,6 +521,9 @@ public final class ConnectedMusicService {
     }
 
     private static String recordIdentity(RecordInput input) {
+        if (!input.catalogSource().isBlank() && !input.catalogId().isBlank()) {
+            return "catalog:" + input.catalogSource() + ":" + input.catalogId();
+        }
         if (!input.releaseGroupMbid().isBlank()) return "release-group:" + input.releaseGroupMbid();
         return "album:" + normalized(input.albumTitle()) + "|artist:" + normalized(input.artist());
     }
@@ -458,12 +540,39 @@ public final class ConnectedMusicService {
         return value.trim().toLowerCase(Locale.ROOT);
     }
 
+    private static boolean hasExactCatalogMatch(String query, List<MusicCatalogGateway.Album> albums) {
+        String normalizedQuery = normalized(query);
+        return albums.stream().anyMatch(album -> normalized(album.title()).equals(normalizedQuery)
+                || normalized(album.artist()).equals(normalizedQuery));
+    }
+
+    private static boolean matchesSelectedTrack(MusicCatalogGateway.Track track, RecordInput input) {
+        if (!track.title().equals(input.favouriteTrack())) return false;
+        String recordingMbid = input.favouriteRecordingMbid().isBlank()
+                ? input.youtubeRecordingMbid() : input.favouriteRecordingMbid();
+        return recordingMbid.isBlank() || track.recordingMbid().equals(recordingMbid);
+    }
+
     public enum SaveOperation { CREATED, UPDATED, ARCHIVED, RESTORED }
 
     public record RecordInput(String releaseGroupMbid, String releaseMbid, String albumTitle, String artist, String coverUrl,
                               String sentiment, String favouriteTrack, boolean owned, List<String> artistCredits,
                               String youtubeRecordingMbid, String youtubeVideoId, String youtubeVideoTitle,
-                              String youtubeChannelTitle) {
+                              String youtubeChannelTitle, String catalogSource, String catalogId, String favouriteRecordingMbid) {
+        public RecordInput(String releaseGroupMbid, String releaseMbid, String albumTitle, String artist, String coverUrl,
+                           String sentiment, String favouriteTrack, boolean owned, List<String> artistCredits,
+                           String youtubeRecordingMbid, String youtubeVideoId, String youtubeVideoTitle,
+                           String youtubeChannelTitle, String catalogSource, String catalogId) {
+            this(releaseGroupMbid, releaseMbid, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, artistCredits,
+                    youtubeRecordingMbid, youtubeVideoId, youtubeVideoTitle, youtubeChannelTitle, catalogSource, catalogId, "");
+        }
+        public RecordInput(String releaseGroupMbid, String releaseMbid, String albumTitle, String artist, String coverUrl,
+                           String sentiment, String favouriteTrack, boolean owned, List<String> artistCredits,
+                           String youtubeRecordingMbid, String youtubeVideoId, String youtubeVideoTitle,
+                           String youtubeChannelTitle) {
+            this(releaseGroupMbid, releaseMbid, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, artistCredits,
+                    youtubeRecordingMbid, youtubeVideoId, youtubeVideoTitle, youtubeChannelTitle, "", "");
+        }
         public RecordInput(String releaseGroupMbid, String releaseMbid, String albumTitle, String artist, String coverUrl,
                            String sentiment, String favouriteTrack, boolean owned, List<String> artistCredits) {
             this(releaseGroupMbid, releaseMbid, albumTitle, artist, coverUrl, sentiment, favouriteTrack, owned, artistCredits,
@@ -488,6 +597,23 @@ public final class ConnectedMusicService {
             youtubeVideoId = youtubeVideoId == null ? "" : youtubeVideoId.trim();
             youtubeVideoTitle = youtubeVideoTitle == null ? "" : youtubeVideoTitle.trim();
             youtubeChannelTitle = youtubeChannelTitle == null ? "" : youtubeChannelTitle.trim();
+            catalogSource = catalogSource == null ? "" : catalogSource.trim();
+            catalogId = catalogId == null ? "" : catalogId.trim();
+            favouriteRecordingMbid = favouriteRecordingMbid == null ? "" : favouriteRecordingMbid.trim();
+            if (catalogSource.isBlank() && !releaseGroupMbid.isBlank()) {
+                catalogSource = "MUSICBRAINZ";
+                catalogId = releaseGroupMbid;
+            }
+            if (!catalogSource.isBlank() && !catalogSource.equals("MUSICBRAINZ") && !catalogSource.equals("ITUNES")) {
+                throw new IllegalArgumentException("CATALOG_SOURCE_INVALID");
+            }
+            if (!catalogSource.isBlank() && catalogId.isBlank()) throw new IllegalArgumentException("CATALOG_ID_REQUIRED");
+            if (catalogSource.equals("MUSICBRAINZ") && !catalogId.equals(releaseGroupMbid)) {
+                throw new IllegalArgumentException("MUSICBRAINZ_CATALOG_ID_MISMATCH");
+            }
+            if (catalogSource.equals("ITUNES") && (!releaseGroupMbid.isBlank() || !releaseMbid.isBlank())) {
+                throw new IllegalArgumentException("ITUNES_MUSICBRAINZ_IDENTITY_MIXED");
+            }
             boolean youtubeComplete = !youtubeRecordingMbid.isBlank() && !youtubeVideoId.isBlank()
                     && !youtubeVideoTitle.isBlank() && !youtubeChannelTitle.isBlank();
             boolean youtubeEmpty = youtubeRecordingMbid.isBlank() && youtubeVideoId.isBlank()
@@ -512,14 +638,23 @@ public final class ConnectedMusicService {
 
     public record AlbumRecommendation(String releaseGroupMbid, String title, String artist, String firstReleaseDate,
                                       String coverUrl, String evidenceMethod, long score,
-                                      List<EvidencePath> evidencePaths) {
+                                      List<EvidencePath> evidencePaths, List<String> artistCredits, String primaryType) {
         public AlbumRecommendation(String releaseGroupMbid, String title, String artist, String firstReleaseDate,
-                                   String coverUrl, String evidenceMethod) {
-            this(releaseGroupMbid, title, artist, firstReleaseDate, coverUrl, evidenceMethod, 0, List.of());
+                                   String coverUrl, String evidenceMethod, long score, List<EvidencePath> evidencePaths) {
+            this(releaseGroupMbid, title, artist, firstReleaseDate, coverUrl, evidenceMethod, score, evidencePaths,
+                    List.of(artist), "Album");
+        }
+
+        public AlbumRecommendation(String releaseGroupMbid, String title, String artist, String firstReleaseDate,
+                                    String coverUrl, String evidenceMethod) {
+            this(releaseGroupMbid, title, artist, firstReleaseDate, coverUrl, evidenceMethod, 0, List.of(),
+                    List.of(artist), "Album");
         }
 
         public AlbumRecommendation {
             evidencePaths = List.copyOf(evidencePaths);
+            artistCredits = artistCredits == null || artistCredits.isEmpty() ? List.of(artist) : List.copyOf(artistCredits);
+            primaryType = "EP".equals(primaryType) ? "EP" : "Album";
         }
     }
 
@@ -563,7 +698,7 @@ public final class ConnectedMusicService {
                     .toList();
             long score = pathWeights.values().stream().mapToLong(Long::longValue).sum();
             return new AlbumRecommendation(album.releaseGroupMbid(), album.title(), album.artist(), album.firstReleaseDate(),
-                    album.coverUrl(), retrievalMethod, score, paths);
+                    album.coverUrl(), retrievalMethod, score, paths, album.artistCredits(), album.primaryType());
         }
     }
 

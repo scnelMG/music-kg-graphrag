@@ -48,8 +48,17 @@ public interface MusicCatalogGateway {
         search("music-kg-readiness-probe");
     }
 
+    enum CatalogSource { MUSICBRAINZ, ITUNES }
+
     record Album(String releaseGroupMbid, String title, String artist, String firstReleaseDate, String coverUrl,
-                 List<String> artistCredits, String primaryType, int searchScore) {
+                 List<String> artistCredits, String primaryType, int searchScore, CatalogSource catalogSource,
+                 String catalogId, String catalogUrl) {
+        public Album(String releaseGroupMbid, String title, String artist, String firstReleaseDate, String coverUrl,
+                     List<String> artistCredits, String primaryType, int searchScore) {
+            this(releaseGroupMbid, title, artist, firstReleaseDate, coverUrl, artistCredits, primaryType, searchScore,
+                    CatalogSource.MUSICBRAINZ, releaseGroupMbid, "");
+        }
+
         public Album(String releaseGroupMbid, String title, String artist, String firstReleaseDate, String coverUrl,
                      List<String> artistCredits) {
             this(releaseGroupMbid, title, artist, firstReleaseDate, coverUrl, artistCredits, "Album", 0);
@@ -62,6 +71,10 @@ public interface MusicCatalogGateway {
         public Album {
             artistCredits = artistCredits == null ? List.of() : List.copyOf(artistCredits);
             primaryType = primaryType == null ? "" : primaryType;
+            catalogSource = catalogSource == null ? CatalogSource.MUSICBRAINZ : catalogSource;
+            catalogId = catalogId == null ? "" : catalogId.trim();
+            catalogUrl = catalogUrl == null ? "" : catalogUrl.trim();
+            if (catalogSource == CatalogSource.MUSICBRAINZ && catalogId.isBlank()) catalogId = releaseGroupMbid;
         }
     }
 
