@@ -53,7 +53,7 @@ export function MusicCatalogSection(props: MusicCatalogSectionProps): React.JSX.
         {props.searchState === "loading" && <div className="loading-record"><span />음반을 찾고 있습니다.</div>}
         {props.searchState === "guidance" && <div className="search-recovery" role="status"><p>{props.searchMessage}</p><button type="button" onClick={props.onClearSearch}>입력 지우기</button></div>}
         {props.searchState === "empty" && <div className="search-recovery" role="status"><p>일치하는 앨범을 찾지 못했습니다. 표기나 가수명을 바꿔 다시 검색해 보세요.</p><div><button type="button" onClick={props.onClearSearch}>입력 지우기</button><button type="button" onClick={() => props.onSearchExample("Kind of Blue")}>Kind of Blue 검색</button></div></div>}
-        {props.searchState === "error" && <p className="result-message">{props.searchMessage}</p>}
+        {props.searchState === "error" && <div className="search-recovery" role="status"><p>{props.searchMessage}</p><p>같은 검색어로 다시 시도하거나 입력을 바꿔 보세요.</p><div><button type="button" onClick={props.onSubmitSearch}>검색 다시 시도</button><button type="button" onClick={props.onClearSearch}>입력 지우기</button></div></div>}
         {props.albums.length > 0 && <div className="candidate-collection">{props.albums.map((album) => {
           const identity = catalogIdentity(album);
           const priority = album.coverUrl.length > 0 && prioritizedCoverCount++ < 3;

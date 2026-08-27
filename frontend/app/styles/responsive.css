@@ -16,6 +16,7 @@
   .public-discovery-skeleton { grid-template-columns: minmax(0, 1fr); }
   .public-discovery-skeleton > p { grid-column: 1; margin: 0; }
   .discovery-card .album-art-hero { width: min(100%, 25rem); }
+  .discovery-next-preview { left: 50%; width: min(76%, 23rem); transform: translate(-45%, var(--space-5)); }
   .discovery-card-copy h3 { max-width: none; }
   .deck-actions,
   .deck-keyboard-hint { width: 100%; }
@@ -85,6 +86,8 @@
   .archive-confirmation { grid-column: 1 / -1; flex-direction: row; }
   .youtube-candidate { grid-template-columns: minmax(0, 1fr); }
   .service-page-header h1 { max-width: 9ch; }
+  .service-contents { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+  .service-contents ol { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
   .service-page-content { grid-template-columns: minmax(0, 1fr); }
   .service-page-content section:first-child { grid-column: 1; }
   .service-page-content section { padding: var(--space-6) 0 var(--space-8); }

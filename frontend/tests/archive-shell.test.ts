@@ -17,6 +17,7 @@ describe("editorial archive shell", () => {
     expect(markup).toContain("음악 찾기");
     expect(markup).toContain("추천 방식");
     expect(markup).toContain("아카이브 관리");
+    expect(markup).toContain("aria-current=\"page\"");
   });
 
   it("keeps exactly the three public trust destinations in the footer", () => {

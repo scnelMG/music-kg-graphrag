@@ -12,6 +12,7 @@ type PublicDiscoveryHomeProps = Readonly<{
   readonly insightMessage: string;
   readonly insightState: PublicInsightState;
   readonly onOpenAlbum: (album: CatalogAlbum) => void;
+  readonly onRetryInsight: () => void;
 }>;
 
 const genres: readonly Readonly<{ key: PublicGenre; label: string }>[] = [
@@ -45,7 +46,7 @@ function publicAlbums(graphTaste: PublicGraphTaste | null): readonly PublicDisco
   });
 }
 
-export function PublicDiscoveryHome({ graphTaste, insightMessage, insightState, onOpenAlbum }: PublicDiscoveryHomeProps): React.JSX.Element {
+export function PublicDiscoveryHome({ graphTaste, insightMessage, insightState, onOpenAlbum, onRetryInsight }: PublicDiscoveryHomeProps): React.JSX.Element {
   const genreExplore = usePublicGenreExplore();
   const curatedAlbums = publicAlbums(graphTaste);
   const hasGenreResults = genreExplore.state === "ready" && genreExplore.albums.length > 0;
@@ -61,7 +62,8 @@ export function PublicDiscoveryHome({ graphTaste, insightMessage, insightState, 
       <p role="status">오늘의 음악을 고르는 중입니다.</p>
     </section>}
     {insightState === "error" && deckAlbums.length === 0 && <section className="public-discovery-unavailable" role="status">
-      <h2>오늘의 큐레이션을 잠시 열 수 없습니다.</h2><p>{insightMessage}</p>
+      <h2>오늘의 큐레이션을 잠시 열 수 없습니다.</h2><p>{insightMessage}</p><p>장르나 앨범 검색으로 계속 탐색하거나 다시 불러올 수 있습니다.</p>
+      <button type="button" className="discovery-open" onClick={onRetryInsight}>다시 불러오기</button>
     </section>}
     {deckAlbums.length > 0
       ? <PublicDiscoveryDeck albums={deckAlbums} label={deckLabel} onOpenAlbum={onOpenAlbum} />

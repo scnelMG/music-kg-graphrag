@@ -21,18 +21,28 @@ const album: PublicDiscoveryAlbum = {
   title: "소곡집 I"
 };
 
+const nextAlbum: PublicDiscoveryAlbum = {
+  ...album,
+  artist: "김사월",
+  coverUrl: "https://coverartarchive.org/release-group/next/front-250",
+  releaseGroupMbid: "release-group-two",
+  title: "헤븐"
+};
+
 describe("public editorial components", () => {
   beforeAll(() => vi.stubGlobal("React", React));
   afterAll(() => vi.unstubAllGlobals());
 
   it("keeps the discovery stage stable and uses concise actions", () => {
     const markup = renderToStaticMarkup(React.createElement(PublicDiscoveryDeck, {
-      albums: [album],
+      albums: [album, nextAlbum],
       label: "오늘의 큐레이션",
       onOpenAlbum: () => undefined
     }));
 
     expect(markup).toContain("discovery-stage-frame");
+    expect(markup).toContain("discovery-next-preview");
+    expect(markup).toContain("aria-hidden=\"true\"");
     expect(markup).toContain(">수록곡 보기</button>");
     expect(markup).not.toContain("소곡집 I 수록곡 보기");
   });
@@ -42,6 +52,7 @@ describe("public editorial components", () => {
       graphTaste: null,
       insightMessage: "",
       insightState: "ready",
+      onRetryInsight: () => undefined,
       onOpenAlbum: () => undefined
     }));
 
@@ -55,11 +66,25 @@ describe("public editorial components", () => {
       graphTaste: null,
       insightMessage: "",
       insightState: "loading",
+      onRetryInsight: () => undefined,
       onOpenAlbum: () => undefined
     }));
 
     expect(markup).toContain("public-discovery-skeleton");
     expect(markup).toContain("aria-busy=\"true\"");
     expect(markup).toContain("오늘의 음악을 고르는 중입니다.");
+  });
+
+  it("offers an explicit recovery action when public curation fails", () => {
+    const markup = renderToStaticMarkup(React.createElement(PublicDiscoveryHome, {
+      graphTaste: null,
+      insightMessage: "연결이 지연되고 있습니다.",
+      insightState: "error",
+      onRetryInsight: () => undefined,
+      onOpenAlbum: () => undefined
+    }));
+
+    expect(markup).toContain("다시 불러오기");
+    expect(markup).toContain("장르나 앨범 검색으로 계속 탐색");
   });
 });

@@ -8,7 +8,7 @@ type ArchiveMastheadProps = Readonly<{
 export function ArchiveMasthead({ meta, mode }: ArchiveMastheadProps): React.JSX.Element {
   const owner = mode === "owner";
   return <header className="journal-header" data-owner-access={owner ? "owner" : "visitor"}>
-    <ArchiveNavigation mode={owner ? "owner" : "public"} />
+    <ArchiveNavigation currentPath={owner ? "/owner/workspace" : "/"} mode={owner ? "owner" : "public"} />
     <div className="masthead-composition">
       <div>
         <p className="section-kicker">{owner ? "개인 음악 기록" : "오늘의 큐레이션"}</p>

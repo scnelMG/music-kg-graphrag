@@ -54,6 +54,8 @@ test("captures the public discovery deck, liked state, recovery, focus, and redu
   await expect(deck).toHaveCSS("outline-width", "3px");
   await page.screenshot({ path: await evidencePath(testInfo, "public-deck-focus-375.png") });
   await page.keyboard.press("ArrowRight");
+  await expect(deck.locator(".deck-skip")).toBeDisabled();
+  await expect(deck.locator(".deck-like")).toBeDisabled();
   await expect(page.getByTestId("public-liked-list")).toContainText("헤븐 (Heaven)");
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-liked-375.png") });
 

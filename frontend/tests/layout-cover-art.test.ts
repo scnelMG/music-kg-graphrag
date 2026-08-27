@@ -46,12 +46,9 @@ describe("root layout cover-art connection", () => {
     expect(link.props).toMatchObject({ crossOrigin: "anonymous", href: "https://coverartarchive.org", rel: "preconnect" });
   });
 
-  it("loads React inspection tools only in development", () => {
+  it("does not inject third-party inspection scripts into application pages", () => {
     vi.stubEnv("NODE_ENV", "development");
-    expect(developmentScriptSources()).toEqual(expect.arrayContaining([
-      "//unpkg.com/react-grab/dist/index.global.js",
-      "//unpkg.com/react-scan/dist/auto.global.js"
-    ]));
+    expect(developmentScriptSources()).toEqual([]);
 
     vi.stubEnv("NODE_ENV", "production");
     expect(developmentScriptSources()).toEqual([]);

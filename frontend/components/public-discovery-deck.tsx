@@ -35,7 +35,7 @@ function DiscoveryAlbumCard({ album, layer, onOpenAlbum, transitionState }: Disc
     <div className="discovery-card-copy"><p className="entry-eyebrow">{album.primaryType === "EP" ? "EP" : "앨범"}</p><h3>{album.title}</h3><p>{album.artist}</p>{album.publicCurationReason !== undefined && <p className="public-reason">{album.publicCurationReason === "shared-tag"
       ? <>아카이브에 쌓인 <span className="keep-together">“{album.sharedMusicBrainzTag}”</span> 흐름과 이어집니다.</>
       : "아카이브가 다뤄 온 아티스트의 다른 앨범입니다."}</p>}
-      <button className="discovery-open" type="button" onClick={() => onOpenAlbum(album)}>수록곡 보기</button></div>
+      <button className="discovery-open" type="button" disabled={transitionState !== "idle"} onClick={() => onOpenAlbum(album)}>수록곡 보기</button></div>
   </article>;
 }
 
@@ -48,6 +48,7 @@ export function PublicDiscoveryDeck({ albums, label, onOpenAlbum }: PublicDiscov
   const transitionTimer = useRef<number | null>(null);
   const albumSetKey = albums.map((album) => album.releaseGroupMbid).join("|");
   const current = albums[index] ?? null;
+  const nextAlbum = albums[index + 1] ?? null;
 
   useEffect(() => { setIndex(0); }, [albumSetKey]);
   useEffect(() => () => {
@@ -113,12 +114,14 @@ export function PublicDiscoveryDeck({ albums, label, onOpenAlbum }: PublicDiscov
 
   return <><section className="public-discovery-deck" data-testid="public-discovery-deck" tabIndex={0} onKeyDown={onKeyDown} aria-label={`${label} 카드 탐색`}>
     <header className="public-discovery-heading"><div><p className="section-kicker">{label}</p><h2>한 장씩 골라 보세요.</h2></div><p className="deck-count" aria-live="polite">{current === null ? albums.length : index + 1} / {albums.length}</p></header>
-    <div className="discovery-stage-frame">{current === null
+    <div className="discovery-stage-frame">{nextAlbum !== null && nextAlbum.coverUrl.trim().length > 0 && <div className="discovery-next-preview" aria-hidden="true">
+      <AlbumArt album={nextAlbum} size="hero" />
+    </div>}{current === null
       ? <div className="deck-finish" role="status"><strong>살펴볼 앨범을 모두 봤습니다.</strong><p>좋아요한 앨범은 아래에서 다시 열 수 있습니다.</p><button type="button" className="discovery-open" onClick={restart}>처음부터 보기</button></div>
       : <DiscoveryAlbumCard album={current} layer="current" onOpenAlbum={onOpenAlbum} transitionState={transitionState} />}
       {outgoingAlbum !== null && <DiscoveryAlbumCard album={outgoingAlbum} layer="outgoing" onOpenAlbum={onOpenAlbum} transitionState="exiting" />}
     </div>
-    <div className="deck-actions"><button className="deck-skip" type="button" disabled={current === null} onClick={skip}>넘기기</button><button className="deck-like" type="button" disabled={current === null} onClick={saveLike}>좋아요</button></div>
+    <div className="deck-actions"><button className="deck-skip" type="button" disabled={current === null || transitionState !== "idle"} onClick={skip}>넘기기</button><button className="deck-like" type="button" disabled={current === null || transitionState !== "idle"} onClick={saveLike}>좋아요</button></div>
     <p className="deck-keyboard-hint">← 넘기기 · → 좋아요</p>
     <p className="visually-hidden" aria-live="polite">{message}</p>
   </section>{likes.length > 0 && <section className="public-liked-list" data-testid="public-liked-list" aria-label="좋아요한 앨범">

@@ -20,12 +20,17 @@ describe("owner and service editorial shell", () => {
 
   it("keeps trust articles inside the same service navigation", () => {
     const markup = renderToStaticMarkup(React.createElement(ServicePage, {
+      children: React.createElement("section", { id: "evidence" }, React.createElement("h2", null, "근거")),
+      contents: [{ id: "evidence", label: "근거" }],
+      currentPath: "/method",
       eyebrow: "추천 방식",
       title: "추천이 만들어지는 방식"
-    }, React.createElement("section", null, React.createElement("h2", null, "근거"))));
+    }));
 
     expect(markup).toContain("aria-label=\"주요 탐색\"");
     expect(markup).toContain("service-page-content");
+    expect(markup).toContain("aria-label=\"이 페이지의 내용\"");
+    expect(markup).toContain("aria-current=\"page\"");
     expect(markup).toContain("추천이 만들어지는 방식");
   });
 });

@@ -66,7 +66,7 @@ export function ConnectedMusicDesk(): React.JSX.Element {
 
   if (workspace.ownerAccess === "visitor") {
     return <><a className="skip-link" href="#main-content">본문으로 건너뛰기</a><main className="music-journal access-page" id="main-content" tabIndex={-1}>
-      <ArchiveNavigation mode="service" />
+      <ArchiveNavigation currentPath="/owner/workspace" mode="service" />
       <section className="access-sheet access-denied" aria-live="polite"><div className="access-copy"><p className="section-kicker">개인 기록 관리</p><h1>개인 기록에 접근할 수 없습니다</h1><p className="instruction">소유자 확인을 다시 마치면 개인 기록을 열 수 있습니다.</p></div><Link className="owner-access-link" href="/owner">소유자 확인</Link></section>
     </main></>;
   }

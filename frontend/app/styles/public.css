@@ -91,6 +91,19 @@
   border-radius: var(--radius-panel);
 }
 
+.discovery-next-preview {
+  position: absolute;
+  z-index: 0;
+  top: clamp(var(--space-8), 7vw, var(--space-16));
+  left: clamp(var(--space-8), 8vw, var(--space-20));
+  width: min(38%, 28rem);
+  opacity: .2;
+  transform: translate(var(--space-5), var(--space-5));
+  pointer-events: none;
+}
+
+.discovery-next-preview .album-art-hero { width: 100%; }
+
 .discovery-card {
   display: grid;
   grid-template-columns: minmax(16rem, 7fr) minmax(18rem, 5fr);
@@ -161,7 +174,7 @@
   border: .0625rem solid var(--accent);
 }
 
-.discovery-open:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+.discovery-open:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); }
 
 .deck-actions {
   display: grid;

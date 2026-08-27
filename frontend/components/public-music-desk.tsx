@@ -19,7 +19,7 @@ export function PublicMusicDesk(): React.JSX.Element {
   return <>
     <div className="connection-status" role="status">연결 상태: <strong>공개 앨범 검색</strong></div>
     <PublicDiscoveryHome graphTaste={insights.graphTaste} insightMessage={insights.insightMessage}
-      insightState={insights.insightState} onOpenAlbum={openAlbum} />
+      insightState={insights.insightState} onOpenAlbum={openAlbum} onRetryInsight={insights.retryInsights} />
     <section className="journal-workspace public-workspace" aria-label="공개 음악 탐색 작업공간">
       <section className="journal-page" aria-labelledby="search-heading">
         <MusicCatalogSection albums={catalog.albums} editionMessage={catalog.editionMessage} editionState={catalog.editionState}

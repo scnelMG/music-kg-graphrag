@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default function OwnerPage(): React.JSX.Element {
   return <><a className="skip-link" href="#main-content">본문으로 건너뛰기</a><main className="music-journal access-page" id="main-content" tabIndex={-1}>
-    <ArchiveNavigation mode="service" />
+    <ArchiveNavigation currentPath="/owner" mode="service" />
     <section className="access-sheet" aria-labelledby="owner-session-heading">
       <div className="access-copy"><p className="section-kicker">개인 기록 관리</p>
       <h1 id="owner-session-heading"><span className="keep-phrase">개인 음악 기록</span><span className="title-line"> 열기</span></h1>
