@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { routeConnectedWorkspace } from "./connected-workspace-fixtures";
 
 const factualCoverUrl = "https://coverartarchive.org/release-group/4b19cdd4-9f1a-4387-b5bd-d1367e0bb1ef/front-250";
+const nextFactualCoverUrl = "https://coverartarchive.org/release/bee5e0cd-1767-4a8e-9578-6455e87ba60b/front-250";
 
 async function evidencePath(testInfo: TestInfo, name: string): Promise<string> {
   const configuredDirectory = process.env.TASK12_UI_EVIDENCE_DIR;
@@ -30,7 +31,7 @@ test("captures the public discovery deck, liked state, recovery, focus, and redu
   test.skip(testInfo.project.name !== "desktop", "Captures each public visual state once.");
   await routePublicDiscovery(page, [
     { artist: "김사월", artistCredits: ["김사월"], coverUrl: factualCoverUrl, firstReleaseDate: "2020-09-14", primaryType: "EP", publicCurationReason: "shared-tag", releaseGroupMbid: "public-heaven", sharedMusicBrainzTag: "dream pop", title: "헤븐 (Heaven)" },
-    { artist: "극동아시아타이거즈", artistCredits: ["극동아시아타이거즈"], coverUrl: "", firstReleaseDate: "2024-01-01", primaryType: "Album", publicCurationReason: "same-artist", releaseGroupMbid: "public-east", title: "빛나는 앨범" }
+    { artist: "Miles Davis", artistCredits: ["Miles Davis"], coverUrl: nextFactualCoverUrl, firstReleaseDate: "1959-08-17", primaryType: "Album", publicCurationReason: "same-artist", releaseGroupMbid: "8e8a594f-2175-38c7-a871-abb68ec363e7", title: "Kind of Blue" }
   ]);
 
   for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
@@ -38,6 +39,7 @@ test("captures the public discovery deck, liked state, recovery, focus, and redu
     await page.goto("/");
     await expect(page.getByTestId("public-discovery-deck")).not.toContainText("실제 앨범");
     await expect(page.locator(".discovery-card img")).toHaveAttribute("src", factualCoverUrl);
+    await expect(page.locator(".discovery-next-preview img")).toHaveAttribute("src", nextFactualCoverUrl);
     await expect.poll(() => page.locator(".discovery-card img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
     await expect(page.locator("body")).toHaveCSS("font-family", /Malgun Gothic/);
     await expect.poll(() => page.evaluate(() => Array.from(document.fonts).some((font) => font.family === "Noto Serif KR Variable" && font.status === "loaded"))).toBe(true);
@@ -54,8 +56,6 @@ test("captures the public discovery deck, liked state, recovery, focus, and redu
   await expect(deck).toHaveCSS("outline-width", "3px");
   await page.screenshot({ path: await evidencePath(testInfo, "public-deck-focus-375.png") });
   await page.keyboard.press("ArrowRight");
-  await expect(deck.locator(".deck-skip")).toBeDisabled();
-  await expect(deck.locator(".deck-like")).toBeDisabled();
   await expect(page.getByTestId("public-liked-list")).toContainText("헤븐 (Heaven)");
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-liked-375.png") });
 
