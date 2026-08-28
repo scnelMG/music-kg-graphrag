@@ -68,7 +68,7 @@ export function PublicDiscoveryHome({ graphTaste, insightMessage, insightState, 
     {deckAlbums.length > 0
       ? <PublicDiscoveryDeck albums={deckAlbums} label={deckLabel} onOpenAlbum={onOpenAlbum} />
       : null}
-    <PublicGenreCollection activeGenre={genreExplore.genre} hasDiscovery={deckAlbums.length > 0}
-      message={genreExplore.message} onSelect={(genre) => void genreExplore.explore(genre)} state={genreExplore.state} />
+    {(insightState !== "loading" || deckAlbums.length > 0) && <PublicGenreCollection activeGenre={genreExplore.genre} hasDiscovery={deckAlbums.length > 0}
+      message={genreExplore.message} onSelect={(genre) => void genreExplore.explore(genre)} state={genreExplore.state} />}
   </section>;
 }
