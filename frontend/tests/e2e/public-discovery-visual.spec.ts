@@ -29,6 +29,7 @@ async function routePublicDiscovery(page: Parameters<typeof routeConnectedWorksp
 
 test("captures the public discovery deck, liked state, recovery, focus, and reduced-motion states", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "Captures each public visual state once.");
+  test.setTimeout(120_000);
   await routePublicDiscovery(page, [
     { artist: "김사월", artistCredits: ["김사월"], coverUrl: factualCoverUrl, firstReleaseDate: "2020-09-14", primaryType: "EP", publicCurationReason: "shared-tag", releaseGroupMbid: "public-heaven", sharedMusicBrainzTag: "dream pop", title: "헤븐 (Heaven)" },
     { artist: "Miles Davis", artistCredits: ["Miles Davis"], coverUrl: nextFactualCoverUrl, firstReleaseDate: "1959-08-17", primaryType: "Album", publicCurationReason: "same-artist", releaseGroupMbid: "8e8a594f-2175-38c7-a871-abb68ec363e7", title: "Kind of Blue" }
@@ -65,23 +66,26 @@ test("captures the public discovery deck, liked state, recovery, focus, and redu
   await expect(deck).toHaveCSS("outline-width", "3px");
   await page.screenshot({ path: await evidencePath(testInfo, "public-deck-focus-375.png") });
   await page.clock.install();
+  await page.clock.pauseAt(Date.now());
   await page.keyboard.press("ArrowRight");
   await expect(deck.locator(".deck-skip")).toBeDisabled();
   await expect(deck.locator(".deck-like")).toBeDisabled();
-  await page.clock.runFor(100);
   await expect(deck.locator(".discovery-card")).toHaveCount(2);
+  await page.clock.runFor(90);
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-mid-375.png") });
-  await page.clock.runFor(100);
+  await page.clock.runFor(200);
   await expect(deck.locator(".discovery-card")).toHaveCount(1);
   await expect(deck.locator(".deck-skip")).toBeEnabled();
+  await expect.poll(() => deck.locator(".discovery-card img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-settled-375.png") });
   await expect(page.getByTestId("public-liked-list")).toContainText("헤븐 (Heaven)");
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-liked-375.png") });
+  await page.clock.resume();
 
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-  const reducedDeck = page.getByTestId("public-discovery-deck");
+  const reducedDeck = deck;
   await expect(reducedDeck.locator(".discovery-card")).toHaveCSS("transition-duration", "1e-05s");
+  await expect.poll(() => reducedDeck.locator(".discovery-card img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
   await reducedDeck.focus();
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "public-deck-reduced-motion-375.png") });
 });

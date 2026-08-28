@@ -29,17 +29,19 @@ test("Given a public visitor, when real discovery cards are liked or skipped, th
   await expect(deck.getByRole("button", { name: "Public One 수록곡 보기" })).toHaveCount(0);
 
   await page.clock.install();
+  await page.clock.pauseAt(Date.now());
   await deck.focus();
   await page.keyboard.press("ArrowLeft");
-  await expect(deck.locator(".discovery-card")).toHaveAttribute("data-transition-state", "exiting");
+  await expect(deck.locator(".discovery-card")).toHaveCount(2);
+  await expect(deck.locator(".discovery-card-current")).toHaveAttribute("data-transition-state", "entering");
   await expect(deck.getByRole("button", { name: "수록곡 보기", exact: true })).toBeDisabled();
   await expect(deck.getByRole("button", { name: "넘기기", exact: true })).toBeDisabled();
   await expect(deck.getByRole("button", { name: "좋아요", exact: true })).toBeDisabled();
   await expect(deck).toContainText("Public One");
-  await page.clock.runFor(80);
-  await expect(deck).toContainText("Public One");
-  await page.clock.runFor(80);
+  await page.clock.runFor(200);
+  await expect(deck.locator(".discovery-card")).toHaveCount(1);
   await expect(deck).toContainText("Public Two");
+  await page.clock.resume();
   await page.reload();
   await page.getByTestId("public-discovery-deck").focus();
   await page.keyboard.press("ArrowRight");

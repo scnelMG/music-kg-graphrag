@@ -33,10 +33,15 @@ test("captures route-aware trust and owner access surfaces at review widths", as
     await capture(page, `owner-access-${viewport.width}.png`, testInfo);
   }
 
-  await page.setViewportSize({ width: 375, height: 812 });
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.goto("/method");
-  await capture(page, "service-method-dark-375.png", testInfo);
-  await page.goto("/owner");
-  await capture(page, "owner-access-dark-375.png", testInfo);
+  for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    for (const route of routes) {
+      await page.goto(`/${route.path}`);
+      await expect(page.getByRole("navigation", { name: "이 페이지의 내용" })).toBeVisible();
+      await capture(page, `service-${route.path}-dark-${viewport.width}.png`, testInfo);
+    }
+    await page.goto("/owner");
+    await capture(page, `owner-access-dark-${viewport.width}.png`, testInfo);
+  }
 });

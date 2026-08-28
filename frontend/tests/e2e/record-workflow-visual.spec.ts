@@ -99,14 +99,20 @@ test("keeps the restore confirmation visible before it can change a Notion recor
     await route.fulfill({ body: JSON.stringify({ nextCursor: null, records: archived ? [] : [record] }), contentType: "application/json", status: 200 });
   });
 
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/owner/workspace");
-  await page.getByRole("button", { name: "Notion에서 보관" }).click();
-  await page.getByRole("button", { name: "보관하기" }).click();
-  await page.getByRole("button", { name: "보관 취소" }).click();
-  await expect(page.getByRole("button", { name: "보관 취소" })).toHaveCSS("white-space", "nowrap");
-  await expect(page.locator(".save-confirmation")).toContainText("이 기록을 Notion에 복원할까요?");
-  await capture(page, "record-restore-confirmation-375.png", testInfo);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
+      archived = false;
+      await page.setViewportSize(viewport);
+      await page.goto("/owner/workspace");
+      await page.getByRole("button", { name: "Notion에서 보관" }).click();
+      await page.getByRole("button", { name: "보관하기" }).click();
+      await page.getByRole("button", { name: "보관 취소" }).click();
+      await expect(page.getByRole("button", { name: "보관 취소" })).toHaveCSS("white-space", "nowrap");
+      await expect(page.locator(".save-confirmation")).toContainText("이 기록을 Notion에 복원할까요?");
+      await capture(page, `record-restore-confirmation-${colorScheme}-${viewport.width}.png`, testInfo);
+    }
+  }
 });
 
 test("keeps a long Notion record list measured at review widths", async ({ page }, testInfo) => {

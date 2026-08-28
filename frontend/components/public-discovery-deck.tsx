@@ -20,7 +20,7 @@ type PublicDiscoveryDeckProps = Readonly<{
 
 type TransitionState = "entering" | "exiting" | "idle";
 
-const transitionDurationMs = 90;
+const transitionDurationMs = 180;
 
 type DiscoveryAlbumCardProps = Readonly<{
   readonly album: PublicDiscoveryAlbum;
@@ -65,15 +65,12 @@ export function PublicDiscoveryDeck({ albums, label, onOpenAlbum }: PublicDiscov
       commitAdvance();
       return;
     }
-    setTransitionState("exiting");
+    setOutgoingAlbum(current);
+    commitAdvance();
+    setTransitionState("entering");
     transitionTimer.current = window.setTimeout(() => {
-      setOutgoingAlbum(current);
-      commitAdvance();
-      setTransitionState("entering");
-      transitionTimer.current = window.setTimeout(() => {
-        setTransitionState("idle");
-        setOutgoingAlbum(null);
-      }, transitionDurationMs);
+      setTransitionState("idle");
+      setOutgoingAlbum(null);
     }, transitionDurationMs);
   }
 

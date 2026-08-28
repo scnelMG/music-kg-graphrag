@@ -178,6 +178,10 @@
 .record-list h3 { margin: 0; font-size: var(--type-section); letter-spacing: -.05em; line-height: 1.08; }
 .selected-record,
 .record-prompt { margin-top: var(--space-4); color: var(--text-secondary); }
+.selected-album { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); align-items: center; }
+.selected-album > div { display: grid; gap: var(--space-1); min-width: 0; }
+.selected-album strong,
+.selected-album span { display: block; }
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); margin-top: var(--space-8); }
 .field-grid label { display: grid; grid-column: auto; gap: var(--space-2); }
 .owned-field { align-content: end; }

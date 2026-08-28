@@ -6,7 +6,7 @@
   --surface-muted: #e9edf2;
   --text: #121821;
   --text-secondary: #4e5a68;
-  --text-tertiary: #6b7683;
+  --text-tertiary: #5f6b78;
   --line: #d8dee6;
   --line-strong: #b9c3cf;
   --accent: #245bd6;
@@ -362,6 +362,7 @@ summary:focus-visible,
 .archive-footer p { max-width: 36rem; margin: 0; }
 .archive-footer nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-5); }
 .archive-footer a { color: var(--accent-strong); font-weight: 750; text-underline-offset: .2em; }
+.archive-footer [aria-current="page"] { color: var(--text); text-decoration-thickness: .125rem; }
 
 .service-page { width: min(100%, 60rem); }
 .service-page-header { padding-bottom: var(--space-12); }
