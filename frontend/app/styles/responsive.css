@@ -72,7 +72,7 @@
   .catalog-selection-heading { align-items: flex-start; }
   .access-page { align-items: start; }
   .access-sheet { padding: var(--space-8) var(--space-5); background: transparent; }
-  .access-sheet h1 { max-width: 7ch; font-size: var(--type-access-title-mobile); }
+  .access-sheet h1 { max-width: 9ch; font-size: var(--type-access-title-mobile); }
   .access-form { padding: var(--space-5); }
   .task-navigation { margin-bottom: var(--space-8); }
   .personal-cover-rail { padding: var(--space-5); }
@@ -110,6 +110,9 @@
 
   .discovery-card > .album-art,
   .discovery-card > .discovery-card-copy { transition: opacity var(--motion-state), transform var(--motion-state); }
+  .discovery-card[data-transition-state="entering"] > .album-art,
+  .discovery-card[data-transition-state="entering"] > .discovery-card-copy { animation: discovery-card-enter var(--motion-state) both; }
+  .discovery-card[data-transition-state="exiting"] > .album-art { animation: discovery-card-exit var(--motion-state) both; }
   .discovery-skeleton-cover,
   .discovery-skeleton-copy span { animation: editorial-loading-pulse 1.6s ease-in-out infinite; }
   .cover-rail-item:hover .album-art { transform: translateY(-.125rem); }

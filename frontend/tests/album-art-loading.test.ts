@@ -25,4 +25,15 @@ describe("AlbumArt loading state", () => {
 
     expect(markup).toContain("표지 없음");
   });
+
+  it("loads only explicitly prioritized hero artwork eagerly", () => {
+    const album = { coverUrl: "https://coverartarchive.org/release-group/example/front-250", title: "Kind of Blue" };
+    const previewMarkup = renderToStaticMarkup(React.createElement(AlbumArt, { album, size: "hero" }));
+    const primaryMarkup = renderToStaticMarkup(React.createElement(AlbumArt, { album, priority: true, size: "hero" }));
+
+    expect(previewMarkup).toContain('loading="lazy"');
+    expect(previewMarkup).not.toContain('fetchPriority="high"');
+    expect(primaryMarkup).toContain('fetchPriority="high"');
+    expect(primaryMarkup).not.toContain('loading="lazy"');
+  });
 });

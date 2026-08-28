@@ -1,5 +1,16 @@
 import type { Page } from "@playwright/test";
 
+const coverFixturePrimary = `<svg xmlns="http://www.w3.org/2000/svg" width="250" height="250" viewBox="0 0 250 250"><rect width="250" height="250" fill="#101820"/><circle cx="82" cy="102" r="62" fill="#6f9cff"/><rect x="112" y="34" width="98" height="182" fill="#e8eef8"/><path d="M34 204L208 46" stroke="#f8fafc" stroke-width="16"/></svg>`;
+const coverFixtureSecondary = `<svg xmlns="http://www.w3.org/2000/svg" width="250" height="250" viewBox="0 0 250 250"><rect width="250" height="250" fill="#e8eef8"/><rect x="28" y="28" width="194" height="194" fill="#173b73"/><circle cx="125" cy="125" r="66" fill="#f8fafc"/><circle cx="125" cy="125" r="26" fill="#101820"/></svg>`;
+
+export async function routeDeterministicCoverArt(page: Page): Promise<void> {
+  await page.route("https://coverartarchive.org/**", (route) => route.fulfill({
+    body: route.request().url().includes("/release-group/") ? coverFixturePrimary : coverFixtureSecondary,
+    contentType: "image/svg+xml",
+    status: 200
+  }));
+}
+
 export type AlbumFixture = {
   readonly artist: string;
   readonly artistCredits: readonly string[];

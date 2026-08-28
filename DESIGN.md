@@ -43,7 +43,7 @@ Light mode:
 | Muted surface | `--surface-muted` | `#e9edf2` |
 | Primary ink | `--text` | `#121821` |
 | Secondary ink | `--text-secondary` | `#4e5a68` |
-| Tertiary ink | `--text-tertiary` | `#6b7683` |
+| Tertiary ink | `--text-tertiary` | `#5f6b78` |
 | Rule | `--line` | `#d8dee6` |
 | Strong rule | `--line-strong` | `#b9c3cf` |
 | Cobalt | `--accent` | `#245bd6` |

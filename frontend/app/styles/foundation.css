@@ -70,7 +70,7 @@
   --type-discovery-title-mobile: clamp(2rem, 11vw, 3.15rem);
   --type-finish: clamp(1.5rem, 3vw, 2.4rem);
   --type-access-title: clamp(2.8rem, 6vw, 5.8rem);
-  --type-access-title-mobile: clamp(2.7rem, 14vw, 3.7rem);
+  --type-access-title-mobile: clamp(2.35rem, 11vw, 3rem);
   --motion-press: 120ms ease-out;
   --motion-state: 180ms cubic-bezier(.16, 1, .3, 1);
 }

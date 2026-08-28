@@ -16,7 +16,7 @@ export function AlbumArt({ album, priority = false, size = "row" }: { readonly a
     return <span className={`${className} album-art-missing`} aria-label={`${title} 표지 정보 없음`}>표지 없음</span>;
   }
   const dimension = size === "hero" ? 176 : size === "cover-rail" ? 144 : 64;
-  const prioritized = priority || size === "hero";
+  const prioritized = priority;
   const loading = loadedCoverUrl !== album.coverUrl;
   return <span className={className} aria-busy={loading}>
     {loading && <span className="album-art-status" role="status">불러오는 중</span>}

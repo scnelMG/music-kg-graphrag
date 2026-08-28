@@ -143,14 +143,20 @@
   line-height: 1.75;
 }
 
-.discovery-card[data-transition-state="exiting"] > .album-art,
-.discovery-card[data-transition-state="exiting"] > .discovery-card-copy { opacity: .55; transform: translateX(-.75rem); }
-.discovery-card[data-transition-state="entering"] > .album-art,
-.discovery-card[data-transition-state="entering"] > .discovery-card-copy { opacity: .62; transform: translateX(.75rem); }
 .discovery-card-current { position: relative; z-index: 2; }
 .discovery-card-outgoing { position: absolute; z-index: 1; inset: 0; pointer-events: none; }
 .discovery-card-outgoing > .album-art { opacity: .22; }
 .discovery-card-outgoing > .discovery-card-copy { visibility: hidden; }
+
+@keyframes discovery-card-enter {
+  from { opacity: .62; transform: translateX(.75rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes discovery-card-exit {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: .22; transform: translateX(-.75rem); }
+}
 
 .discovery-open,
 .deck-skip,

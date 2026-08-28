@@ -2,7 +2,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { albumFixture, routeConnectedWorkspace } from "./connected-workspace-fixtures";
+import { albumFixture, routeConnectedWorkspace, routeDeterministicCoverArt } from "./connected-workspace-fixtures";
 
 const evidenceDirectory = process.env.RELEASE_MATRIX_EVIDENCE_DIR;
 const firstCoverUrl = "https://coverartarchive.org/release-group/4b19cdd4-9f1a-4387-b5bd-d1367e0bb1ef/front-250";
@@ -53,6 +53,7 @@ async function waitForFirstLoadedImage(page: Page, selector: string): Promise<vo
 async function configurePublicRoutes(page: Page): Promise<{ setInsightMode: (mode: InsightMode) => void }> {
   let insightMode: InsightMode = "ready";
   await routeConnectedWorkspace(page, { albums: [factualAlbum] });
+  await routeDeterministicCoverArt(page);
   await page.unroute("**/api/music/insights*");
   await page.route("**/api/music/insights*", async (route) => {
     if (insightMode === "loading") {
@@ -86,8 +87,8 @@ test("captures the complete public responsive state matrix and technical receipt
   const routes = await configurePublicRoutes(page);
   await page.clock.install();
 
-  for (const colorScheme of colorSchemes) {
-    for (const viewport of viewports) {
+  for (const colorScheme of matrixColorSchemes) {
+    for (const viewport of matrixViewports) {
       const suffix = `${colorScheme}-${viewport.width}`;
       await page.setViewportSize(viewport);
       await page.emulateMedia({ colorScheme, reducedMotion: "no-preference" });
@@ -114,9 +115,14 @@ test("captures the complete public responsive state matrix and technical receipt
       await expect(deck.locator(".deck-skip")).toBeDisabled();
       await expect(deck.locator(".discovery-card")).toHaveCount(2);
       await page.clock.runFor(90);
+      const enteringOpacity = Number(await deck.locator(".discovery-card-current .album-art").evaluate((element) => getComputedStyle(element).opacity));
+      expect(enteringOpacity).toBeGreaterThan(0.62);
+      expect(enteringOpacity).toBeLessThan(1);
       await capture(page, `matrix-public-mid-${suffix}.png`);
       await page.clock.runFor(200);
       await expect(deck.locator(".deck-skip")).toBeEnabled();
+      await expect(deck.locator(".discovery-card")).toHaveCount(1);
+      await expect(deck.locator(".discovery-card-current .album-art")).toHaveCSS("opacity", "1");
       await expect.poll(() => deck.locator(".discovery-card img").evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 20_000 }).toBeGreaterThan(0);
       await capture(page, `matrix-public-settled-${suffix}.png`);
       await page.clock.resume();
@@ -163,6 +169,7 @@ test("captures the complete public responsive state matrix and technical receipt
       await page.locator("form.search-row button").click();
       await page.locator(".candidate-row").filter({ hasText: albumFixture.title }).click();
       await expect(page.locator(".catalog-album-detail")).toBeVisible();
+      await waitForFirstLoadedImage(page, ".catalog-album-detail img");
       await capture(page, `matrix-public-selected-${suffix}.png`);
     }
   }
@@ -195,6 +202,7 @@ test("captures owner denial and connected task states across themes and widths",
   test.setTimeout(600_000);
   let owner = true;
   await routeConnectedWorkspace(page, { albums: [factualAlbum], records: [existingRecord] });
+  await routeDeterministicCoverArt(page);
   await page.unroute("**/api/owner/session");
   await page.route("**/api/owner/session", (route) => route.fulfill({ body: JSON.stringify({ owner }), contentType: "application/json", status: 200 }));
 
