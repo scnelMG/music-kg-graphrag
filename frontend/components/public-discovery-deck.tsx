@@ -30,7 +30,7 @@ type DiscoveryAlbumCardProps = Readonly<{
 }>;
 
 function DiscoveryAlbumCard({ album, layer, onOpenAlbum, transitionState }: DiscoveryAlbumCardProps): React.JSX.Element {
-  return <article className={`discovery-card discovery-card-${layer}`} data-transition-state={transitionState} aria-label={`${album.title}, ${album.artist}`}>
+  return <article className={`discovery-card discovery-card-${layer}`} data-transition-state={transitionState} aria-hidden={layer === "outgoing" ? true : undefined} aria-label={`${album.title}, ${album.artist}`}>
     <AlbumArt album={album} size="hero" priority />
     <div className="discovery-card-copy"><p className="entry-eyebrow">{album.primaryType === "EP" ? "EP" : "앨범"}</p><h3>{album.title}</h3><p>{album.artist}</p>{album.publicCurationReason !== undefined && <p className="public-reason">{album.publicCurationReason === "shared-tag"
       ? <>아카이브에 쌓인 <span className="keep-together">“{album.sharedMusicBrainzTag}”</span> 흐름과 이어집니다.</>
@@ -46,11 +46,9 @@ export function PublicDiscoveryDeck({ albums, label, onOpenAlbum }: PublicDiscov
   const [outgoingAlbum, setOutgoingAlbum] = useState<PublicDiscoveryAlbum | null>(null);
   const [transitionState, setTransitionState] = useState<TransitionState>("idle");
   const transitionTimer = useRef<number | null>(null);
-  const albumSetKey = albums.map((album) => album.releaseGroupMbid).join("|");
   const current = albums[index] ?? null;
   const nextAlbum = albums[index + 1] ?? null;
 
-  useEffect(() => { setIndex(0); }, [albumSetKey]);
   useEffect(() => () => {
     if (transitionTimer.current !== null) window.clearTimeout(transitionTimer.current);
   }, []);

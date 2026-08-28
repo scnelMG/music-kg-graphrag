@@ -65,10 +65,14 @@ export function PublicDiscoveryHome({ graphTaste, insightMessage, insightState, 
       <h2>오늘의 큐레이션을 잠시 열 수 없습니다.</h2><p>{insightMessage}</p><p>장르나 앨범 검색으로 계속 탐색하거나 다시 불러올 수 있습니다.</p>
       <button type="button" className="discovery-open" onClick={onRetryInsight}>다시 불러오기</button>
     </section>}
+    {insightState === "ready" && deckAlbums.length === 0 && <section className="public-discovery-unavailable" role="status">
+      <h2>오늘의 큐레이션을 고르지 못했습니다.</h2><p>아래 장르 흐름을 골라 실제 앨범을 찾아보세요.</p>
+    </section>}
     {deckAlbums.length > 0
-      ? <PublicDiscoveryDeck albums={deckAlbums} label={deckLabel} onOpenAlbum={onOpenAlbum} />
+      ? <PublicDiscoveryDeck albums={deckAlbums} key={deckAlbums.map((album) => album.releaseGroupMbid).join("|")}
+        label={deckLabel} onOpenAlbum={onOpenAlbum} />
       : null}
-    {(insightState !== "loading" || deckAlbums.length > 0) && <PublicGenreCollection activeGenre={genreExplore.genre} hasDiscovery={deckAlbums.length > 0}
-      message={genreExplore.message} onSelect={(genre) => void genreExplore.explore(genre)} state={genreExplore.state} />}
+    <PublicGenreCollection activeGenre={genreExplore.genre} hasDiscovery={deckAlbums.length > 0}
+      message={genreExplore.message} onSelect={(genre) => void genreExplore.explore(genre)} state={genreExplore.state} />
   </section>;
 }

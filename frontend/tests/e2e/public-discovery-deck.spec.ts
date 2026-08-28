@@ -139,3 +139,34 @@ test("Given no public curation card, when a visitor chooses a declared genre, th
   await expect(page.getByTestId("public-discovery-deck")).not.toContainText("실제 EP");
   expect(requests.some((path) => path.startsWith("/api/music/records"))).toBe(false);
 });
+
+test("Given a card is transitioning, when genre results replace the album set, then stale transition state is cleared", async ({ page }) => {
+  await routeConnectedWorkspace(page);
+  await page.unroute("**/api/music/insights*");
+  await page.route("**/api/music/insights*", (route) => route.fulfill({
+    body: JSON.stringify({ graphTaste: { relisten: [], recommendations: [
+      { artist: "Artist One", coverUrl: "", firstReleaseDate: "2024-01-01", publicCurationReason: "shared-tag", releaseGroupMbid: "public-one", sharedMusicBrainzTag: "dream pop", title: "Public One" },
+      { artist: "Artist Two", coverUrl: "", firstReleaseDate: "2023-01-01", publicCurationReason: "same-artist", releaseGroupMbid: "public-two", title: "Public Two" }
+    ] } }), contentType: "application/json", status: 200
+  }));
+  await page.route("**/api/music/catalog/explore?genre=dream-pop", (route) => route.fulfill({
+    body: JSON.stringify({ albums: [{ artist: "Artist One", artistCredits: ["Artist One"], coverUrl: "", firstReleaseDate: "2024-01-01", primaryType: "Album", releaseGroupMbid: "release-group-one", searchScore: 100, title: "Album One" }] }),
+    contentType: "application/json", status: 200
+  }));
+
+  await page.goto("/");
+  await page.clock.install();
+  await page.clock.pauseAt(Date.now());
+  const deck = page.getByTestId("public-discovery-deck");
+  await deck.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(deck.locator(".discovery-card-outgoing")).toHaveAttribute("aria-hidden", "true");
+  await expect(deck.locator(".discovery-card")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "드림 팝" }).click();
+  await expect(deck).toContainText("Album One");
+  await expect(deck.locator(".discovery-card")).toHaveCount(1);
+  await expect(deck.getByRole("button", { name: "넘기기", exact: true })).toBeEnabled();
+  await expect(deck.getByRole("button", { name: "좋아요", exact: true })).toBeEnabled();
+  await page.clock.resume();
+});
