@@ -2,7 +2,7 @@ import { expect, test, type TestInfo } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { routeConnectedWorkspace, routeDeterministicCoverArt } from "./connected-workspace-fixtures";
+import { routeConnectedWorkspace } from "./connected-workspace-fixtures";
 
 const factualCoverUrl = "https://coverartarchive.org/release-group/4b19cdd4-9f1a-4387-b5bd-d1367e0bb1ef/front-250";
 const nextFactualCoverUrl = "https://coverartarchive.org/release/bee5e0cd-1767-4a8e-9578-6455e87ba60b/front-250";
@@ -29,7 +29,6 @@ async function evidencePath(testInfo: TestInfo, name: string): Promise<string> {
 
 async function routePublicDiscovery(page: Parameters<typeof routeConnectedWorkspace>[0], recommendations: readonly PublicRecommendationFixture[]): Promise<void> {
   await routeConnectedWorkspace(page);
-  await routeDeterministicCoverArt(page);
   await page.unroute("**/api/owner/session");
   await page.unroute("**/api/music/insights*");
   await page.route("**/api/owner/session", (route) => route.fulfill({

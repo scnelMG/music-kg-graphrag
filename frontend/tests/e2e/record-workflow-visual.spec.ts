@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
-import { albumFixture, routeConnectedWorkspace, routeDeterministicCoverArt, trackFixture, type RecordFixture } from "./connected-workspace-fixtures";
+import { albumFixture, routeConnectedWorkspace, trackFixture, type RecordFixture } from "./connected-workspace-fixtures";
 
 const evidenceDirectory = process.env.RECORD_WORKFLOW_EVIDENCE_DIR;
 const factualCoverUrl = "https://coverartarchive.org/release-group/4b19cdd4-9f1a-4387-b5bd-d1367e0bb1ef/front-250";
@@ -39,7 +39,6 @@ test("keeps the selected-record and archive-confirmation workflow legible at rev
     sentiment: "Loved"
   };
   await routeConnectedWorkspace(page, { albums: [visualAlbum], records: [record] });
-  await routeDeterministicCoverArt(page);
 
   for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);

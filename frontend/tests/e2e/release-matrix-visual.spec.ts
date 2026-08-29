@@ -2,7 +2,7 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { albumFixture, routeConnectedWorkspace, routeDeterministicCoverArt } from "./connected-workspace-fixtures";
+import { albumFixture, routeConnectedWorkspace } from "./connected-workspace-fixtures";
 
 const evidenceDirectory = process.env.RELEASE_MATRIX_EVIDENCE_DIR;
 const firstCoverUrl = "https://coverartarchive.org/release-group/4b19cdd4-9f1a-4387-b5bd-d1367e0bb1ef/front-250";
@@ -53,7 +53,6 @@ async function waitForFirstLoadedImage(page: Page, selector: string): Promise<vo
 async function configurePublicRoutes(page: Page): Promise<{ setInsightMode: (mode: InsightMode) => void }> {
   let insightMode: InsightMode = "ready";
   await routeConnectedWorkspace(page, { albums: [factualAlbum] });
-  await routeDeterministicCoverArt(page);
   await page.unroute("**/api/music/insights*");
   await page.route("**/api/music/insights*", async (route) => {
     if (insightMode === "loading") {
@@ -202,7 +201,6 @@ test("captures owner denial and connected task states across themes and widths",
   test.setTimeout(600_000);
   let owner = true;
   await routeConnectedWorkspace(page, { albums: [factualAlbum], records: [existingRecord] });
-  await routeDeterministicCoverArt(page);
   await page.unroute("**/api/owner/session");
   await page.route("**/api/owner/session", (route) => route.fulfill({ body: JSON.stringify({ owner }), contentType: "application/json", status: 200 }));
 
