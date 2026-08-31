@@ -154,14 +154,14 @@ describe("connected personal record BFF", () => {
     await expect(response.json()).resolves.toEqual({ code: "WRITE_CONFIRMATION_REQUIRED", retryable: false });
   });
 
-  it("retries one transient idempotent record save outage", async () => {
+  it("retries two transient idempotent record save outages", async () => {
     let requestCount = 0;
     await withBackend((request, response) => {
       requestCount += 1;
       expect(request.url).toBe("/api/v1/listening-records");
       request.resume();
       response.setHeader("content-type", "application/json");
-      if (requestCount === 1) {
+      if (requestCount <= 2) {
         response.statusCode = 503;
         response.end(JSON.stringify({ code: "NOTION_UNAVAILABLE", requestId: "backend-request" }));
         return;
@@ -193,7 +193,7 @@ describe("connected personal record BFF", () => {
         method: "POST"
       }));
 
-      expect(requestCount).toBe(2);
+      expect(requestCount).toBe(3);
       expect(response.status).toBe(201);
       await expect(response.json()).resolves.toMatchObject({ operation: "CREATED" });
     });

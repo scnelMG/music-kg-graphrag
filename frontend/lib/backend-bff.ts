@@ -22,7 +22,7 @@ const transientBackendStatuses = new Set([502, 503, 504]);
 const idempotentBackendWritePaths = new Set(["api/v1/listening-records"]);
 
 export const backendRequestTimeoutMilliseconds = 60_000;
-const backendRetryDelayMilliseconds = 250;
+const backendRetryDelaysMilliseconds = [250, 1_000] as const;
 
 function clientErrorMessage(code: string): string {
   if (code === "INVALID_RATING") return "평점은 1에서 5 사이의 정수여야 합니다.";
@@ -106,20 +106,20 @@ export async function callBackend(
       timeout: backendRequestTimeoutMilliseconds
     });
     const retryableRequest = method === "GET" || (method === "POST" && idempotentBackendWritePaths.has(path));
-    let retryConsumed = false;
+    let retryIndex = 0;
     let response: Response;
-    try {
-      response = await requestBackend();
-    } catch (error) {
-      if (!retryableRequest || !(error instanceof TypeError || error instanceof TimeoutError)) throw error;
-      retryConsumed = true;
-      await new Promise((resolve) => setTimeout(resolve, backendRetryDelayMilliseconds));
-      response = await requestBackend();
-    }
-    if (!retryConsumed && retryableRequest && transientBackendStatuses.has(response.status)) {
-      await response.body?.cancel();
-      await new Promise((resolve) => setTimeout(resolve, backendRetryDelayMilliseconds));
-      response = await requestBackend();
+    while (true) {
+      try {
+        response = await requestBackend();
+        if (!retryableRequest || !transientBackendStatuses.has(response.status)
+          || retryIndex === backendRetryDelaysMilliseconds.length) break;
+        await response.body?.cancel();
+      } catch (error) {
+        if (!retryableRequest || !(error instanceof TypeError || error instanceof TimeoutError)
+          || retryIndex === backendRetryDelaysMilliseconds.length) throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, backendRetryDelaysMilliseconds[retryIndex]));
+      retryIndex += 1;
     }
     if (response.ok) return { kind: "received", response };
     if (response.status >= 300 && response.status < 400) {
