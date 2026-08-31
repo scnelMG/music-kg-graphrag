@@ -44,7 +44,7 @@
   .journal-intro { font-size: var(--type-body); }
   .public-discovery-home { gap: var(--space-12); padding-bottom: var(--space-14); }
   .public-discovery-heading { align-items: start; }
-  .public-discovery-heading h2 { max-width: 12ch; }
+  .public-discovery-heading h2 { max-width: none; white-space: nowrap; }
   .discovery-stage-frame,
   .discovery-card,
   .deck-finish { min-height: var(--layout-discovery-mobile-stage); }

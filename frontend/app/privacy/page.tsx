@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 
 import { ServicePage } from "../../components/service-page";
 
-export const metadata: Metadata = { description: "음악 아카이브의 공개 탐색과 소유자 기록 데이터 경계를 설명합니다.", title: "개인정보 처리" };
+export const metadata: Metadata = {
+  alternates: { canonical: "/privacy" },
+  description: "음악 아카이브의 공개 탐색과 소유자 기록 데이터 경계를 설명합니다.",
+  openGraph: { url: "/privacy" },
+  title: "개인정보 처리"
+};
 
 const contents = [
   { id: "public-visitors", label: "공개 방문자" },

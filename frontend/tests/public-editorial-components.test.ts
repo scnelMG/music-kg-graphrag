@@ -1,4 +1,6 @@
 import * as React from "react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -86,5 +88,14 @@ describe("public editorial components", () => {
 
     expect(markup).toContain("다시 불러오기");
     expect(markup).toContain("장르나 앨범 검색으로 계속 탐색");
+  });
+
+  it("centers the completed stage and preserves the short Korean mobile heading", () => {
+    const deckStyles = readFileSync(resolve("app/styles/deck.css"), "utf8");
+    const responsiveStyles = readFileSync(resolve("app/styles/responsive.css"), "utf8");
+
+    expect(deckStyles).toMatch(/\.deck-finish\s*\{[^}]*justify-items:\s*center;[^}]*text-align:\s*center;/s);
+    expect(deckStyles).toMatch(/\.deck-finish \.discovery-open\s*\{[^}]*justify-self:\s*center;/s);
+    expect(responsiveStyles).toMatch(/\.public-discovery-heading h2\s*\{[^}]*white-space:\s*nowrap;/s);
   });
 });

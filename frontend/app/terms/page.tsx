@@ -3,7 +3,12 @@ import Link from "next/link";
 
 import { ServicePage } from "../../components/service-page";
 
-export const metadata: Metadata = { description: "음악 아카이브의 이용 범위와 데이터 출처를 설명합니다.", title: "이용 조건" };
+export const metadata: Metadata = {
+  alternates: { canonical: "/terms" },
+  description: "음악 아카이브의 이용 범위와 데이터 출처를 설명합니다.",
+  openGraph: { url: "/terms" },
+  title: "이용 조건"
+};
 
 const contents = [
   { id: "personal-archive", label: "개인 아카이브" },

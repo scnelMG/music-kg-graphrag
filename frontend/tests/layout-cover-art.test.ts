@@ -37,13 +37,12 @@ describe("root layout cover-art connection", () => {
     expect(metadata.robots).toMatchObject({ follow: true, index: true });
   });
 
-  it("preconnects directly to Cover Art Archive without routing cover bytes through this service", () => {
+  it("does not make the browser open a third-party cover connection before the Next image optimizer", () => {
     const root = RootLayout({ children: null }) as ReactElement<{ children: ReactNode }>;
     const [head] = Children.toArray(root.props.children) as ReactElement<{ children: ReactNode }>[];
-    const [link] = Children.toArray(head.props.children) as ReactElement[];
 
     expect(head.type).toBe("head");
-    expect(link.props).toMatchObject({ crossOrigin: "anonymous", href: "https://coverartarchive.org", rel: "preconnect" });
+    expect(Children.toArray(head.props.children)).toHaveLength(0);
   });
 
   it("does not inject third-party inspection scripts into application pages", () => {

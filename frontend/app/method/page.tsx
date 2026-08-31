@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 
 import { ServicePage } from "../../components/service-page";
 
-export const metadata: Metadata = { description: "음악 아카이브가 후보를 찾고 근거를 표시하는 방식을 설명합니다.", title: "추천 방식" };
+export const metadata: Metadata = {
+  alternates: { canonical: "/method" },
+  description: "음악 아카이브가 후보를 찾고 근거를 표시하는 방식을 설명합니다.",
+  openGraph: { url: "/method" },
+  title: "추천 방식"
+};
 
 const contents = [
   { id: "candidate-basis", label: "후보와 근거" },

@@ -206,15 +206,18 @@
 .deck-finish {
   display: grid;
   align-content: center;
+  justify-items: center;
   min-height: var(--layout-discovery-stage);
   padding: clamp(var(--space-8), 8vw, var(--space-20));
   background: var(--surface-elevated);
   border: .0625rem solid var(--line);
   border-radius: var(--radius-panel);
+  text-align: center;
 }
 
 .deck-finish strong { font-size: var(--type-finish); letter-spacing: -.04em; }
 .deck-finish p { max-width: var(--reading-max); margin: var(--space-3) 0 0; color: var(--text-secondary); }
+.deck-finish .discovery-open { justify-self: center; }
 
 .public-liked-list { padding-top: var(--space-12); }
 .public-liked-list h3 { margin: 0; font-size: var(--type-card-title); letter-spacing: -.035em; }

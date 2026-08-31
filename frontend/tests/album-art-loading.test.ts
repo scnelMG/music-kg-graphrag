@@ -1,4 +1,6 @@
 import * as React from "react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -35,5 +37,11 @@ describe("AlbumArt loading state", () => {
     expect(previewMarkup).not.toContain('fetchPriority="high"');
     expect(primaryMarkup).toContain('fetchPriority="high"');
     expect(primaryMarkup).not.toContain('loading="lazy"');
+  });
+
+  it("keeps factual remote covers on the configured Next image optimizer path", () => {
+    const source = readFileSync(resolve("components/album-art.tsx"), "utf8");
+
+    expect(source).not.toMatch(/\bunoptimized\b/);
   });
 });
