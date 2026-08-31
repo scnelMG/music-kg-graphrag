@@ -59,7 +59,11 @@ public final class ITunesCatalogClient implements SupplementalCatalogGateway {
         if (blank(collectionId) || !collectionId.matches("[0-9]+")) {
             throw new IllegalArgumentException("ITUNES_COLLECTION_ID_REQUIRED");
         }
-        return parseTracks(get("/lookup?id=" + encoded(collectionId) + "&entity=song&country=KR"), collectionId);
+        List<MusicCatalogGateway.Track> tracks = parseTracks(
+                get("/lookup?id=" + encoded(collectionId) + "&entity=song&country=KR"), collectionId);
+        return tracks.isEmpty()
+                ? parseTracks(get("/lookup?id=" + encoded(collectionId) + "&entity=song&country=US"), collectionId)
+                : tracks;
     }
 
     private String get(String pathAndQuery) {

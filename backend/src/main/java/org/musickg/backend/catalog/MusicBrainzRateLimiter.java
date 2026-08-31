@@ -7,7 +7,7 @@ final class MusicBrainzRateLimiter {
     private static final long MAX_QUEUE_NANOS = Duration.ofSeconds(2).toNanos();
     private long nextRequestAtNanos;
 
-    void awaitRequest(int requestsPerSecond) {
+    synchronized void awaitRequest(int requestsPerSecond) {
         long interval = 1_000_000_000L / requestsPerSecond;
         long now = System.nanoTime();
         long scheduled = Math.max(now, nextRequestAtNanos);

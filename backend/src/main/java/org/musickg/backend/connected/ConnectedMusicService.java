@@ -20,6 +20,7 @@ import org.musickg.backend.notion.NotionClient;
 import org.musickg.backend.notion.PersonalMusicRecordGateway;
 
 public final class ConnectedMusicService {
+    private static final Duration PUBLIC_DISCOVERY_CACHE_TTL = Duration.ofMinutes(10);
     private final MusicCatalogGateway catalog;
     private final SupplementalCatalogGateway supplementalCatalog;
     private final PersonalMusicRecordGateway records;
@@ -28,6 +29,7 @@ public final class ConnectedMusicService {
     private final GroundedExplanationGenerator explanationGenerator;
     private final Map<String, String> recentlySavedPageIds = new HashMap<>();
     private volatile CachedInsights cachedInsights;
+    private volatile CachedDiscovery cachedPublicDiscovery;
 
     public ConnectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records) {
         this(catalog, records, new InMemoryPersonalGraphProjectionGateway(), Clock.systemUTC(),
@@ -73,7 +75,14 @@ public final class ConnectedMusicService {
     }
 
     public List<MusicCatalogGateway.Album> search(String query) {
-        List<MusicCatalogGateway.Album> musicBrainzAlbums = catalog.search(query);
+        List<MusicCatalogGateway.Album> musicBrainzAlbums;
+        try {
+            musicBrainzAlbums = catalog.search(query);
+        } catch (MusicBrainzClient.CatalogAccessException exception) {
+            if (!exception.retryable()) throw exception;
+            List<MusicCatalogGateway.Album> supplementalAlbums = supplementalCatalog.search(query);
+            return List.copyOf(supplementalAlbums);
+        }
         if (musicBrainzAlbums.isEmpty() || !hasExactCatalogMatch(query, musicBrainzAlbums)) {
             try {
                 List<MusicCatalogGateway.Album> supplementalAlbums = supplementalCatalog.search(query);
@@ -94,7 +103,12 @@ public final class ConnectedMusicService {
     }
 
     public List<MusicCatalogGateway.Album> searchByTag(String tag) {
-        return catalog.searchByTag(tag);
+        try {
+            return catalog.searchByTag(tag);
+        } catch (MusicBrainzClient.CatalogAccessException exception) {
+            if (!exception.retryable()) throw exception;
+            return supplementalCatalog.search(tag);
+        }
     }
 
     public synchronized SaveResult save(RecordInput input) {
@@ -205,12 +219,23 @@ public final class ConnectedMusicService {
         return discover(tasteProfile(history), history);
     }
 
-    public Discovery publicDiscovery() {
-        List<NotionClient.ExistingRecord> projectedHistory = graph.retrieveRecords();
-        if (projectedHistory.isEmpty()) {
-            return new Discovery("", List.of(), List.of(), graph.retrievalMethod());
+    public synchronized Discovery publicDiscovery() {
+        CachedDiscovery cached = cachedPublicDiscovery;
+        if (cached != null && !cached.expired()) return cached.discovery();
+        try {
+            List<NotionClient.ExistingRecord> projectedHistory = graph.retrieveRecords();
+            Discovery discovery = projectedHistory.isEmpty()
+                    ? new Discovery("", List.of(), List.of(), graph.retrievalMethod())
+                    : discover(tasteProfile(projectedHistory), projectedHistory);
+            cachedPublicDiscovery = new CachedDiscovery(
+                    discovery, System.nanoTime() + PUBLIC_DISCOVERY_CACHE_TTL.toNanos());
+            return discovery;
+        } catch (MusicBrainzClient.CatalogAccessException exception) {
+            if (!exception.retryable()) throw exception;
+            return cached == null
+                    ? new Discovery("", List.of(), List.of(), graph.retrievalMethod())
+                    : cached.discovery();
         }
-        return discover(tasteProfile(projectedHistory), projectedHistory);
     }
 
     public GraphTaste graphTaste() {
@@ -224,12 +249,14 @@ public final class ConnectedMusicService {
     public PersonalGraphSyncService.SyncState refreshPersonalGraph() {
         PersonalGraphSyncService.SyncState state = sync.synchronize();
         cachedInsights = null;
+        cachedPublicDiscovery = null;
         return state;
     }
 
     public PersonalGraphSyncService.SyncState reconcilePersonalGraph() {
         PersonalGraphSyncService.SyncState state = sync.reconcile();
         cachedInsights = null;
+        cachedPublicDiscovery = null;
         return state;
     }
 
@@ -442,6 +469,7 @@ public final class ConnectedMusicService {
 
     private SaveResult savedAndInvalidate(NotionClient.SavedRecord saved, SaveOperation operation) {
         cachedInsights = null;
+        cachedPublicDiscovery = null;
         return saved(saved, operation);
     }
 
@@ -704,6 +732,10 @@ public final class ConnectedMusicService {
 
     private record CachedInsights(PersonalInsights insights, java.util.Optional<GroundedExplanationGenerator.Context> explanationContext,
                                   long expiresAtNanos) {
+        private boolean expired() { return System.nanoTime() >= expiresAtNanos; }
+    }
+
+    private record CachedDiscovery(Discovery discovery, long expiresAtNanos) {
         private boolean expired() { return System.nanoTime() >= expiresAtNanos; }
     }
 

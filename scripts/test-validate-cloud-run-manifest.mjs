@@ -294,8 +294,11 @@ test("connected production template requires a server-side Notion secret and exp
   assert.match(template, /run\.googleapis\.com\/network-interfaces: '\[\{"network":"\$\{PERSONAL_GRAPHDB_VPC_NETWORK\}","subnetwork":"\$\{PERSONAL_GRAPHDB_VPC_SUBNETWORK\}"\}\]'/);
   assert.match(template, /run\.googleapis\.com\/vpc-access-egress: private-ranges-only/);
   assert.match(template, /autoscaling\.knative\.dev\/maxScale: "1"/);
-  assert.match(template, /containerConcurrency: 1/);
-  assert.match(template, /timeoutSeconds: 30/);
+  assert.match(template, /autoscaling\.knative\.dev\/minScale: "1"/);
+  assert.match(template, /run\.googleapis\.com\/startup-cpu-boost: "true"/);
+  assert.match(template, /containerConcurrency: 8/);
+  assert.match(template, /timeoutSeconds: 120/);
+  assert.match(template, /name: MUSIC_KG_SEARCH_RATE_LIMIT_PER_MINUTE\n\s+value: "300"/);
   assert.match(template, /name: MUSIC_KG_LLM_ENABLED\n\s+value: "false"/);
 });
 
@@ -313,8 +316,11 @@ test("connected preview template quotes the operator MusicBrainz user agent", as
   assert.match(template, /name: MUSIC_KG_GRAPHDB_REPOSITORY\n\s+value: music-kg-personal/);
   assert.match(template, /run\.googleapis\.com\/network-interfaces: '\[\{"network":"\$\{PERSONAL_GRAPHDB_VPC_NETWORK\}","subnetwork":"\$\{PERSONAL_GRAPHDB_VPC_SUBNETWORK\}"\}\]'/);
   assert.match(template, /run\.googleapis\.com\/vpc-access-egress: private-ranges-only/);
-  assert.match(template, /containerConcurrency: 1/);
+  assert.match(template, /autoscaling\.knative\.dev\/minScale: "1"/);
+  assert.match(template, /run\.googleapis\.com\/startup-cpu-boost: "true"/);
+  assert.match(template, /containerConcurrency: 8/);
   assert.match(template, /timeoutSeconds: 120/);
+  assert.match(template, /name: MUSIC_KG_SEARCH_RATE_LIMIT_PER_MINUTE\n\s+value: "300"/);
   assert.match(template, /name: MUSIC_KG_LLM_ENABLED\n\s+value: "false"/);
 });
 

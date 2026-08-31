@@ -463,6 +463,25 @@ class ConnectedMusicServiceTest {
     }
 
     @Test
+    void reusesAnUnchangedPublicDiscoveryWithoutRepeatingGraphOrCatalogWork() {
+        var record = new NotionClient.ExistingRecord(
+                "page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a");
+        var records = new InMemoryRecords(List.of(record));
+        var catalog = new CountingCatalog();
+        var graph = new CountingGraph();
+        graph.bootstrapRecords(List.of(record));
+        var service = new ConnectedMusicService(catalog, records, graph);
+
+        var first = service.publicDiscovery();
+        var second = service.publicDiscovery();
+
+        assertThat(second).isEqualTo(first);
+        assertThat(records.listCalls()).isZero();
+        assertThat(graph.calls()).isEqualTo(1);
+        assertThat(catalog.externalCalls()).isEqualTo(2);
+    }
+
+    @Test
     void readsOnlyNotionChangesWhenTheOwnerExplicitlyRefreshesThePrivateGraph() {
         var records = new InMemoryRecords(List.of(new NotionClient.ExistingRecord(
                 "page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a")));

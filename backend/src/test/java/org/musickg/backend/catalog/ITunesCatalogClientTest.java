@@ -63,6 +63,31 @@ class ITunesCatalogClientTest {
     }
 
     @Test
+    void fallsBackToUnitedStatesStoreWhenKoreanLookupHasNoTracks() {
+        var builder = RestClient.builder().baseUrl("https://itunes.apple.com");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = new ITunesCatalogClient(builder.build(), new ObjectMapper());
+        server.expect(requestTo("https://itunes.apple.com/lookup?id=399211729&entity=song&country=KR"))
+                .andRespond(withSuccess("""
+                        {"resultCount":1,"results":[
+                          {"wrapperType":"collection","collectionId":399211729}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://itunes.apple.com/lookup?id=399211729&entity=song&country=US"))
+                .andRespond(withSuccess("""
+                        {"resultCount":2,"results":[
+                          {"wrapperType":"collection","collectionId":399211729},
+                          {"wrapperType":"track","kind":"song","collectionId":399211729,"trackId":399211739,"trackName":"Alison","trackNumber":1}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+
+        var tracks = client.tracks("399211729");
+
+        assertThat(tracks).containsExactly(new MusicCatalogGateway.Track("itunes:399211739", "Alison", 1));
+        server.verify();
+    }
+
+    @Test
     void resolvesTheExactCollectionBeforeAnOwnerCanSaveIt() {
         var builder = RestClient.builder().baseUrl("https://itunes.apple.com");
         var server = MockRestServiceServer.bindTo(builder).build();

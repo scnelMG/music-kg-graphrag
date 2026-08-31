@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 public final class MusicBrainzClient implements MusicCatalogGateway {
+    private static final int MAX_ATTEMPTS = 2;
     private static final int RELEASE_BROWSE_LIMIT = 20;
     private final RestClient client;
     private final MusicBrainzPayloadParser parser;
@@ -194,7 +195,7 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
 
     private String get(String pathAndQuery) {
         CatalogAccessException failure = null;
-        for (int attempt = 1; attempt <= 3; attempt++) {
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
                 rateLimiter.awaitRequest(configuration.requestsPerSecond());
                 return client.get()
@@ -204,10 +205,10 @@ public final class MusicBrainzClient implements MusicCatalogGateway {
                         .body(String.class);
             } catch (RestClientResponseException exception) {
                 failure = fromResponse(exception);
-                if (!failure.retryable() || attempt == 3) throw failure;
+                if (!failure.retryable() || attempt == MAX_ATTEMPTS) throw failure;
             } catch (ResourceAccessException exception) {
                 failure = new CatalogAccessException("MUSICBRAINZ_UNAVAILABLE", true, exception);
-                if (attempt == 3) throw failure;
+                if (attempt == MAX_ATTEMPTS) throw failure;
             }
             LockSupport.parkNanos(Duration.ofMillis(200L * attempt).toNanos());
         }

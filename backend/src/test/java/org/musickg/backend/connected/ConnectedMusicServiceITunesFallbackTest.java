@@ -1,15 +1,23 @@
 package org.musickg.backend.connected;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.musickg.backend.catalog.MusicCatalogGateway;
+import org.musickg.backend.catalog.MusicBrainzClient;
 import org.musickg.backend.catalog.SupplementalCatalogGateway;
+import org.musickg.backend.config.ConnectedServiceProperties;
 import org.musickg.backend.notion.NotionClient;
 import org.musickg.backend.notion.PersonalMusicRecordGateway;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.web.client.ExpectedCount;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
 class ConnectedMusicServiceITunesFallbackTest {
     @Test
@@ -19,6 +27,84 @@ class ConnectedMusicServiceITunesFallbackTest {
         var albums = service.search("극동");
 
                 assertThat(albums).singleElement().extracting(MusicCatalogGateway.Album::catalogId).isEqualTo("123456789");
+    }
+
+    @Test
+    void fallsBackToITunesAfterOneMusicBrainzRetry() {
+        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(ExpectedCount.times(2), request -> { })
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        var musicBrainz = new MusicBrainzClient(builder.build(), new ObjectMapper(),
+                new ConnectedServiceProperties.MusicBrainz(
+                        "music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2",
+                        1_000_000, "https://coverartarchive.org"));
+        var service = new ConnectedMusicService(musicBrainz, new EmptyRecords(), new ITunesCatalog());
+
+        var albums = service.search("극동");
+
+        assertThat(albums).singleElement().extracting(MusicCatalogGateway.Album::catalogSource)
+                .isEqualTo(MusicCatalogGateway.CatalogSource.ITUNES);
+        server.verify();
+    }
+
+    @Test
+    void returnsAnEmptySearchWhenMusicBrainzIsUnavailableAndITunesHasNoMatch() {
+        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(ExpectedCount.times(2), request -> { })
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        var musicBrainz = new MusicBrainzClient(builder.build(), new ObjectMapper(),
+                new ConnectedServiceProperties.MusicBrainz(
+                        "music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2",
+                        1_000_000, "https://coverartarchive.org"));
+        var service = new ConnectedMusicService(musicBrainz, new EmptyRecords(), SupplementalCatalogGateway.disabled());
+
+        var albums = service.search("qzxv-no-album");
+
+        assertThat(albums).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void keepsGenreExploreAvailableWhenMusicBrainzIsTemporarilyUnavailable() {
+        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(ExpectedCount.times(2), request -> { })
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        var musicBrainz = new MusicBrainzClient(builder.build(), new ObjectMapper(),
+                new ConnectedServiceProperties.MusicBrainz(
+                        "music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2",
+                        1_000_000, "https://coverartarchive.org"));
+        var service = new ConnectedMusicService(musicBrainz, new EmptyRecords(), new ITunesCatalog());
+
+        var albums = service.searchByTag("dream pop");
+
+        assertThat(albums).singleElement().extracting(MusicCatalogGateway.Album::catalogSource)
+                .isEqualTo(MusicCatalogGateway.CatalogSource.ITUNES);
+        server.verify();
+    }
+
+    @Test
+    void keepsPublicDiscoveryAvailableWhenMusicBrainzIsTemporarilyUnavailable() {
+        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(ExpectedCount.times(2), request -> { })
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        var musicBrainz = new MusicBrainzClient(builder.build(), new ObjectMapper(),
+                new ConnectedServiceProperties.MusicBrainz(
+                        "music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2",
+                        1_000_000, "https://coverartarchive.org"));
+        var record = new NotionClient.ExistingRecord(
+                "page-id", "기록한 앨범", "기록한 가수", "", "Loved", "첫 곡", false, "recorded-release");
+        var graph = new InMemoryPersonalGraphProjectionGateway();
+        graph.bootstrapRecords(List.of(record));
+        var service = new ConnectedMusicService(musicBrainz, new EmptyRecords(), graph);
+
+        var discovery = service.publicDiscovery();
+
+        assertThat(discovery.albums()).isEmpty();
+        server.verify();
     }
 
     @Test
