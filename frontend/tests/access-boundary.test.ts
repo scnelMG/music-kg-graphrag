@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { resetRateLimitsForTest } from "../lib/request-rate-limit";
+
 afterEach(() => {
   vi.unstubAllEnvs();
+  resetRateLimitsForTest();
 });
 
 describe("connected application routing boundary", () => {
@@ -32,6 +35,20 @@ describe("connected application routing boundary", () => {
     const response = await middleware(new NextRequest("https://music.example.test/api/fixture/health"));
 
     expect(response.status).toBe(404);
+  });
+
+  it("bounds repeated public readiness probes before they reach connected dependencies", async () => {
+    const { middleware } = await import("../middleware");
+    const headers = { "x-forwarded-for": "198.51.100.9" };
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const response = await middleware(new NextRequest("https://music.example.test/api/music/readiness", { headers }));
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+    }
+
+    const blocked = await middleware(new NextRequest("https://music.example.test/api/music/readiness", { headers }));
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("retry-after")).not.toBeNull();
   });
 
   it("rejects a personal record request without an owner session when production is misconfigured fail-open", async () => {

@@ -5,6 +5,7 @@ from typing import LiteralString, final
 from uuid import UUID
 
 import psycopg
+import pytest
 from rdflib import Graph, URIRef
 from rdflib.namespace import RDF
 from testcontainers.postgres import PostgresContainer
@@ -186,6 +187,7 @@ def test_v1_valid_incomplete_credit_rows_preserve_values_and_conform(tmp_path: P
     assert validate_rdf_path(projection.rdf_path).conforms is True
 
 
+@pytest.mark.integration
 def test_real_postgres_claim_success_and_terminal_replay() -> None:
     # Given
     migration = (
@@ -232,6 +234,7 @@ def test_real_postgres_claim_success_and_terminal_replay() -> None:
         database.close()
 
 
+@pytest.mark.integration
 def test_expired_holder_cannot_finish_new_lease_and_generation_is_stable() -> None:
     # Given
     migration = (

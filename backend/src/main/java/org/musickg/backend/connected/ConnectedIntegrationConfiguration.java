@@ -3,8 +3,10 @@ package org.musickg.backend.connected;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import org.musickg.backend.catalog.ITunesCatalogClient;
 import org.musickg.backend.catalog.MusicBrainzClient;
 import org.musickg.backend.catalog.MusicCatalogGateway;
+import org.musickg.backend.catalog.SupplementalCatalogGateway;
 import org.musickg.backend.config.ConnectedServiceProperties;
 import org.musickg.backend.config.GroundedLlmProperties;
 import org.musickg.backend.notion.NotionClient;
@@ -22,6 +24,11 @@ class ConnectedIntegrationConfiguration {
     MusicCatalogGateway musicCatalogGateway(RestClient.Builder builder, ObjectMapper objectMapper,
                                             ConnectedServiceProperties properties) {
         return new MusicBrainzClient(externalClient(builder), objectMapper, properties.musicBrainz());
+    }
+
+    @Bean
+    SupplementalCatalogGateway supplementalCatalogGateway(RestClient.Builder builder, ObjectMapper objectMapper) {
+        return new ITunesCatalogClient(externalClient(builder).mutate().baseUrl("https://itunes.apple.com").build(), objectMapper);
     }
 
     @Bean
@@ -50,8 +57,10 @@ class ConnectedIntegrationConfiguration {
     @Bean
     ConnectedMusicService connectedMusicService(MusicCatalogGateway catalog, PersonalMusicRecordGateway records,
                                                 PersonalGraphProjectionGateway graph,
-                                                GroundedExplanationGenerator explanationGenerator) {
-        return new ConnectedMusicService(catalog, records, graph, java.time.Clock.systemUTC(), explanationGenerator);
+                                                GroundedExplanationGenerator explanationGenerator,
+                                                SupplementalCatalogGateway supplementalCatalog) {
+        return new ConnectedMusicService(catalog, records, graph, java.time.Clock.systemUTC(), explanationGenerator,
+                supplementalCatalog);
     }
 
     private static RestClient externalClient(RestClient.Builder builder) {

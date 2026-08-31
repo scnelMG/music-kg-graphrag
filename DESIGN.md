@@ -1,98 +1,217 @@
-# Music KG White Archive Design System
+# Music KG Modern Record Editorial Design System
 
 ## 0. Research log
 
-- **Toss:** its public component guidance informed the deliberate primary-action hierarchy, consistent interaction states, and concise task copy. No Toss code, assets, logo, or copy is used.
-- **Linear:** its design-refresh writing informed the low-noise rule: hierarchy is felt through typography, whitespace, and rules before containers. No Linear code, assets, logo, or copy is used.
-- **Surface audit:** the former cool-gray canvas, equal floating cards, and duplicate visitor access prompts made a personal archive read like an unfinished SaaS setup page. The replacement is a continuous white archive whose only rich material is factual album art.
-- **Direction:** **White Archive**. It is a bright music-library page with ink typography, actual covers, thin archival rules, and one reserved blue for action. The memorable object is the listener’s real-cover shelf, not an abstract dashboard panel.
+- Product audit: 38 responsive QA captures from 2026-08-27 showed a reliable semantic structure but a narrow document layout, repeated rules, generic access card, long dynamic action labels, CJK orphaning, and a blank discovery transition midpoint.
+- Existing system: White Archive established factual-cover truthfulness, public and owner separation, one cobalt action color, explicit focus, and honest loading or missing-cover states. These contracts remain.
+- Taste routing: `design-taste-frontend`, the frontend redesign reference, and designpowers Lane B/C were applied. The selected direction is modern record editorial, not SaaS, dashboard, glass, or marketing-page styling.
+- Interaction reference: beui.dev `action-swap` informed overlapping incoming and outgoing layers, short blur or opacity swaps, interruptible actions, and a reduced-motion instant path. The project adapts the mechanism with native CSS because Motion is not a dependency.
+- Asset decision: real catalog album covers are the visual material. No generated cover, stock photo, decorative illustration, or fabricated recommendation is allowed.
 
-## 1. Product promise
+## 1. Product promise and people
 
-The owner finds a real album, keeps a listening record in Notion, and returns to one grounded album for today. Public visitors may search MusicBrainz albums and tracks and may see redacted, evidence-backed recommendation albums, but never see private records, page identifiers, or write controls.
+The service helps a visitor discover one grounded album, explore a small set of real genres, and search factual catalog releases. The owner uses the same product language to reopen private listening records and manage confirmed Notion writes.
 
-## 2. Content hierarchy
+### Inclusive personas
 
-### Owner
+- Public listener: wants an immediate album, a clear reason, and a fast path to tracks without understanding the graph or providers.
+- Archive owner: wants recent records, one useful recommendation, reliable search, and explicit save, archive, and restore confirmations.
+- Keyboard or low-vision listener: needs visible focus, logical DOM order, stable layouts, high contrast, and no hidden pointer-only action.
+- Motion-sensitive or cognitively loaded listener: needs short plain labels, local feedback, predictable recovery, and a complete reduced-motion path.
 
-1. A masthead and short connection state.
-2. `최근 기록`: a horizontal rail of real Notion records only.
-3. `오늘 다시 들을 앨범`: one grounded relisten; new discoveries are limited to two quiet rows.
-4. MusicBrainz album search, selected tracks, and the progressive record editor.
-5. The existing paginated Notion archive and its explicit save, archive, and restore confirmations.
+## 2. Distinctive direction
 
-### Visitor
+Modern Record Editorial places a real cover inside a cool, ink-like publication grid. The memorable moment is an album changing inside a stable physical stage while its cover, title, reason, and actions remain readable. The atmosphere comes from cover material, cool tonal layers, asymmetric whitespace, and one cobalt action ramp.
 
-1. A masthead and one compact owner-space link.
-2. A redacted recommendation band: one public discovery and up to two additional discovery rows when the connected graph has sufficient evidence. It never identifies a private relisten or record.
-3. MusicBrainz album search and selected public tracks.
+- `DESIGN_VARIANCE: 8`
+- `MOTION_INTENSITY: 4`
+- `VISUAL_DENSITY: 5`
+- Theme: system light and dark through semantic tokens, never section-level inversion.
+- Anti-references: generic SaaS cards, cream craft palettes, AI-purple gradients, glass, equal feature grids, emoji, oversized serif manifestos, fake album art, status-pill walls, and decorative motion.
 
-Technical IDs, graph paths, scores, provider health, sync internals, and generated-explanation implementation stay out of the default reading path. A factual reason is disclosed only when requested. No empty state can fabricate an album, cover, artist, record, score, or recommendation.
+## 3. Tokens
 
-## 3. Visual language
+### Color
 
-White Archive is a continuous white canvas rather than a gray field of elevated cards. Real album art supplies visual density; rules and whitespace establish the archive structure. The product does not use gradients, glass, emoji, KPI cards, status-pill walls, chat chrome, generic feature grids, color-extracted cover backgrounds, or copied brand treatments.
-
-### Tokens
+Light mode:
 
 | Role | Token | Value |
 | --- | --- | --- |
-| Canvas and surface | `--canvas`, `--surface` | `#ffffff` |
-| Utility surface | `--surface-subtle` | `#f7f7f5` |
-| Ink / secondary / tertiary text | `--text`, `--text-secondary`, `--text-tertiary` | `#171717`, `#5f5f5a`, `#73736d` |
-| Rule / strong rule | `--line`, `--line-strong` | `#e7e6e2`, `#d3d1ca` |
-| Action / pressed / selection | `--blue`, `--blue-strong`, `--blue-soft`, `--blue-soft-line` | `#2f6fed`, `#1f56c2`, `#eef4ff`, `#dce8ff` |
-| Cover-only elevation | `--shadow-cover` | `0 8px 20px rgb(17 17 17 / 14%)` |
+| Canvas | `--canvas` | `#f4f6f8` |
+| Primary surface | `--surface` | `#fbfcfd` |
+| Elevated surface | `--surface-elevated` | `#ffffff` |
+| Muted surface | `--surface-muted` | `#e9edf2` |
+| Primary ink | `--text` | `#121821` |
+| Secondary ink | `--text-secondary` | `#4e5a68` |
+| Tertiary ink | `--text-tertiary` | `#5f6b78` |
+| Rule | `--line` | `#d8dee6` |
+| Strong rule | `--line-strong` | `#b9c3cf` |
+| Cobalt | `--accent` | `#245bd6` |
+| Cobalt hover | `--accent-strong` | `#1645b5` |
+| Cobalt soft | `--accent-soft` | `#e4ecff` |
 
-Spacing uses a 4px scale. Controls use an 8px radius; small utility states can use 8px; covers use 4px or less. A broad surface shadow is forbidden.
+Dark mode:
 
-## 4. Typography and copy
+| Role | Token | Value |
+| --- | --- | --- |
+| Canvas | `--canvas` | `#0d131b` |
+| Primary surface | `--surface` | `#121a24` |
+| Elevated surface | `--surface-elevated` | `#182231` |
+| Muted surface | `--surface-muted` | `#202c3b` |
+| Primary ink | `--text` | `#f2f5f8` |
+| Secondary ink | `--text-secondary` | `#b7c0cb` |
+| Tertiary ink | `--text-tertiary` | `#96a3b2` |
+| Rule | `--line` | `#2c3949` |
+| Strong rule | `--line-strong` | `#455468` |
+| Cobalt | `--accent` | `#76a0ff` |
+| Cobalt hover | `--accent-strong` | `#9bbaff` |
+| Cobalt soft | `--accent-soft` | `#1b315f` |
 
-- UI: `Pretendard Variable`, `Noto Sans KR`, `Geist`, sans-serif.
-- Archive display and recommendation reason: `Noto Serif KR`, Georgia, serif only.
-- Masthead: `clamp(2.25rem, 5vw, 4.5rem)` with tight tracking and balanced wrapping.
-- One heading per decision area. Supporting text is one sentence unless it gives a recovery path.
-- Korean uses `word-break: keep-all` and `text-wrap: pretty`; `.keep-together` protects only a short complete phrase.
-- Actions use concise verbs: `음반 찾기`, `기록 보기`, `Notion에 저장하기`.
+Semantic feedback tokens use green, amber, and red only for actual success, warning, and danger states. All text and control combinations must meet WCAG AA.
 
-## 5. Primitives and states
+### Spacing
 
-### Masthead
+The base unit is 4 pixels. CSS uses named tokens from `--space-1` through `--space-24`. Page gutters are 20 pixels at 375, 24 pixels at 768, and 32 pixels at 1280. Primary section spacing ranges from 48 to 96 pixels according to hierarchy, not mathematical repetition.
 
-An archive title, a single promise, and one truthful owner/connection affordance. Visitor state has exactly one owner-space link; owner state does not repeat an access CTA.
+Core editorial geometry is also tokenized: `--layout-discovery-columns`, `--layout-discovery-stage`, `--layout-discovery-mobile-stage`, cover/preview width roles, `--layout-region-min`, `--layout-control-tall`, and `--layout-search-max`. These tokens keep the loading skeleton, factual deck, recovery state, and responsive variants on one shared rhythm.
 
-### Cover rail
+### Type
 
-`PersonalCoverRail` renders only supplied Notion records. It has 1:1 covers (or an honest `표지 없음` tile), title and artist metadata, and click-to-open existing record editing. It returns nothing for an empty archive. At narrow widths it is the only intentional horizontal scroll region and uses scroll snap.
+- UI and display: `Malgun Gothic`, `Apple SD Gothic Neo`, `Noto Sans KR`, system sans-serif.
+- Editorial reason only: self-hosted `Noto Serif KR Variable`, then Georgia and serif fallback.
+- Display: `clamp(2.6rem, 6vw, 5.8rem)`, weight 750, line height 0.98, balanced wrap.
+- Section: `clamp(1.7rem, 3vw, 2.6rem)`, weight 750, line height 1.08.
+- Body: 1rem with 1.65 line height and maximum 65 characters.
+- Caption: 0.8125rem with tabular numbers where values change.
+- Supporting text is tokenized as micro, label, wordmark, supporting, emphasis, card title, rail title, subsection, intro, album title, and responsive display roles. Components never introduce one-off font sizes.
+- Korean uses `word-break: keep-all`, `overflow-wrap: break-word`, and `text-wrap: pretty`. Bound noun and predicate phrases use `.keep-phrase`; intentional title lines use `.title-line`.
 
-### Search and selected album
+### Shape and depth
 
-Search is a real GET form with `q` in the URL. Results are a ruled list with stable 64px art. Selection adds a 3px blue rule and subtle local tint without changing row geometry; tracks expand in the selected task path.
-Release editions are disclosed in bounded groups of at most 20. A server recommendation is labelled, but a new record never selects it automatically: the listener explicitly chooses the factual edition before tracks and saving become available. Existing records reopen their stored edition. `발매판 더 보기` appends one truthful cursor page; a failed next page remains visible with a retry action, and the control never renders an unbounded release list.
+- Cover radius: 4 pixels.
+- Input and button radius: 12 pixels.
+- Bounded interactive panel radius: 16 pixels.
+- Shadows belong to factual covers only. They use a cool tinted two-layer shadow and a one-pixel rim.
+- Page sections use tonal shifts and whitespace. Repeated broad card shadows are prohibited.
 
-### Recommendation
+## 4. Layout and responsive rules
 
-The first relisten is the primary album composition, with a large factual cover, one action, and a native reason disclosure. Discovery has at most two lightweight rows. Weak evidence gets an honest recovery state instead of a substitute record.
+- The global shell is at most 1280 pixels wide.
+- Global navigation is one line and at most 72 pixels high on desktop.
+- The public feature stage uses an asymmetric twelve-column grid with a larger cover field and a focused copy field.
+- Catalog results use two columns at 768 and above, one column below.
+- Owner context may use a cover rail and split work area above 900 pixels. Selected record tasks become one focused column.
+- Below 768 pixels every asymmetric region becomes a strict single column. No accidental horizontal scrolling is allowed.
+- The document owns vertical scrolling. The personal cover rail is the only intentional horizontal scroll surface.
+- Full-height access pages use `min-height: 100dvh`, never `height: 100vh`.
 
-### Record management and feedback
+## 5. Reusable primitives and states
 
-The editor appears only after selection. Save, archive, and restore remain distinct confirmed Notion writes with focus restoration and truthful result text. Loading and recovery are local, text-backed, and may not leave stale private data visible.
+### Archive navigation
 
-## 6. Responsive and accessibility contract
+One compact landmark with brand, music search, method, and owner entry. Mobile keeps the brand and owner entry visible and moves secondary trust navigation to the footer. Current location is conveyed with `aria-current`, text weight, and color.
 
-- `375px`: 20px gutters, cover rail shows partial next cover and snaps horizontally; all other content is one reading column.
-- `768px`: one calm reading column with compact controls and cover rail.
-- `1280px`: masthead and rail span full width; recommendation and search can split below while DOM/task order stays meaningful.
-- The document owns scrolling; no panel creates nested scrolling.
-- `main#main-content` exposes a skip link, semantic headings and labels, live regions, disabled states, and a 3px focus outline. All controls are at least 44px.
-- Motion is limited to state feedback and omitted for `prefers-reduced-motion`.
+States: default, hover, focus, current.
 
-## 7. Truthfulness and data boundaries
+### Editorial masthead
 
-Search results and covers originate in the catalog. Personal records originate in the connected Notion database. Recommendation decisions originate in personal graph and catalog evidence. An optional LLM may summarize only already-selected evidence. The frontend never invents fallback records, covers, recommendations, or scores. The public insights endpoint returns only its redacted graph recommendation projection: album title, artist, release-group ID, factual cover URL, and release date when known. It omits Notion page identifiers, favourite tracks, ownership, scores, evidence paths or methods, retrieval/seed metadata, taste aggregates, and sync internals. Private record DOM and all Notion mutation API calls are owner-only.
+One short promise and one supporting sentence. Public title is `오늘, 다시 들을 한 장`. Owner title is `나의 음악 기록`. No duplicate owner CTA or micro-status strip.
 
-## 8. Accepted debt and handoff
+States: public, owner, service.
 
-`ConnectedMusicDesk` is a composition boundary only. Catalog search/edition/track state, personal workspace reads, record mutations, recommendation presentation, and catalog presentation live in focused modules under the 250-line source ceiling. Notion writes remain isolated behind explicit confirmation and the server-side duplicate lookup.
+### Album art
 
-Every UI change requires browser checks at 375px, 768px, and 1280px for public and owner boundaries, CJK wrapping, overflow, focus, empty real-data behavior, and write confirmations.
+A fixed one-to-one frame containing the factual image, compact `불러오는 중` status, or honest `표지 없음` fallback. Row, shelf, and feature sizes share the same anatomy. Primary feature art has priority; later covers remain lazy.
+
+States: loading, loaded, missing, failed.
+
+### Discovery stage
+
+A fixed-size feature region containing cover, album metadata, one reason, progress, and the short actions `수록곡 보기`, `넘기기`, and `좋아요`. Incoming and outgoing presentations overlap during transition. The stage never collapses or becomes empty at the midpoint.
+
+States: loading, ready, exiting, entering, complete, reduced-motion.
+
+### Genre collection
+
+Exactly four factual exploration buttons: 드림 팝, 인디 록, 포크, 전자음악. Each carries a short functional description, not invented artwork. The selected genre is explicit without changing geometry.
+
+States: default, hover, focus, selected, loading, error, empty.
+
+### Catalog search and album result
+
+The visible label remains above the `q` input. The result is a bounded cover-led item with title, artist, date, type, and one short action. Dynamic titles never enter action labels.
+
+States: idle, loading, guidance, results, empty, error, selected, disabled.
+
+### Access composition
+
+An editorial explanation beside the existing authentication form. It replaces the centered SaaS card and uses the same navigation, tokens, form labels, and feedback language as the rest of the service.
+
+States: idle, submitting, error, owner denial.
+
+### Record confirmation
+
+Save, archive, and restore remain explicit inline sections with focus restoration. Confirmations never become false modal dialogs.
+
+States: pending, submitting, success, error, cancelled.
+
+### Trust article
+
+A readable article frame with shared navigation, one title, grouped sections, and the existing three trust links. Desktop may show a compact contents list; mobile remains one column.
+
+## 6. Motion and interaction
+
+- The discovery swap adapts beui.dev `action-swap`: incoming and outgoing layers overlap in a stable frame.
+- Spatial movement is at most 12 pixels. Opacity and transform are the only animated properties.
+- State duration is 180 milliseconds with `cubic-bezier(.16, 1, .3, 1)`.
+- Controls use a 120 millisecond pressed transform of `scale(.98)` or `translateY(1px)`.
+- Hover motion appears only on interactive elements and always communicates affordance.
+- Under `prefers-reduced-motion: reduce`, transform animations stop and state commits immediately. Loading uses static geometry and calm opacity feedback only.
+- Transitions remain interruptible. A second action is disabled only for the active 180 millisecond swap window.
+
+## 7. Accessibility and adaptive constraints
+
+- Preserve the skip link, `main#main-content`, semantic heading order, visible labels, live regions, disabled states, and native buttons or links.
+- Minimum control target is 44 by 44 pixels.
+- Focus is a three-pixel cobalt outline with a three-pixel offset.
+- Do not rely on color alone for selection, current location, or feedback.
+- Public and private focus order follows visible task order at 375, 768, 1280, and 200 percent zoom.
+- Respect system light or dark preference and reduced motion. The product does not require a manual theme control.
+- Loading, empty, error, and recovery copy uses plain Korean and states the next available action.
+- Static screenshots cannot prove keyboard, screen-reader, or motion behavior. These behaviors require real browser execution.
+
+## 8. Truthfulness, performance, and accepted debt
+
+### Truthfulness
+
+Catalog search and covers originate in the catalog. Personal records originate in the connected Notion database. Public recommendations originate in the redacted graph projection. The frontend never invents an album, cover, score, evidence path, or recommendation. Browser likes remain local and never become a server request.
+
+### Performance contract
+
+- No new runtime design dependency.
+- LCP below 2.5 seconds, CLS below 0.1, and INP below 200 milliseconds.
+- Lighthouse accessibility target is 100.
+- Feature cover geometry is reserved before data and image completion.
+- Remote art uses factual source URLs with explicit dimensions and high priority only for above-the-fold art.
+- Offscreen collections may use `content-visibility: auto` with intrinsic size when browser evidence shows a benefit.
+
+### Accepted debt
+
+- Remote factual cover availability is not controlled by this service. A failed image must degrade to `표지 없음` without layout shift.
+- Owner authentication remains a setup-token workflow. This redesign improves its composition but does not replace the authentication model.
+- Music provider latency is an operational concern. The UI must remain stable and recoverable, but this design project does not change backend rate limiting.
+
+No accessibility debt is accepted. Any major keyboard, contrast, CJK, motion, or cognitive-recovery defect blocks completion.
+
+## 9. Verification and handoff
+
+Every UI change requires real-browser evidence at 375, 768, and 1280 pixels for public and owner boundaries, light and dark modes, reduced motion, loading, empty, error, transition, selection, and confirmation states.
+
+The final gate includes:
+
+1. Frontend unit tests, typecheck, production build, React Doctor, and full Playwright suite.
+2. Console, network, accessibility tree, keyboard focus, zoom, and overflow inspection.
+3. Real-browser Lighthouse mobile and desktop runs.
+4. Fresh visual QA screenshots and dual review.
+5. Designpowers critique, accessibility, heuristic, and persona walkthrough against the same build.
+6. Final review-work verdict with all major findings repaired or explicitly blocking.

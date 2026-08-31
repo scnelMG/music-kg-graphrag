@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
-import { sameOriginCoverUrl } from "../../../../lib/cover-art";
+import { directCoverArtArchiveUrl } from "../../../../lib/cover-art";
 import { requireOwnerSession } from "../../../../lib/owner-session";
 
 const personalGraphRetrievalMethodSchema = z.enum([
@@ -11,14 +11,20 @@ const personalGraphRetrievalMethodSchema = z.enum([
 ]);
 const albumSchema = z.object({
   artist: z.string().min(1),
+  artistCredits: z.array(z.string().min(1)).min(1).optional(),
   coverUrl: z.string().url().or(z.literal("")),
   evidenceMethod: personalGraphRetrievalMethodSchema,
   evidencePaths: z.array(z.object({ recordPageId: z.string().min(1).optional(), relation: z.enum(["RECORDED_BY", "SHARES_MUSICBRAINZ_TAG"]), value: z.string().min(1) })),
   firstReleaseDate: z.string(),
+  primaryType: z.enum(["Album", "EP"]).optional(),
   releaseGroupMbid: z.string().min(1),
   title: z.string().min(1),
   score: z.number().int().positive()
-});
+}).transform((album) => ({
+  ...album,
+  artistCredits: album.artistCredits ?? [album.artist],
+  primaryType: album.primaryType ?? "Album"
+}));
 const relistenSchema = z.object({
   artist: z.string().min(1),
   coverUrl: z.string().url().or(z.literal("")),
@@ -59,17 +65,42 @@ const personalInsightsSchema = z.object({
   })
 });
 
-function publicGraphTaste(graphTaste: z.infer<typeof personalInsightsSchema>["graphTaste"], requestUrl: string) {
-  return {
-    relisten: [],
-    recommendations: graphTaste.recommendations.map(({ artist, coverUrl, firstReleaseDate, releaseGroupMbid, title }) => ({
-      artist,
-      coverUrl: sameOriginCoverUrl(coverUrl, releaseGroupMbid, requestUrl),
-      firstReleaseDate,
-      releaseGroupMbid,
-      title
-    }))
+const publicDiscoverySchema = z.object({
+  albums: z.array(albumSchema)
+});
+const publicDiscoveryCacheControl = "public, s-maxage=600, stale-while-revalidate=86400";
+
+function publicRecommendation({ artist, artistCredits, coverUrl, evidencePaths, firstReleaseDate, primaryType, releaseGroupMbid, title }: z.infer<typeof albumSchema>) {
+  const sharedMusicBrainzTag = evidencePaths.find((path) => path.relation === "SHARES_MUSICBRAINZ_TAG")?.value;
+  if (sharedMusicBrainzTag !== undefined) return {
+    artist,
+    artistCredits,
+    coverUrl: directCoverArtArchiveUrl(coverUrl, releaseGroupMbid),
+    firstReleaseDate,
+    primaryType,
+    releaseGroupMbid,
+    publicCurationReason: "shared-tag" as const,
+    sharedMusicBrainzTag,
+    title
   };
+  if (!evidencePaths.some((path) => path.relation === "RECORDED_BY")) return null;
+  return {
+    artist,
+    artistCredits,
+    coverUrl: directCoverArtArchiveUrl(coverUrl, releaseGroupMbid),
+    firstReleaseDate,
+    primaryType,
+    publicCurationReason: "same-artist" as const,
+    releaseGroupMbid,
+    title
+  };
+}
+
+function publicGraphTaste(graphTaste: z.infer<typeof personalInsightsSchema>["graphTaste"]) {
+  return { relisten: [], recommendations: graphTaste.recommendations.flatMap((album) => {
+    const recommendation = publicRecommendation(album);
+    return recommendation === null ? [] : [recommendation];
+  }) };
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -78,7 +109,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const ownerSession = requireOwnerSession(request);
     if (ownerSession !== null) return ownerSession;
   }
-  const result = await callBackend("api/v1/personal-insights");
+  const result = await callBackend(ownerScope ? "api/v1/personal-insights" : "api/v1/recommendations/discover");
   if (result.kind === "handled") return result.response;
   let payload: unknown;
   try {
@@ -87,22 +118,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (error instanceof SyntaxError) return backendContractError();
     throw error;
   }
+  if (!ownerScope) {
+    const discovery = publicDiscoverySchema.safeParse(payload);
+    return discovery.success
+      ? NextResponse.json({ graphTaste: { relisten: [], recommendations: discovery.data.albums.flatMap((album) => {
+        const recommendation = publicRecommendation(album);
+        return recommendation === null ? [] : [recommendation];
+      }) } }, { headers: { "Cache-Control": publicDiscoveryCacheControl } })
+      : backendContractError();
+  }
   const insights = personalInsightsSchema.safeParse(payload);
   if (!insights.success) return backendContractError();
-  return ownerScope
-    ? NextResponse.json({
+  return NextResponse.json({
       ...insights.data,
       graphTaste: {
         ...insights.data.graphTaste,
         relisten: insights.data.graphTaste.relisten.map((album) => ({
           ...album,
-          coverUrl: sameOriginCoverUrl(album.coverUrl, album.releaseGroupMbid, request.url)
+          coverUrl: directCoverArtArchiveUrl(album.coverUrl, album.releaseGroupMbid)
         })),
         recommendations: insights.data.graphTaste.recommendations.map((album) => ({
           ...album,
-          coverUrl: sameOriginCoverUrl(album.coverUrl, album.releaseGroupMbid, request.url)
+          coverUrl: directCoverArtArchiveUrl(album.coverUrl, album.releaseGroupMbid)
         }))
       }
-    })
-    : NextResponse.json({ graphTaste: publicGraphTaste(insights.data.graphTaste, request.url) });
+    });
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../../../lib/backend-bff";
-import { sameOriginCoverUrl } from "../../../../../../lib/cover-art";
+import { directCoverArtArchiveUrl } from "../../../../../../lib/cover-art";
 import { requireOwnerSession } from "../../../../../../lib/owner-session";
 import { issueRecordHandle } from "../../../../../../lib/record-handle";
 
@@ -60,7 +60,7 @@ export async function GET(
   const { pageId, ...publicRecord } = record.data;
   return NextResponse.json({ record: {
     ...publicRecord,
-    coverUrl: sameOriginCoverUrl(publicRecord.coverUrl, publicRecord.releaseGroupMbid, request.url),
+    coverUrl: directCoverArtArchiveUrl(publicRecord.coverUrl, publicRecord.releaseGroupMbid),
     recordHandle: issueRecordHandle(pageId, secret)
   } });
 }

@@ -21,6 +21,10 @@ amount of personal context, and confirm a Notion write.
   compilations stay discoverable but are not default choices.
 - The owner always makes the final release choice. The product may rank a
   recommended choice; it must never silently select or write one.
+- **A chosen edition is durable data.** `Release Group MBID` remains the
+  canonical Album/EP identity used for duplicate detection, while the chosen
+  `Release MBID` is saved separately in Notion. Reopening a record therefore
+  preserves whether the owner chose an original issue or a specific reissue.
 
 ## Owner workflow
 
@@ -28,7 +32,7 @@ amount of personal context, and confirm a Notion write.
 Search album or artist (Korean or original title)
   -> grouped result candidates
   -> recommended release group + alternative releases
-  -> actual track list
+  -> chosen release edition + actual track list
   -> favourite track, sentiment, ownership form
   -> duplicate check
   -> explicit Notion write confirmation
@@ -72,6 +76,11 @@ are prefilled and read-only in the editor.
 Before rendering the final confirmation, the BFF checks the release-group MBID
 against the current Notion record snapshot. A match changes the action to
 `기존 기록 업데이트`; no match is `Notion에 새 기록 저장`.
+
+The confirmed payload always contains both identifiers. Updates are matched by
+`Release Group MBID`, then replace the stored `Release MBID` with the edition
+the owner explicitly chose. This prevents a remaster selection from silently
+becoming an unspecified release on the next edit.
 
 The existing confirmed-write boundary remains mandatory. The request must carry
 the confirmation header; direct or stale duplicate creates are rejected by the
@@ -134,6 +143,7 @@ Owner browser
 2. The result exposes real release data and tracks; selecting an alternative
    reissue remains possible.
 3. Existing release-group IDs lead to an update, not a duplicate create.
+   The chosen release ID is retained independently from that duplicate key.
 4. A visitor can search catalog music but cannot see duplicate status, private
    fields, Notion records, or write actions.
 5. Provider errors and missing art remain truthful and recoverable.

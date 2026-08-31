@@ -11,6 +11,7 @@ foreach ($required in @(
         'CONNECTED_PRODUCTION_NOTION_WRITE_BLOCKED',
         'CONNECTED_SMOKE_CONFIGURATION_READY',
         'NOTION_RELEASE_MBID_FIELD',
+        'NOTION_CATALOG_SOURCE_FIELD',
         'X-Music-Kg-Bff-Secret',
         '/api/v1/ready')) {
     if ($source -notmatch $required) { throw "CONNECTED_SMOKE_CONTRACT_MISSING: $required" }
@@ -31,6 +32,8 @@ try {
         'NOTION_OWNED_FIELD=Owned',
         'NOTION_RELEASE_GROUP_MBID_FIELD=MusicBrainz MBID',
         'NOTION_RELEASE_MBID_FIELD=MusicBrainz Release MBID',
+        'NOTION_CATALOG_SOURCE_FIELD=Catalog Source',
+        'NOTION_CATALOG_ID_FIELD=Catalog ID',
         'MUSICBRAINZ_USER_AGENT=music-kg-test/1.0 (test@example.invalid)',
         'MUSIC_KG_GRAPHDB_BASE_URL=http://127.0.0.1:7200',
         'MUSIC_KG_GRAPHDB_REPOSITORY=music-kg-personal',
@@ -55,6 +58,20 @@ try {
     }
     if ($missingReleaseMbidFieldExitCode -eq 0 -or ($missingReleaseMbidField | Out-String) -notmatch 'CONNECTED_ENV_VALUE_REQUIRED: NOTION_RELEASE_MBID_FIELD') {
         throw "CONNECTED_SMOKE_RELEASE_MBID_FIELD_GUARD_MISSING"
+    }
+    $missingCatalogIdentityEnvironmentPath = Join-Path $temporaryRoot ".env-missing-catalog-identity"
+    Get-Content -LiteralPath $environmentPath | Where-Object { $_ -notmatch '^NOTION_CATALOG_SOURCE_FIELD=' } |
+        Set-Content -LiteralPath $missingCatalogIdentityEnvironmentPath -Encoding utf8
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $missingCatalogIdentity = & $powerShellExecutable -NoLogo -NoProfile -ExecutionPolicy Bypass -File $scriptPath -Mode connected -CheckOnly -EnvironmentPath $missingCatalogIdentityEnvironmentPath 2>&1
+        $missingCatalogIdentityExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($missingCatalogIdentityExitCode -eq 0 -or ($missingCatalogIdentity | Out-String) -notmatch 'CONNECTED_ENV_VALUE_REQUIRED: NOTION_CATALOG_SOURCE_FIELD') {
+        throw "CONNECTED_SMOKE_CATALOG_IDENTITY_GUARD_MISSING"
     }
     $fallbackEnvironmentPath = Join-Path $temporaryRoot ".env-generic-graphdb"
     Get-Content -LiteralPath $environmentPath | Where-Object { $_ -notmatch '^MUSIC_KG_GRAPHDB_' } |

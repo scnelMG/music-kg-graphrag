@@ -1,5 +1,23 @@
-import { TimeoutError } from "ky";
+import ky, { TimeoutError, type Options } from "ky";
 import { z } from "zod";
+
+export const publicBffRequestTimeoutMilliseconds = 65_000;
+export const personalWriteRequestTimeoutMilliseconds = 65_000;
+
+export function publicBffGet(path: string, options: Options = {}): Promise<Response> {
+  return ky.get(path, {
+    ...options,
+    throwHttpErrors: false,
+    timeout: publicBffRequestTimeoutMilliseconds
+  });
+}
+
+export function personalWriteBff(path: string, options: Options): Promise<Response> {
+  return ky(path, {
+    ...options,
+    timeout: personalWriteRequestTimeoutMilliseconds
+  });
+}
 
 const bffFailureSchema = z.object({
   code: z.string().min(1),
@@ -32,7 +50,7 @@ function displayFailure(code: string, message?: string): string {
   return knownMessage === undefined ? `${code}: The music request could not be completed.` : `${code}: ${knownMessage}`;
 }
 
-export function parseBffPayload<T>(schema: z.ZodType<T>, payload: unknown): BffResult<T> {
+export function parseBffPayload<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, payload: unknown): BffResult<T> {
   const success = schema.safeParse(payload);
   if (success.success) return { kind: "success", value: success.data };
   const failure = bffFailureSchema.safeParse(payload);
@@ -42,7 +60,7 @@ export function parseBffPayload<T>(schema: z.ZodType<T>, payload: unknown): BffR
   return { kind: "failure", message: fallbackMessages.BACKEND_CONTRACT_ERROR };
 }
 
-export async function requestBff<T>(request: Promise<Response>, schema: z.ZodType<T>): Promise<BffResult<T>> {
+export async function requestBff<T>(request: Promise<Response>, schema: z.ZodType<T, z.ZodTypeDef, unknown>): Promise<BffResult<T>> {
   try {
     const response = await request;
     const payload: unknown = await response.json();

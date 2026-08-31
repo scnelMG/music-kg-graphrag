@@ -5,13 +5,17 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/build.mjs",
+    "audit:production": "node scripts/audit-production.mjs",
+    "generate:og": "node scripts/generate-og-image.mjs",
+    "start:audit-backend": "node scripts/start-audit-backend.mjs",
     "start": "next start",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "doctor": "npx react-doctor@latest"
+    "doctor": "react-doctor --no-score --max-duration 60 --blocking error --json"
   },
   "dependencies": {
+    "@fontsource-variable/noto-serif-kr": "5.3.0",
     "@phosphor-icons/react": "^2.1.10",
     "ky": "^1.9.0",
     "next": "^15.5.2",
@@ -24,9 +28,12 @@
     "@types/node": "^22.15.3",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
+    "lighthouse": "^13.4.1",
+    "playwright-lighthouse": "^4.0.0",
     "react-doctor": "^0.9.10",
     "react-grab": "^0.1.50",
     "react-scan": "^0.5.7",
+    "sharp": "0.34.5",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   },

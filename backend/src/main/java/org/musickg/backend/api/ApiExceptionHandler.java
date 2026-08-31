@@ -35,7 +35,8 @@ class ApiExceptionHandler {
         HttpStatus status = switch (exception.getMessage()) {
             case "NOTION_RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;
             case "NOTION_UNAVAILABLE" -> HttpStatus.SERVICE_UNAVAILABLE;
-            case "NOTION_CONNECTION_NOT_SHARED", "NOTION_CONNECTION_UNAUTHORIZED", "YOUTUBE_MAPPING_CONFIGURATION_REQUIRED" -> HttpStatus.CONFLICT;
+            case "NOTION_CONNECTION_NOT_SHARED", "NOTION_CONNECTION_UNAUTHORIZED", "YOUTUBE_MAPPING_CONFIGURATION_REQUIRED",
+                    "CATALOG_IDENTITY_CONFIGURATION_REQUIRED" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_GATEWAY;
         };
         return ResponseEntity.status(status).body(new ApiError(exception.getMessage(), requestId(request)));

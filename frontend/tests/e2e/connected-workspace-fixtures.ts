@@ -3,6 +3,9 @@ import type { Page } from "@playwright/test";
 export type AlbumFixture = {
   readonly artist: string;
   readonly artistCredits: readonly string[];
+  readonly catalogId?: string;
+  readonly catalogSource?: "ITUNES" | "MUSICBRAINZ";
+  readonly catalogUrl?: string;
   readonly coverUrl: string;
   readonly firstReleaseDate: string;
   readonly primaryType: "Album" | "EP";
@@ -90,6 +93,7 @@ function ownerInsightsPayload(): object {
         evidenceMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
         evidencePaths: [{ recordPageId: "notion-record-one", relation: "SHARES_MUSICBRAINZ_TAG", value: "dream pop" }],
         firstReleaseDate: "2025-01-01",
+        publicCurationReason: "same-artist",
         releaseGroupMbid: "release-group-two",
         score: 7,
         title: "Album Two"
@@ -114,6 +118,7 @@ function publicInsightsPayload(): object {
         artist: "Artist Two",
         coverUrl: "",
         firstReleaseDate: "2025-01-01",
+        publicCurationReason: "same-artist",
         releaseGroupMbid: "release-group-two",
         title: "Album Two"
       }]

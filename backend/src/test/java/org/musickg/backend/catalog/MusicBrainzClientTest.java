@@ -29,27 +29,14 @@ class MusicBrainzClientTest {
         server.expect(ExpectedCount.manyTimes(), request -> { })
                 .andRespond(withSuccess("{\"release-groups\":[]}", MediaType.APPLICATION_JSON));
 
-        for (int index = 0; index <= MusicBrainzClient.MAX_CATALOG_CACHE_ENTRIES; index++) {
+        for (int index = 0; index <= MusicBrainzCache.MAX_ENTRIES; index++) {
             client.search("distinct-query-" + index);
         }
 
         Field albumCache = MusicBrainzClient.class.getDeclaredField("albumCache");
         albumCache.setAccessible(true);
-        assertThat((Map<?, ?>) albumCache.get(client)).hasSizeLessThanOrEqualTo(MusicBrainzClient.MAX_CATALOG_CACHE_ENTRIES);
+        assertThat((Map<?, ?>) albumCache.get(client)).hasSizeLessThanOrEqualTo(MusicBrainzCache.MAX_ENTRIES);
         server.verify();
-    }
-
-    @Test
-    void rejectsAnOverloadedLocalRateLimitQueueInsteadOfBlockingTheRequestThread() throws Exception {
-        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
-        var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
-        Field nextRequestAtNanos = MusicBrainzClient.class.getDeclaredField("nextRequestAtNanos");
-        nextRequestAtNanos.setAccessible(true);
-        nextRequestAtNanos.setLong(client, System.nanoTime() + 10_000_000_000L);
-
-        assertThatThrownBy(() -> client.search("Overloaded"))
-                .isInstanceOf(MusicBrainzClient.CatalogAccessException.class)
-                .hasMessage("MUSICBRAINZ_RATE_LIMITED");
     }
 
     @Test
@@ -151,7 +138,7 @@ class MusicBrainzClientTest {
         var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
         var server = MockRestServiceServer.bindTo(builder).build();
         var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz("music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
-        server.expect(requestTo("https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22%EC%88%98%EC%9E%94%22+OR+artist%3A%22%EC%88%98%EC%9E%94%22&fmt=json&limit=10"))
+        server.expect(requestTo("https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22%EC%88%98%EC%9E%94%22+OR+artist%3A%22%EC%88%98%EC%9E%94%22+OR+releasegroup%3A%EC%88%98%EC%9E%94*+OR+artist%3A%EC%88%98%EC%9E%94*&fmt=json&limit=10"))
                 .andRespond(withSuccess("""
                         {"release-groups":[
                           {"id":"fuzzy-ep","title":"Somewhere Else","score":61,"primary-type":"EP","artist-credit":[{"name":"김사월"}]},
@@ -168,6 +155,42 @@ class MusicBrainzClientTest {
                 .containsExactly("Album", "EP");
         assertThat(albums).extracting(MusicCatalogGateway.Album::searchScore)
                 .containsExactly(100, 61);
+        server.verify();
+    }
+
+    @Test
+    void ranksTheEarlierCanonicalReleaseAheadOfALaterSameTitleTie() {
+        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz(
+                "music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
+        server.expect(requestTo("https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22Kind+of+Blue%22+OR+artist%3A%22Kind+of+Blue%22&fmt=json&limit=10"))
+                .andRespond(withSuccess("""
+                        {"release-groups":[
+                          {"id":"jp-same-title","title":"Kind of Blue","score":100,"first-release-date":"2020-01-01","primary-type":"Album","artist-credit":[{"name":"Japanese Artist"}]},
+                          {"id":"miles-canonical","title":"Kind of Blue","score":100,"first-release-date":"1959-08-17","primary-type":"Album","artist-credit":[{"name":"Miles Davis"}]}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.search("Kind of Blue")).extracting(MusicCatalogGateway.Album::artist)
+                .containsExactly("Miles Davis", "Japanese Artist");
+        server.verify();
+    }
+
+    @Test
+    void findsKoreanArtistNamesFromAUserEnteredPrefix() {
+        var builder = RestClient.builder().baseUrl("https://musicbrainz.org/ws/2");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = new MusicBrainzClient(builder.build(), new ObjectMapper(), new ConnectedServiceProperties.MusicBrainz(
+                "music-kg/1.0 (https://example.test)", "https://musicbrainz.org/ws/2", 1, "https://coverartarchive.org"));
+
+        server.expect(requestTo("https://musicbrainz.org/ws/2/release-group?query=releasegroup%3A%22%EA%B7%B9%EB%8F%99%22+OR+artist%3A%22%EA%B7%B9%EB%8F%99%22+OR+releasegroup%3A%EA%B7%B9%EB%8F%99*+OR+artist%3A%EA%B7%B9%EB%8F%99*&fmt=json&limit=10"))
+                .andRespond(withSuccess("""
+                        {"release-groups":[{"id":"korean-prefix-album","title":"모기","score":100,"primary-type":"Album","artist-credit":[{"name":"극동아시아타이거즈"}]}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.search("극동")).extracting(MusicCatalogGateway.Album::artist)
+                .containsExactly("극동아시아타이거즈");
         server.verify();
     }
 

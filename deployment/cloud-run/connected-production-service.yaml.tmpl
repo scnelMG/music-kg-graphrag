@@ -9,13 +9,15 @@ spec:
     metadata:
       annotations:
         autoscaling.knative.dev/maxScale: "1"
+        autoscaling.knative.dev/minScale: "1"
         run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/startup-cpu-boost: "true"
         run.googleapis.com/network-interfaces: '[{"network":"${PERSONAL_GRAPHDB_VPC_NETWORK}","subnetwork":"${PERSONAL_GRAPHDB_VPC_SUBNETWORK}"}]'
         run.googleapis.com/vpc-access-egress: private-ranges-only
     spec:
       serviceAccountName: ${CLOUD_RUN_PRODUCTION_SERVICE_ACCOUNT}
-      containerConcurrency: 1
-      timeoutSeconds: 30
+      containerConcurrency: 8
+      timeoutSeconds: 120
       containers:
         - image: ${IMAGE_DIGEST}
           ports:
@@ -27,6 +29,8 @@ spec:
               value: bff-shared-secret
             - name: MUSIC_KG_API_CORS_ALLOWED_ORIGINS
               value: ${VERCEL_PRODUCTION_ORIGIN}
+            - name: MUSIC_KG_SEARCH_RATE_LIMIT_PER_MINUTE
+              value: "300"
             - name: MUSIC_KG_CONNECTED_MODE
               value: connected
             - name: MUSIC_KG_LLM_ENABLED
@@ -54,6 +58,10 @@ spec:
               value: ${NOTION_RELEASE_GROUP_MBID_FIELD}
             - name: NOTION_RELEASE_MBID_FIELD
               value: ${NOTION_RELEASE_MBID_FIELD}
+            - name: NOTION_CATALOG_SOURCE_FIELD
+              value: ${NOTION_CATALOG_SOURCE_FIELD}
+            - name: NOTION_CATALOG_ID_FIELD
+              value: ${NOTION_CATALOG_ID_FIELD}
             - name: NOTION_YOUTUBE_RECORDING_MBID_FIELD
               value: ${NOTION_YOUTUBE_RECORDING_MBID_FIELD}
             - name: NOTION_YOUTUBE_VIDEO_ID_FIELD

@@ -156,6 +156,7 @@ class GraphDbHandler(BaseHTTPRequestHandler):
             self._respond(404)
             return
         context = _context(path.query)
+        body = self._body()
         if (
             self._state.reject_data_load
             and context != "http://rdf4j.org/schema/rdf4j#SHACLShapeGraph"
@@ -176,7 +177,6 @@ class GraphDbHandler(BaseHTTPRequestHandler):
         ):
             self._respond(503, b"service unavailable")
             return
-        body = self._body()
         content_type = self.headers.get_content_type()
         if content_type in {"text/turtle", "application/n-triples"}:
             graph = Graph()

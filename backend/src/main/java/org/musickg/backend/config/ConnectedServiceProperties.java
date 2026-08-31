@@ -22,6 +22,9 @@ public record ConnectedServiceProperties(Mode mode, Notion notion, MusicBrainz m
         if (notion.fields().youtubeMappingPartiallyConfigured()) {
             throw new IllegalStateException("CONNECTED_YOUTUBE_NOTION_CONFIGURATION_INVALID");
         }
+        if (!notion.fields().catalogIdentityConfigured()) {
+            throw new IllegalStateException("CONNECTED_CATALOG_IDENTITY_NOTION_CONFIGURATION_REQUIRED");
+        }
         if (placeholder(musicBrainz.userAgent())) {
             throw new IllegalStateException("CONNECTED_MUSICBRAINZ_USER_AGENT_REQUIRED");
         }
@@ -43,14 +46,22 @@ public record ConnectedServiceProperties(Mode mode, Notion notion, MusicBrainz m
         public record Fields(String albumTitle, String artist, String cover, String sentiment,
                              String favouriteTrack, String owned, String releaseGroupMbid, String releaseMbid,
                              String youtubeRecordingMbid, String youtubeVideoId, String youtubeVideoTitle,
-                             String youtubeChannelTitle) {
+                             String youtubeChannelTitle, String catalogSource, String catalogId) {
             @ConstructorBinding
             public Fields {}
 
             public Fields(String albumTitle, String artist, String cover, String sentiment,
                           String favouriteTrack, String owned, String releaseGroupMbid, String releaseMbid) {
                 this(albumTitle, artist, cover, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
-                        "", "", "", "");
+                        "", "", "", "", "", "");
+            }
+
+            public Fields(String albumTitle, String artist, String cover, String sentiment,
+                          String favouriteTrack, String owned, String releaseGroupMbid, String releaseMbid,
+                          String youtubeRecordingMbid, String youtubeVideoId, String youtubeVideoTitle,
+                          String youtubeChannelTitle) {
+                this(albumTitle, artist, cover, sentiment, favouriteTrack, owned, releaseGroupMbid, releaseMbid,
+                        youtubeRecordingMbid, youtubeVideoId, youtubeVideoTitle, youtubeChannelTitle, "", "");
             }
 
             boolean complete() {
@@ -68,6 +79,10 @@ public record ConnectedServiceProperties(Mode mode, Notion notion, MusicBrainz m
                 boolean any = !blank(youtubeRecordingMbid) || !blank(youtubeVideoId)
                         || !blank(youtubeVideoTitle) || !blank(youtubeChannelTitle);
                 return any && !youtubeMappingConfigured();
+            }
+
+            public boolean catalogIdentityConfigured() {
+                return !placeholder(catalogSource) && !placeholder(catalogId);
             }
         }
     }

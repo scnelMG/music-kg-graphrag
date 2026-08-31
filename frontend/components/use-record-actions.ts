@@ -1,6 +1,5 @@
 "use client";
 
-import ky from "ky";
 import { useEffect, useState } from "react";
 
 import {
@@ -12,12 +11,13 @@ import {
   type RecordState,
   type RecordLookupState,
   type SaveState,
+  type Track,
   type TrackState
 } from "../lib/connected-music-contract";
 import type { CatalogEdition } from "../lib/music-catalog-contract";
 import type { UserConfirmedYouTubeVideo } from "../lib/youtube-playback-contract";
 import { personalWriteConfirmationHeader } from "../lib/personal-write-intent";
-import { requestBff } from "../lib/review-bff-contract";
+import { personalWriteBff, requestBff } from "../lib/review-bff-contract";
 
 type RecordActionsOptions = {
   readonly availability: Availability;
@@ -29,6 +29,7 @@ type RecordActionsOptions = {
   readonly reloadPersonalWorkspace: () => Promise<void>;
   readonly selected: Album | null;
   readonly selectedEdition: CatalogEdition | null;
+  readonly selectedTrack: Track | undefined;
   readonly sentiment: string;
   readonly trackState: TrackState;
   readonly verifiedYouTubeVideo: UserConfirmedYouTubeVideo | null;
@@ -44,24 +45,26 @@ export function useRecordActions(options: RecordActionsOptions) {
   useEffect(() => {
     setSaveState("idle");
     setSaveMessage("");
-  }, [options.selected?.releaseGroupMbid, options.selectedEdition?.releaseMbid]);
+  }, [options.selected?.catalogId, options.selected?.catalogSource, options.selectedEdition?.releaseMbid]);
 
   const saveEnabled = options.writeAccess
     && options.availability === "ready"
     && options.recordState === "ready"
     && options.recordLookupState === "ready"
     && options.selected !== null
-    && options.selectedEdition !== null
+    && (options.selected.catalogSource === "ITUNES" || options.selectedEdition !== null)
     && options.trackState === "ready"
+    && options.selectedTrack !== undefined
     && options.sentiment.length > 0
     && options.favouriteTrack.length > 0
     && saveState !== "saving";
 
   async function save(): Promise<void> {
-    if (!saveEnabled || options.selected === null || options.selectedEdition === null) return;
+    if (!saveEnabled || options.selected === null) return;
+    if (options.selected.catalogSource === "MUSICBRAINZ" && options.selectedEdition === null) return;
     setSaveState("saving");
     setSaveMessage("");
-    const outcome = await requestBff(ky.post("/api/music/records", {
+    const outcome = await requestBff(personalWriteBff("/api/music/records", {
       headers: { [personalWriteConfirmationHeader]: "true" },
       json: {
         albumTitle: options.selected.title,
@@ -69,15 +72,19 @@ export function useRecordActions(options: RecordActionsOptions) {
         artistCredits: options.selected.artistCredits,
         coverUrl: options.selected.coverUrl,
         favouriteTrack: options.favouriteTrack.trim(),
+        favouriteRecordingMbid: options.selectedTrack.recordingMbid,
         owned: options.owned,
-        releaseGroupMbid: options.selected.releaseGroupMbid,
-        releaseMbid: options.selectedEdition.releaseMbid,
+        catalogId: options.selected.catalogId,
+        catalogSource: options.selected.catalogSource,
+        releaseGroupMbid: options.selected.catalogSource === "MUSICBRAINZ" ? options.selected.releaseGroupMbid : "",
+        releaseMbid: options.selected.catalogSource === "MUSICBRAINZ" ? options.selectedEdition?.releaseMbid ?? "" : "",
         sentiment: options.sentiment,
-        youtubeChannelTitle: options.verifiedYouTubeVideo?.channelTitle ?? "",
-        youtubeRecordingMbid: options.verifiedYouTubeVideo?.recordingMbid ?? "",
-        youtubeVideoId: options.verifiedYouTubeVideo?.videoId ?? "",
-        youtubeVideoTitle: options.verifiedYouTubeVideo?.title ?? ""
+        youtubeChannelTitle: options.selected.catalogSource === "MUSICBRAINZ" ? options.verifiedYouTubeVideo?.channelTitle ?? "" : "",
+        youtubeRecordingMbid: options.selected.catalogSource === "MUSICBRAINZ" ? options.verifiedYouTubeVideo?.recordingMbid ?? "" : "",
+        youtubeVideoId: options.selected.catalogSource === "MUSICBRAINZ" ? options.verifiedYouTubeVideo?.videoId ?? "" : "",
+        youtubeVideoTitle: options.selected.catalogSource === "MUSICBRAINZ" ? options.verifiedYouTubeVideo?.title ?? "" : ""
       },
+      method: "POST",
       throwHttpErrors: false
     }), savedSchema);
     if (outcome.kind === "failure") {
@@ -85,18 +92,18 @@ export function useRecordActions(options: RecordActionsOptions) {
       setSaveMessage(failureText(outcome));
       return;
     }
+    await options.reloadPersonalWorkspace();
     setSaveState("success");
     setSaveMessage(outcome.value.operation === "CREATED"
       ? "Notion 음악 감상 데이터베이스에 새 기록을 저장했습니다."
       : "Notion의 같은 음반 기록을 최신 내용으로 갱신했습니다.");
-    await options.reloadPersonalWorkspace();
   }
 
   async function archiveRecord(recordHandle: string): Promise<void> {
     if (!options.writeAccess) return;
     const archived = options.records.find((record) => record.recordHandle === recordHandle) ?? null;
-    const outcome = await requestBff(ky.delete(`/api/music/records/${encodeURIComponent(recordHandle)}`, {
-      headers: { [personalWriteConfirmationHeader]: "true" }, throwHttpErrors: false
+    const outcome = await requestBff(personalWriteBff(`/api/music/records/${encodeURIComponent(recordHandle)}`, {
+      headers: { [personalWriteConfirmationHeader]: "true" }, method: "DELETE", throwHttpErrors: false
     }), savedSchema);
     if (outcome.kind === "failure") {
       setSaveState("error");
@@ -112,8 +119,8 @@ export function useRecordActions(options: RecordActionsOptions) {
 
   async function restoreRecord(record: ExistingRecord): Promise<void> {
     if (!options.writeAccess) return;
-    const outcome = await requestBff(ky.post(`/api/music/records/${encodeURIComponent(record.recordHandle)}/restore`, {
-      headers: { [personalWriteConfirmationHeader]: "true" }, throwHttpErrors: false
+    const outcome = await requestBff(personalWriteBff(`/api/music/records/${encodeURIComponent(record.recordHandle)}/restore`, {
+      headers: { [personalWriteConfirmationHeader]: "true" }, method: "POST", throwHttpErrors: false
     }), savedSchema);
     if (outcome.kind === "failure") {
       setSaveState("error");

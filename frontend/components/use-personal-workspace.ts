@@ -28,9 +28,11 @@ import { requestBff } from "../lib/review-bff-contract";
 const personalReadTimeoutMilliseconds = 15_000;
 const personalSyncTimeoutMilliseconds = 45_000;
 
-export function usePersonalWorkspace() {
+export type WorkspaceMode = "owner" | "public";
+
+export function usePersonalWorkspace(mode: WorkspaceMode) {
   const [availability, setAvailability] = useState<Availability>("loading");
-  const [ownerAccess, setOwnerAccess] = useState<OwnerAccess>("checking");
+  const [ownerAccess, setOwnerAccess] = useState<OwnerAccess>(mode === "owner" ? "checking" : "visitor");
   const [writeAccess, setWriteAccess] = useState(false);
   const [records, setRecords] = useState<readonly ExistingRecord[]>([]);
   const [nextRecordCursor, setNextRecordCursor] = useState<string | null>(null);
@@ -195,6 +197,7 @@ export function usePersonalWorkspace() {
   }
 
   useEffect(() => {
+    if (mode !== "owner") return;
     void requestBff(ky.get("/api/owner/session", { throwHttpErrors: false }), ownerSessionSchema).then((outcome) => {
       if (outcome.kind === "failure" || !outcome.value.owner) {
         setOwnerAccess("visitor");
@@ -204,13 +207,13 @@ export function usePersonalWorkspace() {
       setOwnerAccess("owner");
       setWriteAccess(outcome.value.writeOwner ?? false);
     });
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
-    if (ownerAccess === "checking") return;
+    if (ownerAccess === "checking" || (mode === "owner" && ownerAccess === "visitor")) return;
     if (ownerAccess === "owner") void loadPersonalWorkspace();
     else void loadInsights();
-  }, [ownerAccess]);
+  }, [mode, ownerAccess]);
 
   async function loadMoreRecords(): Promise<void> {
     if (nextRecordCursor === null || loadingMoreRecords) return;

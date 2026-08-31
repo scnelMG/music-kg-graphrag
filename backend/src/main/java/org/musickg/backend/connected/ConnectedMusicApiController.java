@@ -1,9 +1,11 @@
 package org.musickg.backend.connected;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import org.musickg.backend.catalog.MusicCatalogGateway;
 import org.musickg.backend.notion.NotionClient;
@@ -48,6 +50,11 @@ class ConnectedMusicApiController {
         return metrics.observe("catalog.search", () -> service.search(q));
     }
 
+    @GetMapping("/catalog/explore")
+    List<MusicCatalogGateway.Album> explore(@RequestParam @Pattern(regexp = "dream-pop|indie-rock|folk|electronic") String genre) {
+        return metrics.observe("catalog.explore", () -> service.searchByTag(catalogTag(genre)));
+    }
+
     @GetMapping("/catalog/albums/{releaseGroupMbid}/editions")
     MusicCatalogGateway.EditionPage editions(@PathVariable @NotBlank String releaseGroupMbid,
                                                @RequestParam(required = false) @Min(0) Integer cursor,
@@ -60,6 +67,11 @@ class ConnectedMusicApiController {
     List<MusicCatalogGateway.Track> tracks(@PathVariable @NotBlank String releaseGroupMbid,
                                             @RequestParam("edition") @NotBlank String releaseMbid) {
         return metrics.observe("catalog.tracks", () -> service.tracks(releaseGroupMbid, releaseMbid));
+    }
+
+    @GetMapping("/catalog/itunes/albums/{collectionId}/tracks")
+    List<MusicCatalogGateway.Track> iTunesTracks(@PathVariable @NotBlank String collectionId) {
+        return metrics.observe("catalog.itunes.tracks", () -> service.iTunesTracks(collectionId));
     }
 
     @GetMapping("/listening-records")
@@ -81,6 +93,15 @@ class ConnectedMusicApiController {
                 .orElseGet(() -> ResponseEntity.noContent().build()));
     }
 
+    @GetMapping("/listening-records/by-catalog-identity")
+    ResponseEntity<NotionClient.ExistingRecord> recordByCatalogIdentity(
+            @RequestParam @Pattern(regexp = "MUSICBRAINZ|ITUNES") String source,
+            @RequestParam @NotBlank String catalogId) {
+        return metrics.observe("records.lookup", () -> service.recordByCatalogIdentity(source, catalogId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build()));
+    }
+
     @GetMapping("/listening-records/form-options")
     FormOptions formOptions() {
         return metrics.observe("records.formOptions", () -> new FormOptions(service.sentimentOptions()));
@@ -91,7 +112,8 @@ class ConnectedMusicApiController {
         return metrics.observe("records.save", () -> service.save(new ConnectedMusicService.RecordInput(
                 request.releaseGroupMbid(), request.releaseMbid(), request.albumTitle(), request.artist(), request.coverUrl(),
                 request.sentiment(), request.favouriteTrack(), request.owned(), request.artistCredits(),
-                request.youtubeRecordingMbid(), request.youtubeVideoId(), request.youtubeVideoTitle(), request.youtubeChannelTitle())));
+                request.youtubeRecordingMbid(), request.youtubeVideoId(), request.youtubeVideoTitle(), request.youtubeChannelTitle(),
+                request.catalogSource(), request.catalogId(), request.favouriteRecordingMbid())));
     }
 
     @DeleteMapping("/listening-records/{pageId}")
@@ -112,7 +134,7 @@ class ConnectedMusicApiController {
     @GetMapping("/recommendations/discover")
     PublicDiscovery discover() {
         return metrics.observe("recommendations.discover", () -> {
-            ConnectedMusicService.Discovery discovery = service.discover();
+            ConnectedMusicService.Discovery discovery = service.publicDiscovery();
             return new PublicDiscovery(
                     discovery.seedArtist(),
                     discovery.albums().stream().map(ConnectedMusicApiController::publicRecommendation).toList(),
@@ -161,18 +183,43 @@ class ConnectedMusicApiController {
         return metrics.snapshot();
     }
 
-    record SaveRequest(@NotBlank String releaseGroupMbid, @NotBlank String releaseMbid, @NotBlank String albumTitle, @NotBlank String artist,
+    record SaveRequest(String releaseGroupMbid, String releaseMbid, @NotBlank String albumTitle, @NotBlank String artist,
                        String coverUrl, @NotBlank String sentiment, @NotBlank String favouriteTrack, boolean owned,
                        List<String> artistCredits, String youtubeRecordingMbid, String youtubeVideoId,
-                       String youtubeVideoTitle, String youtubeChannelTitle) {
+                       String youtubeVideoTitle, String youtubeChannelTitle, String catalogSource, String catalogId,
+                       String favouriteRecordingMbid) {
         SaveRequest {
             artistCredits = artistCredits == null || artistCredits.isEmpty() ? List.of(artist) : List.copyOf(artistCredits);
+        }
+
+        @AssertTrue
+        boolean hasValidCatalogIdentity() {
+            String source = catalogSource == null || catalogSource.isBlank() ? "MUSICBRAINZ" : catalogSource;
+            return switch (source) {
+                case "MUSICBRAINZ" -> releaseGroupMbid != null && !releaseGroupMbid.isBlank()
+                        && releaseMbid != null && !releaseMbid.isBlank()
+                        && (catalogId == null || catalogId.isBlank() || catalogId.equals(releaseGroupMbid));
+                case "ITUNES" -> (releaseGroupMbid == null || releaseGroupMbid.isBlank())
+                        && (releaseMbid == null || releaseMbid.isBlank())
+                        && catalogId != null && catalogId.matches("[0-9]+");
+                default -> false;
+            };
         }
     }
 
     record FormOptions(List<String> sentiments) {}
 
     record Health(String status, String mode) {}
+
+    private static String catalogTag(String genre) {
+        return switch (genre) {
+            case "dream-pop" -> "dream pop";
+            case "indie-rock" -> "indie rock";
+            case "folk" -> "folk";
+            case "electronic" -> "electronic";
+            default -> throw new IllegalArgumentException("Unsupported public catalog genre");
+        };
+    }
 
     private static PublicGraphRagTaste publicGraphTaste(ConnectedMusicService.GraphTaste graphTaste) {
         return new PublicGraphRagTaste(
@@ -192,7 +239,8 @@ class ConnectedMusicApiController {
                 recommendation.title(), recommendation.artist(), recommendation.releaseGroupMbid(),
                 recommendation.firstReleaseDate(), recommendation.coverUrl(), recommendation.score(),
                 recommendation.evidenceMethod(), recommendation.evidencePaths().stream().map(path ->
-                        new PublicEvidencePath(path.relation(), path.value())).toList());
+                        new PublicEvidencePath(path.relation(), path.value())).toList(), recommendation.artistCredits(),
+                recommendation.primaryType());
     }
 
     record PublicPersonalInsights(ConnectedMusicService.TasteProfile taste, PublicGraphRagTaste graphTaste,
@@ -209,7 +257,8 @@ class ConnectedMusicApiController {
 
     record PublicAlbumRecommendation(String title, String artist, String releaseGroupMbid, String firstReleaseDate,
                                      String coverUrl, long score, String evidenceMethod,
-                                     List<PublicEvidencePath> evidencePaths) {}
+                                     List<PublicEvidencePath> evidencePaths, List<String> artistCredits,
+                                     String primaryType) {}
 
     record PublicEvidencePath(String relation, String value) {}
 }

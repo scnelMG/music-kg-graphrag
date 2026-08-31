@@ -13,11 +13,12 @@ export function connectedMusicFailureKind(message: string): ConnectedMusicFailur
   if (message.includes("NOTION_CONNECTION_NOT_SHARED")) return "notion-not-shared";
   if (message.includes("NOTION_CONNECTION_UNAUTHORIZED")) return "notion-unauthorized";
   if (message.includes("NOTION_RATE_LIMITED")) return "notion-rate-limited";
-  if (message.includes("MUSICBRAINZ_RATE_LIMITED")) return "catalog-rate-limited";
+  if (message.includes("MUSICBRAINZ_RATE_LIMITED") || message.includes("ITUNES_RATE_LIMITED")) return "catalog-rate-limited";
   if (message.includes("GRAPHDB_UNAVAILABLE")) return "personal-graph-unavailable";
   if (message.includes("INSUFFICIENT_PERSONAL_HISTORY")) return "insufficient-history";
   if (message.includes("OWNER_SESSION_REQUIRED")) return "owner-session-required";
-  if (message.includes("YOUTUBE_MAPPING_CONFIGURATION_REQUIRED") || message.includes("YOUTUBE_CONFIGURATION_ERROR")) return "configuration";
+  if (message.includes("YOUTUBE_MAPPING_CONFIGURATION_REQUIRED") || message.includes("YOUTUBE_CONFIGURATION_ERROR")
+    || message.includes("CATALOG_IDENTITY_CONFIGURATION_REQUIRED")) return "configuration";
   if (message.includes("BACKEND_CONFIGURATION_ERROR")) return "configuration";
   return "unavailable";
 }

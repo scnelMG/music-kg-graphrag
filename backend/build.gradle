@@ -38,7 +38,21 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+}
+
+tasks.register('integrationTest', Test) {
+    group = 'verification'
+    description = 'Runs Docker-backed PostgreSQL integration tests.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+    shouldRunAfter tasks.named('test')
+    dependsOn tasks.named('verifyTestcontainersResolution')
 }
 
 tasks.register('verifyTestcontainersResolution') {

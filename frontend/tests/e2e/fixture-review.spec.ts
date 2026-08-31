@@ -27,7 +27,7 @@ test("Given more than twelve Notion records, when the listener opens record mana
     });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.locator(".record-entry")).toHaveCount(12);
   await expect(page.getByRole("button", { name: "다음 기록 더 보기" })).toBeVisible();
@@ -63,7 +63,7 @@ test("Given a large personal history, when the desk opens, then records and insi
     await route.fulfill({ body: JSON.stringify({ nextCursor: null, records: [] }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await expect.poll(() => recordsRequested).toBe(true);
   await expect.poll(() => insightsRequested).toBe(1);
 
@@ -92,7 +92,7 @@ test("Given the personal form connection initially fails, when the listener retr
     });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await expect(page.getByRole("button", { name: "기록 다시 불러오기" })).toBeVisible();
 
   await page.getByRole("button", { name: "기록 다시 불러오기" }).click();
@@ -108,7 +108,7 @@ test("Given the personal form connection initially fails, when the listener retr
 test("Given no selected album, when the connected desk opens, then record fields stay hidden until a real result is chosen", async ({ page }) => {
   await routeConnectedWorkspace(page);
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.locator("#sentiment")).toHaveCount(0);
   await expect(page.locator("#favourite-track-select")).toHaveCount(0);
@@ -164,7 +164,8 @@ test("Given a MusicBrainz album, when a listener selects its track and sentiment
   await page.route("**/api/music/records", async (route) => {
     if (route.request().method() === "POST") {
       const payload: unknown = route.request().postDataJSON();
-      expect(payload).toMatchObject({ albumTitle: albumFixture.title, favouriteTrack: trackFixture.title, sentiment: "Loved" });
+      expect(payload).toMatchObject({ albumTitle: albumFixture.title, favouriteTrack: trackFixture.title,
+        favouriteRecordingMbid: trackFixture.recordingMbid, sentiment: "Loved" });
       expect(route.request().headers()["x-music-kg-write-confirmed"]).toBe("true");
       saved = true;
       await route.fulfill({ body: JSON.stringify({ notionLastEditedAt: savedRecord.lastEditedAt, notionPageId: savedRecord.recordHandle, operation: "CREATED" }), contentType: "application/json", status: 201 });
@@ -173,7 +174,7 @@ test("Given a MusicBrainz album, when a listener selects its track and sentiment
     await route.fulfill({ body: JSON.stringify({ records: saved ? [savedRecord] : [] }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill(albumFixture.title);
   await page.locator("form.search-row button").click();
   await page.locator(".candidate-row").filter({ hasText: albumFixture.title }).click();
@@ -184,7 +185,7 @@ test("Given a MusicBrainz album, when a listener selects its track and sentiment
   await expect(page.locator(".save-button")).toBeEnabled();
 
   await page.locator(".save-button").click();
-  await expect(page.getByRole("alertdialog")).toContainText("이 기록을 Notion에 저장할까요?");
+  await expect(page.locator(".save-confirmation")).toContainText("이 기록을 Notion에 저장할까요?");
   await expect(page.getByRole("button", { name: "Notion에 저장하기" })).toBeFocused();
   for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
@@ -214,7 +215,7 @@ test("Given an existing Notion record, when its MusicBrainz release group is sel
   };
   await routeConnectedWorkspace(page, { records: [existingRecord] });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill(albumFixture.title);
   await page.locator("form.search-row button").click();
   await page.locator(".candidate-row").filter({ hasText: albumFixture.title }).click();
@@ -239,7 +240,7 @@ test("Given a selected album with a delayed track request, when a new search cle
     return route.fulfill({ body: JSON.stringify({ albums }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").fill("first");
   await page.locator("form.search-row button").click();
   await page.locator(".candidate-row").filter({ hasText: albumFixture.title }).click();
@@ -273,15 +274,14 @@ test("Given a stored Notion record, when the listener cancels archive confirmati
     await route.fulfill({ body: JSON.stringify({ records: [existingRecord] }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.getByRole("button", { name: "Notion에서 보관" }).click();
-  await expect(page.getByRole("alertdialog")).toContainText(existingRecord.albumTitle);
+  await expect(page.locator(".archive-confirmation")).toContainText(existingRecord.albumTitle);
   await expect(page.getByRole("button", { name: "보관하기" })).toBeFocused();
   await page.screenshot({ path: testInfo.outputPath("record-archive-confirmation.png"), fullPage: true });
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "보관하지 않기" })).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(page.getByRole("button", { name: "보관하기" })).toBeFocused();
+  await page.getByRole("button", { name: "보관하지 않기" }).click();
+  await expect(page.locator(".archive-confirmation")).toHaveCount(0);
+  expect(archiveRequests).toBe(0);
   await page.keyboard.press("Escape");
 
   expect(archiveRequests).toBe(0);
@@ -313,7 +313,7 @@ test("Given a stored Notion record, when the listener confirms archive, then the
     await route.fulfill({ body: JSON.stringify({ records: archived ? [] : [existingRecord] }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await expect(page.locator(".record-list")).toContainText(existingRecord.albumTitle);
   await page.getByRole("button", { name: "Notion에서 보관" }).click();
   await page.getByRole("button", { name: "보관하기" }).click();
@@ -354,11 +354,11 @@ test("Given a newly archived Notion record, when the listener chooses undo, then
     await route.fulfill({ body: JSON.stringify({ records: archived ? [] : [existingRecord] }), contentType: "application/json", status: 200 });
   });
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.getByRole("button", { name: "Notion에서 보관" }).click();
   await page.getByRole("button", { name: "보관하기" }).click();
   await page.getByRole("button", { name: "보관 취소" }).click();
-  await expect(page.getByRole("alertdialog")).toContainText("이 기록을 Notion에 복원할까요?");
+  await expect(page.locator(".save-confirmation")).toContainText("이 기록을 Notion에 복원할까요?");
   await expect(page.getByRole("button", { name: "Notion에서 복원하기" })).toBeFocused();
   await page.screenshot({ path: testInfo.outputPath("record-restore-confirmation.png"), fullPage: true });
   expect(restoreRequests).toBe(0);
@@ -374,7 +374,7 @@ test("Given unavailable private insights, when the desk opens, then the public s
   await page.unroute("**/api/music/insights*");
   await page.route((url) => url.pathname === "/api/music/insights", (route) => route.fulfill({ body: JSON.stringify({ code: "BACKEND_UNAVAILABLE", retryable: true }), contentType: "application/json", status: 503 }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.locator("#album-search")).toBeEditable();
   await expect(page.locator("form.search-row button")).toBeEnabled();

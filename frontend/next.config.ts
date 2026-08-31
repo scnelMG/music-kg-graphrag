@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   devIndicators: false,
   distDir: process.env.NEXT_DIST_DIR ?? (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),
+  htmlLimitedBots: /.*/,
+  images: {
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 86_400,
+    remotePatterns: [
+      { hostname: "coverartarchive.org", pathname: "/**", protocol: "https" },
+      { hostname: "*.mzstatic.com", pathname: "/**", protocol: "https" }
+    ]
+  },
   poweredByHeader: false,
   reactStrictMode: true
 };

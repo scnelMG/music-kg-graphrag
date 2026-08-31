@@ -44,6 +44,8 @@ final class MusicBrainzPayloadParser {
             }
             albums.sort(Comparator.comparingInt(MusicCatalogGateway.Album::searchScore).reversed()
                     .thenComparing(MusicCatalogGateway.Album::title)
+                    .thenComparing(album -> validReleaseDate(album.firstReleaseDate()) ? album.firstReleaseDate() : "9999-12-31")
+                    .thenComparing(MusicCatalogGateway.Album::artist)
                     .thenComparing(MusicCatalogGateway.Album::releaseGroupMbid));
             return List.copyOf(albums);
         } catch (JsonProcessingException | IllegalStateException exception) {

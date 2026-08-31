@@ -47,6 +47,29 @@ class ConnectedMusicApiControllerTest {
     }
 
     @Test
+    void exploresOnlyTheDeclaredPublicGenreThroughTheRealCatalog() throws Exception {
+        given(service.searchByTag("dream pop")).willReturn(List.of(new MusicCatalogGateway.Album(
+                "release-group-id", "Dream Album", "Dream Artist", "2024-01-01", "")));
+
+        mvc.perform(get("/api/v1/catalog/explore").header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .param("genre", "dream-pop"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("Dream Album"));
+
+        verify(service).searchByTag("dream pop");
+    }
+
+    @Test
+    void rejectsAnUndeclaredPublicGenreBeforeContactingTheCatalog() throws Exception {
+        mvc.perform(get("/api/v1/catalog/explore").header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .param("genre", "made-up-genre"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void returnsABoundedPublicEditionPageForTheSelectedAlbum() throws Exception {
         given(service.editions("group-id", null, "stored-release")).willReturn(new MusicCatalogGateway.EditionPage(
                 List.of(new MusicCatalogGateway.Edition(
@@ -256,6 +279,43 @@ class ConnectedMusicApiControllerTest {
     }
 
     @Test
+    void returnsAnAuthoritativeITunesRecordByItsSourceQualifiedIdentity() throws Exception {
+        var existing = new NotionClient.ExistingRecord(
+                "itunes-page", "새 음반", "극동아시아타이거즈", "", "Loved", "첫 곡", false,
+                "", "", List.of("극동아시아타이거즈"), java.time.Instant.parse("2026-08-10T00:00:00Z"),
+                "", "", "", "", "ITUNES", "123456789");
+        given(service.recordByCatalogIdentity("ITUNES", "123456789")).willReturn(Optional.of(existing));
+
+        mvc.perform(get("/api/v1/listening-records/by-catalog-identity")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .queryParam("source", "ITUNES").queryParam("catalogId", "123456789"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pageId").value("itunes-page"))
+                .andExpect(jsonPath("$.catalogSource").value("ITUNES"))
+                .andExpect(jsonPath("$.catalogId").value("123456789"));
+
+        verify(service).recordByCatalogIdentity("ITUNES", "123456789");
+    }
+
+    @Test
+    void acceptsAnITunesRecordWithoutPretendingItHasMusicBrainzIds() throws Exception {
+        given(service.save(org.mockito.ArgumentMatchers.any())).willReturn(new ConnectedMusicService.SaveResult(
+                "itunes-page", "2026-08-10T00:00:00Z", ConnectedMusicService.SaveOperation.CREATED));
+
+        mvc.perform(post("/api/v1/listening-records")
+                        .header("X-Music-Kg-Bff-Secret", "connected-test-secret")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"releaseGroupMbid":"","releaseMbid":"","catalogSource":"ITUNES","catalogId":"123456789","albumTitle":"새 음반","artist":"극동아시아타이거즈","sentiment":"Loved","favouriteTrack":"첫 곡","owned":false}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operation").value("CREATED"));
+
+        verify(service).save(org.mockito.ArgumentMatchers.argThat(input -> input.catalogSource().equals("ITUNES")
+                && input.catalogId().equals("123456789") && input.releaseGroupMbid().isBlank() && input.releaseMbid().isBlank()));
+    }
+
+    @Test
     void reports503ReadinessWithTypedDependencyStatusWhenGraphDbCannotBeReached() throws Exception {
         given(service.readiness()).willReturn(new ConnectedMusicService.ServiceReadiness(false, List.of(
                 new ConnectedMusicService.DependencyReadiness("notion", true, "READY"),
@@ -350,11 +410,13 @@ class ConnectedMusicApiControllerTest {
         var recommendation = new ConnectedMusicService.AlbumRecommendation("release-group", "Album", "Artist",
                 "2024-01-01", "", "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL", 1,
                 List.of(new ConnectedMusicService.EvidencePath("page-1", "RECORDED_BY", "Artist")));
-        given(service.discover()).willReturn(new ConnectedMusicService.Discovery("Artist", List.of("page-1"),
+        given(service.publicDiscovery()).willReturn(new ConnectedMusicService.Discovery("Artist", List.of("page-1"),
                 List.of(recommendation)));
 
         mvc.perform(get("/api/v1/recommendations/discover").header("X-Music-Kg-Bff-Secret", "connected-test-secret"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.albums[0].artistCredits[0]").value("Artist"))
+                .andExpect(jsonPath("$.albums[0].primaryType").value("Album"))
                 .andExpect(jsonPath("$.albums[0].evidencePaths[0].relation").value("RECORDED_BY"))
                 .andExpect(jsonPath("$.evidencePageIds").doesNotExist())
                 .andExpect(jsonPath("$.albums[0].evidencePaths[0].recordPageId").doesNotExist());

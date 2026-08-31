@@ -2,63 +2,77 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
-import { sameOriginCoverUrl } from "../../../../lib/cover-art";
 import { requireOwnerSession, requireOwnerWriteSession } from "../../../../lib/owner-session";
 import { productionWriteConfirmationRequired } from "../../../../lib/personal-write-intent";
-import { issueRecordHandle } from "../../../../lib/record-handle";
+import { backendExistingRecordSchema, publicExistingRecord } from "../../../../lib/personal-record-contract";
 
-const recordRequestSchema = z.object({
+const recordFields = {
   albumTitle: z.string().min(1),
   artist: z.string().min(1),
   artistCredits: z.array(z.string().min(1)).min(1),
   coverUrl: z.string().url().or(z.literal("")),
   favouriteTrack: z.string().min(1),
+  favouriteRecordingMbid: z.string().trim().max(128).optional().default(""),
   owned: z.boolean(),
-  releaseGroupMbid: z.string().min(1),
-  releaseMbid: z.string().min(1),
   sentiment: z.string().min(1),
   youtubeChannelTitle: z.string().trim().max(200).optional().default(""),
   youtubeRecordingMbid: z.string().trim().max(128).optional().default(""),
   youtubeVideoId: z.string().regex(/^[A-Za-z0-9_-]{11}$/).or(z.literal("")).optional().default(""),
   youtubeVideoTitle: z.string().trim().max(300).optional().default("")
-}).superRefine((value, context) => {
+};
+
+const musicBrainzRecordSchema = z.object({
+  ...recordFields,
+  catalogId: z.string().optional(),
+  catalogSource: z.literal("MUSICBRAINZ"),
+  releaseGroupMbid: z.string().min(1),
+  releaseMbid: z.string().min(1)
+});
+
+const iTunesRecordSchema = z.object({
+  ...recordFields,
+  catalogId: z.string().regex(/^[0-9]+$/),
+  catalogSource: z.literal("ITUNES"),
+  releaseGroupMbid: z.literal(""),
+  releaseMbid: z.literal("")
+});
+
+const recordIdentitySchema = z.discriminatedUnion("catalogSource", [musicBrainzRecordSchema, iTunesRecordSchema])
+  .superRefine((value, context) => {
   const fields = [value.youtubeRecordingMbid, value.youtubeVideoId, value.youtubeVideoTitle, value.youtubeChannelTitle];
   const complete = fields.every((field) => field.length > 0);
   const empty = fields.every((field) => field.length === 0);
   if (!complete && !empty) context.addIssue({ code: z.ZodIssueCode.custom, message: "YouTube mapping must be complete." });
+  switch (value.catalogSource) {
+    case "MUSICBRAINZ":
+      if (value.catalogId !== undefined && value.catalogId !== value.releaseGroupMbid) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "MusicBrainz catalog identity must equal the release group." });
+      }
+      return;
+    case "ITUNES":
+      if (!empty) context.addIssue({ code: z.ZodIssueCode.custom, message: "iTunes records cannot attach a YouTube mapping." });
+      return;
+  }
 });
+
+function defaultMusicBrainzSource(value: unknown): unknown {
+  const raw = z.record(z.string(), z.unknown()).safeParse(value);
+  if (!raw.success) return value;
+  const catalogSource = raw.data.catalogSource;
+  return { ...raw.data, catalogSource: catalogSource === undefined || catalogSource === "" ? "MUSICBRAINZ" : catalogSource };
+}
+
+const recordRequestSchema = z.preprocess(defaultMusicBrainzSource,
+  recordIdentitySchema);
 
 const savedSchema = z.object({
   notionLastEditedAt: z.string().datetime(),
   notionPageId: z.string().min(1),
   operation: z.union([z.literal("ARCHIVED"), z.literal("CREATED"), z.literal("UPDATED")])
 });
-const existingRecordSchema = z.object({
-  albumTitle: z.string().min(1),
-  artist: z.string().min(1),
-  artistCredits: z.array(z.string().min(1)).min(1),
-  coverUrl: z.string().url().or(z.literal("")),
-  favouriteTrack: z.string(),
-  lastEditedAt: z.string().datetime(),
-  owned: z.boolean(),
-  pageId: z.string().min(1),
-  releaseGroupMbid: z.string(),
-  releaseMbid: z.string(),
-  sentiment: z.string(),
-  youtubeChannelTitle: z.string().optional(),
-  youtubeRecordingMbid: z.string().optional(),
-  youtubeVideoId: z.string().optional(),
-  youtubeVideoTitle: z.string().optional()
-}).transform((record) => ({
-  ...record,
-  youtubeChannelTitle: record.youtubeChannelTitle ?? "",
-  youtubeRecordingMbid: record.youtubeRecordingMbid ?? "",
-  youtubeVideoId: record.youtubeVideoId ?? "",
-  youtubeVideoTitle: record.youtubeVideoTitle ?? ""
-}));
 const recordsPageSchema = z.object({
   nextCursor: z.string().min(1).nullable(),
-  records: z.array(existingRecordSchema)
+  records: z.array(backendExistingRecordSchema)
 });
 const recordPageQuerySchema = z.object({
   cursor: z.string().min(1).optional(),
@@ -86,11 +100,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!records.success || secret === undefined || secret.length === 0) return backendContractError();
   return NextResponse.json({
     nextCursor: records.data.nextCursor,
-    records: records.data.records.map(({ pageId, ...record }) => ({
-      ...record,
-      coverUrl: sameOriginCoverUrl(record.coverUrl, record.releaseGroupMbid, request.url),
-      recordHandle: issueRecordHandle(pageId, secret)
-    }))
+    records: records.data.records.map((record) => publicExistingRecord(record, secret))
   });
 }
 

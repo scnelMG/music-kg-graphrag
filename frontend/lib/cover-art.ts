@@ -4,8 +4,14 @@ export function isMusicBrainzReleaseGroupMbid(value: string): boolean {
   return releaseGroupMbidPattern.test(value);
 }
 
-export function sameOriginCoverUrl(coverUrl: string, releaseGroupMbid: string, requestUrl: string): string {
+export function directCoverArtArchiveUrl(coverUrl: string, releaseGroupMbid: string): string {
   const coverArtArchiveUrl = `https://coverartarchive.org/release-group/${releaseGroupMbid}/front-250`;
-  if (!isMusicBrainzReleaseGroupMbid(releaseGroupMbid) || coverUrl !== coverArtArchiveUrl) return coverUrl;
-  return new URL(`/api/music/covers/${releaseGroupMbid}`, requestUrl).toString();
+  if (!isMusicBrainzReleaseGroupMbid(releaseGroupMbid)) return coverUrl;
+  try {
+    const source = new URL(coverUrl);
+    if (source.href === coverArtArchiveUrl || source.pathname === `/api/music/covers/${releaseGroupMbid}`) return coverArtArchiveUrl;
+  } catch {
+    return coverUrl;
+  }
+  return coverUrl;
 }

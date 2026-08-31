@@ -166,8 +166,8 @@ class ConnectedMusicServiceTest {
     @Test
     void derivesATransparentRecommendationFromOnlyStoredPersonalRecordsAndLiveCatalogResults() {
         var records = new InMemoryRecords(List.of(
-                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "애착 앨범", "Track A", true),
-                new NotionClient.ExistingRecord("page-b", "Recorded B", "Artist A", "", "마음에 쏙", "Track B", false)));
+                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "애착 앨범", "Track A", true, "recorded-a"),
+                new NotionClient.ExistingRecord("page-b", "Recorded B", "Artist A", "", "마음에 쏙", "Track B", false, "recorded-b")));
         var service = new ConnectedMusicService(new InMemoryCatalog(), records);
 
         var recommendation = service.discover();
@@ -179,10 +179,22 @@ class ConnectedMusicServiceTest {
     }
 
     @Test
+    void readsPublicDiscoveryFromTheExistingGraphProjectionWithoutEnumeratingNotion() {
+        var records = new InMemoryRecords(List.of(
+                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true)));
+        var service = new ConnectedMusicService(new InMemoryCatalog(), records);
+
+        var discovery = service.publicDiscovery();
+
+        assertThat(records.listCalls()).isZero();
+        assertThat(discovery.albums()).isEmpty();
+    }
+
+    @Test
     void derivesGraphEvidenceAndRecommendationsFromOneNotionHistorySnapshot() {
         var records = new InMemoryRecords(List.of(
-                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true),
-                new NotionClient.ExistingRecord("page-b", "Recorded B", "Artist A", "", "Liked", "Track B", false)));
+                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true, "recorded-a"),
+                new NotionClient.ExistingRecord("page-b", "Recorded B", "Artist A", "", "Liked", "Track B", false, "recorded-b")));
         var service = new ConnectedMusicService(new InMemoryCatalog(), records);
 
         var graphTaste = service.graphTaste();
@@ -196,8 +208,8 @@ class ConnectedMusicServiceTest {
     @Test
     void derivesTasteAndGraphRecommendationFromTheSameNotionHistorySnapshot() {
         var records = new InMemoryRecords(List.of(
-                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true),
-                new NotionClient.ExistingRecord("page-b", "Recorded B", "Artist A", "", "Liked", "Track B", false)));
+                new NotionClient.ExistingRecord("page-a", "Recorded A", "Artist A", "", "Loved", "Track A", true, "recorded-a"),
+                new NotionClient.ExistingRecord("page-b", "Recorded B", "Artist A", "", "Liked", "Track B", false, "recorded-b")));
         var service = new ConnectedMusicService(new InMemoryCatalog(), records);
 
         var insights = service.personalInsights();
@@ -446,6 +458,25 @@ class ConnectedMusicServiceTest {
 
         assertThat(second).isEqualTo(first);
         assertThat(records.listCalls()).isEqualTo(1);
+        assertThat(graph.calls()).isEqualTo(1);
+        assertThat(catalog.externalCalls()).isEqualTo(2);
+    }
+
+    @Test
+    void reusesAnUnchangedPublicDiscoveryWithoutRepeatingGraphOrCatalogWork() {
+        var record = new NotionClient.ExistingRecord(
+                "page-a", "Recorded", "Artist A", "", "Loved", "Favourite", true, "recorded-a");
+        var records = new InMemoryRecords(List.of(record));
+        var catalog = new CountingCatalog();
+        var graph = new CountingGraph();
+        graph.bootstrapRecords(List.of(record));
+        var service = new ConnectedMusicService(catalog, records, graph);
+
+        var first = service.publicDiscovery();
+        var second = service.publicDiscovery();
+
+        assertThat(second).isEqualTo(first);
+        assertThat(records.listCalls()).isZero();
         assertThat(graph.calls()).isEqualTo(1);
         assertThat(catalog.externalCalls()).isEqualTo(2);
     }

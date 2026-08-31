@@ -38,4 +38,17 @@ describe("Next public secret guard", () => {
 
     expect(configuration.distDir).toBe(".next-e2e");
   });
+
+  it("optimizes only the declared factual cover providers with a durable cache", async () => {
+    const configuration = (await import("../next.config")).default;
+
+    expect(configuration.images).toMatchObject({
+      formats: ["image/avif", "image/webp"],
+      minimumCacheTTL: 86_400,
+      remotePatterns: [
+        { hostname: "coverartarchive.org", pathname: "/**", protocol: "https" },
+        { hostname: "*.mzstatic.com", pathname: "/**", protocol: "https" }
+      ]
+    });
+  });
 });

@@ -14,6 +14,8 @@ param(
     [Parameter(Mandatory = $true)][string]$OwnedField,
     [Parameter(Mandatory = $true)][string]$ReleaseGroupMbidField,
     [Parameter(Mandatory = $true)][string]$ReleaseMbidField,
+    [Parameter(Mandatory = $true)][string]$CatalogSourceField,
+    [Parameter(Mandatory = $true)][string]$CatalogIdField,
     [string]$YoutubeRecordingMbidField = "",
     [string]$YoutubeVideoIdField = "",
     [string]$YoutubeVideoTitleField = "",
@@ -47,6 +49,8 @@ $bindings = [ordered]@{
     '${NOTION_OWNED_FIELD}' = $OwnedField
     '${NOTION_RELEASE_GROUP_MBID_FIELD}' = $ReleaseGroupMbidField
     '${NOTION_RELEASE_MBID_FIELD}' = $ReleaseMbidField
+    '${NOTION_CATALOG_SOURCE_FIELD}' = $CatalogSourceField
+    '${NOTION_CATALOG_ID_FIELD}' = $CatalogIdField
     '${NOTION_YOUTUBE_RECORDING_MBID_FIELD}' = $YoutubeRecordingMbidField
     '${NOTION_YOUTUBE_VIDEO_ID_FIELD}' = $YoutubeVideoIdField
     '${NOTION_YOUTUBE_VIDEO_TITLE_FIELD}' = $YoutubeVideoTitleField

@@ -26,15 +26,18 @@ public final class PersonalGraphSyncService {
             boolean bootstrap = snapshot.checkpoint().isEmpty();
             List<NotionClient.ExistingRecord> changed = snapshot.checkpoint()
                     .map(checkpoint -> records.changedSince(checkpoint.minusSeconds(OVERLAP_SECONDS)))
-                    .orElseGet(records::list)
-                    .stream()
-                    .filter(PersonalGraphSyncService::isUsableRecord)
-                    .toList();
-            if (bootstrap) graph.bootstrapRecords(changed);
-            else if (!changed.isEmpty()) graph.replaceRecords(changed);
+                    .orElseGet(records::list);
+            List<NotionClient.ExistingRecord> usable = changed.stream()
+                    .filter(PersonalGraphSyncService::isUsableRecord).toList();
+            if (bootstrap) graph.bootstrapRecords(usable);
+            else {
+                changed.stream().filter(record -> !isUsableRecord(record))
+                        .map(NotionClient.ExistingRecord::pageId).forEach(graph::removeRecord);
+                if (!usable.isEmpty()) graph.replaceRecords(usable);
+            }
             Instant synchronizedAt = clock.instant();
             graph.markSynchronized(synchronizedAt);
-            SyncState state = new SyncState(Status.CURRENT, synchronizedAt, changed.size(), false);
+            SyncState state = new SyncState(Status.CURRENT, synchronizedAt, usable.size(), false);
             lastState = state;
             return state;
         } catch (NotionClient.AccessException exception) {
@@ -54,6 +57,7 @@ public final class PersonalGraphSyncService {
     public synchronized SyncState synchronizeRecord(NotionClient.ExistingRecord record) {
         try {
             if (isUsableRecord(record)) graph.replaceRecords(List.of(record));
+            else graph.removeRecord(record.pageId());
             Instant synchronizedAt = clock.instant();
             graph.markSynchronized(synchronizedAt);
             SyncState state = new SyncState(Status.CURRENT, synchronizedAt, 1, false);
@@ -110,7 +114,10 @@ public final class PersonalGraphSyncService {
     }
 
     private static boolean isUsableRecord(NotionClient.ExistingRecord record) {
-        return !record.albumTitle().isBlank() && !record.artist().isBlank();
+        return record.catalogSource().equals("MUSICBRAINZ")
+                && !record.releaseGroupMbid().isBlank()
+                && !record.albumTitle().isBlank()
+                && !record.artist().isBlank();
     }
 
     public enum Status { CURRENT, STALE, UNINITIALIZED }

@@ -1,0 +1,187 @@
+* { box-sizing: border-box; }
+
+.keep-phrase { display: inline-block; white-space: nowrap; }
+.title-line { display: block; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  background: var(--canvas);
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-size: var(--type-body);
+  line-height: 1.65;
+  text-wrap: pretty;
+  word-break: keep-all;
+}
+
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .48; }
+a { color: inherit; }
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: .1875rem solid var(--focus);
+  outline-offset: .1875rem;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 20;
+  top: var(--space-2);
+  left: var(--space-2);
+  min-height: var(--target-min);
+  padding: var(--space-3) var(--space-4);
+  color: var(--surface-elevated);
+  background: var(--accent-strong);
+  border-radius: var(--radius-control);
+  font-weight: 750;
+  text-decoration: none;
+  clip-path: inset(100%);
+}
+
+.skip-link:focus { clip-path: none; }
+
+.music-journal {
+  width: min(100%, var(--page-max));
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-8) var(--space-20);
+}
+
+.archive-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  min-height: 4.5rem;
+  border-bottom: .0625rem solid var(--line);
+}
+
+.archive-wordmark {
+  flex: none;
+  font-size: var(--type-wordmark);
+  font-weight: 800;
+  letter-spacing: -.025em;
+  text-decoration: none;
+}
+
+.archive-navigation-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-label);
+  font-weight: 700;
+}
+
+.archive-navigation-links a,
+.archive-navigation-links span {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.archive-navigation-links a:hover,
+.archive-navigation-links [aria-current="page"] { color: var(--accent-strong); }
+
+.journal-header { position: relative; }
+
+.masthead-composition {
+  display: grid;
+  grid-template-columns: minmax(0, 9fr) minmax(10rem, 3fr);
+  align-items: end;
+  gap: var(--space-12);
+  padding: clamp(var(--space-14), 8vw, var(--space-24)) 0 var(--space-16);
+}
+
+.masthead-composition > div { min-width: 0; }
+
+.journal-header h1 {
+  max-width: 11ch;
+  margin: 0;
+  font-size: var(--type-display);
+  font-weight: 780;
+  letter-spacing: -.075em;
+  line-height: .98;
+  text-wrap: balance;
+}
+
+.journal-header[data-owner-access="owner"] h1 { max-width: none; font-size: var(--type-display-owner); text-wrap: nowrap; }
+
+.journal-intro {
+  max-width: 42rem;
+  margin: var(--space-6) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--type-intro);
+}
+
+.masthead-meta {
+  margin: 0;
+  padding-bottom: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
+}
+
+.section-kicker,
+.entry-eyebrow,
+.result-caption,
+.eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--type-caption);
+  font-weight: 750;
+  letter-spacing: .045em;
+}
+
+.instruction {
+  max-width: var(--reading-max);
+  margin: var(--space-3) 0 var(--space-6);
+  color: var(--text-secondary);
+}
+
+.owner-access-link,
+.service-return-link,
+.record-edit,
+.record-list-more,
+.insight-refresh,
+.grounded-explanation-trigger,
+.youtube-play-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-4);
+  color: var(--accent-strong);
+  background: transparent;
+  border: .0625rem solid var(--line-strong);
+  border-radius: var(--radius-control);
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.owner-access-link:hover,
+.service-return-link:hover,
+.record-edit:hover,
+.record-list-more:hover,
+.insight-refresh:hover,
+.grounded-explanation-trigger:hover,
+.youtube-play-button:hover {
+  color: var(--surface-elevated);
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}

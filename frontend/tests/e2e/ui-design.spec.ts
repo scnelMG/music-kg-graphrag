@@ -48,7 +48,7 @@ async function evidencePath(testInfo: TestInfo, name: string): Promise<string> {
 
 test("Given a connected workspace, when the listener selects a searched album and required fields, then save becomes available", async ({ page }) => {
   await routeConnectedWorkspace(page);
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.locator(".save-button")).toHaveCount(0);
   await page.locator("#album-search").fill(albumFixture.title);
@@ -65,7 +65,7 @@ test("Given a connected workspace, when the listener selects a searched album an
 
 test("Given a connected workspace, when it renders the listening workflow, then it contains no fixture-only disclosure", async ({ page }) => {
   await routeConnectedWorkspace(page);
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   await expect(page.locator("main.music-journal")).toHaveCount(1);
   await expect(page.locator("nav.task-navigation a")).toHaveCount(2);
@@ -77,7 +77,7 @@ test("Given a connected workspace, when it renders the listening workflow, then 
 test("Given real Notion records, when the owner opens the home, then the archive cover rail exposes those records", async ({ page }) => {
   await routeArchiveCover(page);
   await routeConnectedWorkspace(page, { records: [archiveRecordFixture] });
-  await page.goto("/");
+  await page.goto("/owner/workspace");
 
   const rail = page.getByTestId("personal-cover-rail");
   await expect(rail).toContainText("Real Archive Album");
@@ -95,13 +95,17 @@ test("Given a visitor, when the archive home opens, then private archive content
   }));
   for (const viewport of visitorViewports) {
     await page.setViewportSize({ height: viewport.height, width: viewport.width });
-    await page.goto("/");
+  await page.goto("/");
+
+  await expect(page.getByRole("navigation", { name: "주요 탐색" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "오늘, 다시 들을 한 장" })).toBeVisible();
 
     await expect(page.getByTestId("personal-cover-rail")).toHaveCount(0);
-    await expect(page.locator(".insight-region")).toHaveCount(1);
+    await expect(page.getByTestId("public-discovery-deck")).toHaveCount(1);
+    await expect(page.locator(".insight-region")).toHaveCount(0);
     await expect(page.locator(".record-list")).toHaveCount(0);
     await expect(page.locator("nav.task-navigation")).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "내 기록 열기" })).toHaveCount(1);
+    await expect(page.getByRole("link", { name: "아카이브 관리" })).toHaveCount(1);
     if (testInfo.project.name === "desktop") {
       await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, viewport.name) });
     }
@@ -116,7 +120,10 @@ test("Given a typed private-insights configuration failure, when the connected w
     status: 503
   }));
 
-  await page.goto("/");
+  await page.goto("/owner/workspace");
+
+  await expect(page.getByRole("navigation", { name: "주요 탐색" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "나의 음악 기록" })).toBeVisible();
 
   await expect(page.locator("#album-search")).toBeEditable();
   await expect(page.locator("form.search-row button")).toBeEnabled();
@@ -129,14 +136,14 @@ test("Given the connected workspace, when it renders each supported viewport and
   await routeConnectedWorkspace(page, { records: [archiveRecordFixture] });
   for (const viewport of responsiveViewports) {
     await page.setViewportSize({ height: viewport.height, width: viewport.width });
-    await page.goto("/");
+    await page.goto("/owner/workspace");
     const dimensions = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
     expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
     await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, viewport.name) });
   }
 
   await page.setViewportSize({ height: 900, width: 375 });
-  await page.goto("/");
+  await page.goto("/owner/workspace");
   await page.locator("#album-search").focus();
   await expect(page.locator("#album-search")).toBeFocused();
   await page.screenshot({ fullPage: true, path: await evidencePath(testInfo, "keyboard-focus.png") });
