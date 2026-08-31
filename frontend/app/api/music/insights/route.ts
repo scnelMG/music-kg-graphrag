@@ -68,6 +68,7 @@ const personalInsightsSchema = z.object({
 const publicDiscoverySchema = z.object({
   albums: z.array(albumSchema)
 });
+const publicDiscoveryCacheControl = "public, s-maxage=600, stale-while-revalidate=86400";
 
 function publicRecommendation({ artist, artistCredits, coverUrl, evidencePaths, firstReleaseDate, primaryType, releaseGroupMbid, title }: z.infer<typeof albumSchema>) {
   const sharedMusicBrainzTag = evidencePaths.find((path) => path.relation === "SHARES_MUSICBRAINZ_TAG")?.value;
@@ -123,7 +124,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       ? NextResponse.json({ graphTaste: { relisten: [], recommendations: discovery.data.albums.flatMap((album) => {
         const recommendation = publicRecommendation(album);
         return recommendation === null ? [] : [recommendation];
-      }) } })
+      }) } }, { headers: { "Cache-Control": publicDiscoveryCacheControl } })
       : backendContractError();
   }
   const insights = personalInsightsSchema.safeParse(payload);

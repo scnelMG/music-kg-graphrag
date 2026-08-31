@@ -2,12 +2,20 @@ import ky, { TimeoutError, type Options } from "ky";
 import { z } from "zod";
 
 export const publicBffRequestTimeoutMilliseconds = 65_000;
+export const personalWriteRequestTimeoutMilliseconds = 65_000;
 
 export function publicBffGet(path: string, options: Options = {}): Promise<Response> {
   return ky.get(path, {
     ...options,
     throwHttpErrors: false,
     timeout: publicBffRequestTimeoutMilliseconds
+  });
+}
+
+export function personalWriteBff(path: string, options: Options): Promise<Response> {
+  return ky(path, {
+    ...options,
+    timeout: personalWriteRequestTimeoutMilliseconds
   });
 }
 

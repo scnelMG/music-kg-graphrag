@@ -47,7 +47,33 @@ it("returns only factual tracks from the selected iTunes collection", async () =
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("public, s-maxage=600, stale-while-revalidate=86400");
     await expect(response.json()).resolves.toEqual({ tracks: [{ recordingMbid: "itunes:987654321", position: 1, title: "첫 곡" }] });
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)));
+  }
+});
+
+it("does not share-cache an empty iTunes track lookup", async () => {
+  const server = createServer((_request: IncomingMessage, response: ServerResponse) => {
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify([]));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (address === null || typeof address === "string") throw new TypeError("Expected a TCP backend test server");
+  try {
+    process.env.BACKEND_BASE_URL = `http://127.0.0.1:${address.port}`;
+    process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
+
+    const response = await getITunesTracks(
+      new NextRequest("http://localhost/api/music/itunes/albums/399211729/tracks"),
+      { params: Promise.resolve({ collectionId: "399211729" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    await expect(response.json()).resolves.toEqual({ tracks: [] });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error === undefined ? resolve() : reject(error)));
   }

@@ -1,6 +1,5 @@
 "use client";
 
-import ky from "ky";
 import { useEffect, useState } from "react";
 
 import {
@@ -18,7 +17,7 @@ import {
 import type { CatalogEdition } from "../lib/music-catalog-contract";
 import type { UserConfirmedYouTubeVideo } from "../lib/youtube-playback-contract";
 import { personalWriteConfirmationHeader } from "../lib/personal-write-intent";
-import { requestBff } from "../lib/review-bff-contract";
+import { personalWriteBff, requestBff } from "../lib/review-bff-contract";
 
 type RecordActionsOptions = {
   readonly availability: Availability;
@@ -65,7 +64,7 @@ export function useRecordActions(options: RecordActionsOptions) {
     if (options.selected.catalogSource === "MUSICBRAINZ" && options.selectedEdition === null) return;
     setSaveState("saving");
     setSaveMessage("");
-    const outcome = await requestBff(ky.post("/api/music/records", {
+    const outcome = await requestBff(personalWriteBff("/api/music/records", {
       headers: { [personalWriteConfirmationHeader]: "true" },
       json: {
         albumTitle: options.selected.title,
@@ -85,6 +84,7 @@ export function useRecordActions(options: RecordActionsOptions) {
         youtubeVideoId: options.selected.catalogSource === "MUSICBRAINZ" ? options.verifiedYouTubeVideo?.videoId ?? "" : "",
         youtubeVideoTitle: options.selected.catalogSource === "MUSICBRAINZ" ? options.verifiedYouTubeVideo?.title ?? "" : ""
       },
+      method: "POST",
       throwHttpErrors: false
     }), savedSchema);
     if (outcome.kind === "failure") {
@@ -102,8 +102,8 @@ export function useRecordActions(options: RecordActionsOptions) {
   async function archiveRecord(recordHandle: string): Promise<void> {
     if (!options.writeAccess) return;
     const archived = options.records.find((record) => record.recordHandle === recordHandle) ?? null;
-    const outcome = await requestBff(ky.delete(`/api/music/records/${encodeURIComponent(recordHandle)}`, {
-      headers: { [personalWriteConfirmationHeader]: "true" }, throwHttpErrors: false
+    const outcome = await requestBff(personalWriteBff(`/api/music/records/${encodeURIComponent(recordHandle)}`, {
+      headers: { [personalWriteConfirmationHeader]: "true" }, method: "DELETE", throwHttpErrors: false
     }), savedSchema);
     if (outcome.kind === "failure") {
       setSaveState("error");
@@ -119,8 +119,8 @@ export function useRecordActions(options: RecordActionsOptions) {
 
   async function restoreRecord(record: ExistingRecord): Promise<void> {
     if (!options.writeAccess) return;
-    const outcome = await requestBff(ky.post(`/api/music/records/${encodeURIComponent(record.recordHandle)}/restore`, {
-      headers: { [personalWriteConfirmationHeader]: "true" }, throwHttpErrors: false
+    const outcome = await requestBff(personalWriteBff(`/api/music/records/${encodeURIComponent(record.recordHandle)}/restore`, {
+      headers: { [personalWriteConfirmationHeader]: "true" }, method: "POST", throwHttpErrors: false
     }), savedSchema);
     if (outcome.kind === "failure") {
       setSaveState("error");

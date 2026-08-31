@@ -7,6 +7,7 @@ import { catalogTrackSchema } from "../../../../../../../lib/music-catalog-contr
 const paramsSchema = z.object({ collectionId: z.string().regex(/^[0-9]+$/) });
 const tracksSchema = z.array(catalogTrackSchema);
 const publicCatalogCacheControl = "public, s-maxage=600, stale-while-revalidate=86400";
+const emptyCatalogCacheControl = "private, no-store";
 
 export async function GET(
   _request: NextRequest,
@@ -25,6 +26,8 @@ export async function GET(
   }
   const tracks = tracksSchema.safeParse(payload);
   return tracks.success
-    ? NextResponse.json({ tracks: tracks.data }, { headers: { "cache-control": publicCatalogCacheControl } })
+    ? NextResponse.json({ tracks: tracks.data }, {
+      headers: { "cache-control": tracks.data.length === 0 ? emptyCatalogCacheControl : publicCatalogCacheControl }
+    })
     : backendContractError();
 }

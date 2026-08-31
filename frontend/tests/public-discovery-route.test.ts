@@ -66,6 +66,7 @@ describe("public music discovery BFF", () => {
       const response = await getInsights(new NextRequest("https://archive.example/api/music/insights"));
 
       expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("public, s-maxage=600, stale-while-revalidate=86400");
       const body = await response.json();
       expect(body).toEqual({ graphTaste: {
         relisten: [],
