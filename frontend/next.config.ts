@@ -19,7 +19,8 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 86_400,
     remotePatterns: [
       { hostname: "coverartarchive.org", pathname: "/**", protocol: "https" },
-      { hostname: "*.mzstatic.com", pathname: "/**", protocol: "https" }
+      { hostname: "*.mzstatic.com", pathname: "/**", protocol: "https" },
+      { hostname: "image.bugsm.co.kr", pathname: "/album/images/**", protocol: "https" }
     ]
   },
   poweredByHeader: false,
