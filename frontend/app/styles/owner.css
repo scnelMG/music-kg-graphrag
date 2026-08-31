@@ -225,7 +225,13 @@
 .youtube-candidate-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
 .youtube-candidate { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; padding: var(--space-4); background: var(--surface-elevated); border-radius: var(--radius-control); }
 .youtube-candidate-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.youtube-playback { margin-top: var(--space-5); }
+.youtube-playback {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  width: min(100%, 42rem);
+  margin-top: var(--space-5);
+}
 .youtube-player { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: var(--radius-control); }
 
 .evidence-answer { margin-top: var(--space-6); }
