@@ -154,6 +154,51 @@ describe("connected personal record BFF", () => {
     await expect(response.json()).resolves.toEqual({ code: "WRITE_CONFIRMATION_REQUIRED", retryable: false });
   });
 
+  it("retries one transient idempotent record save outage", async () => {
+    let requestCount = 0;
+    await withBackend((request, response) => {
+      requestCount += 1;
+      expect(request.url).toBe("/api/v1/listening-records");
+      request.resume();
+      response.setHeader("content-type", "application/json");
+      if (requestCount === 1) {
+        response.statusCode = 503;
+        response.end(JSON.stringify({ code: "NOTION_UNAVAILABLE", requestId: "backend-request" }));
+        return;
+      }
+      response.end(JSON.stringify({
+        notionLastEditedAt: "2026-08-11T00:00:00.000Z",
+        notionPageId: "notion-page-id",
+        operation: "CREATED"
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "test-only-secret";
+
+      const response = await saveRecord(new NextRequest("http://localhost/api/music/records", {
+        body: JSON.stringify({
+          albumTitle: "Kind of Blue",
+          artist: "Miles Davis",
+          artistCredits: ["Miles Davis"],
+          catalogId: "release-group-id",
+          catalogSource: "MUSICBRAINZ",
+          coverUrl: "",
+          favouriteTrack: "So What",
+          owned: false,
+          releaseGroupMbid: "release-group-id",
+          releaseMbid: "release-id",
+          sentiment: "Loved"
+        }),
+        headers: ownerHeaders({ "content-type": "application/json" }),
+        method: "POST"
+      }));
+
+      expect(requestCount).toBe(2);
+      expect(response.status).toBe(201);
+      await expect(response.json()).resolves.toMatchObject({ operation: "CREATED" });
+    });
+  });
+
   it("forwards every selected artist credit and release edition when it saves a collaborative album", async () => {
     await withBackend((request, response) => {
       expect(request.url).toBe("/api/v1/listening-records");

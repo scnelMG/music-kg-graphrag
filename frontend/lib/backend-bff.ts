@@ -19,6 +19,7 @@ const retryableDependencyCodes = new Set([
   "NOTION_RATE_LIMITED"
 ]);
 const transientBackendStatuses = new Set([502, 503, 504]);
+const idempotentBackendWritePaths = new Set(["api/v1/listening-records"]);
 
 export const backendRequestTimeoutMilliseconds = 60_000;
 const backendGetRetryDelayMilliseconds = 250;
@@ -105,7 +106,8 @@ export async function callBackend(
       timeout: backendRequestTimeoutMilliseconds
     });
     let response = await requestBackend();
-    if (method === "GET" && transientBackendStatuses.has(response.status)) {
+    const retryableRequest = method === "GET" || (method === "POST" && idempotentBackendWritePaths.has(path));
+    if (retryableRequest && transientBackendStatuses.has(response.status)) {
       await response.body?.cancel();
       await new Promise((resolve) => setTimeout(resolve, backendGetRetryDelayMilliseconds));
       response = await requestBackend();
