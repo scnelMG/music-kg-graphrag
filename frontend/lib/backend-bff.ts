@@ -22,7 +22,7 @@ const transientBackendStatuses = new Set([502, 503, 504]);
 const idempotentBackendWritePaths = new Set(["api/v1/listening-records"]);
 
 export const backendRequestTimeoutMilliseconds = 60_000;
-const backendGetRetryDelayMilliseconds = 250;
+const backendRetryDelayMilliseconds = 250;
 
 function clientErrorMessage(code: string): string {
   if (code === "INVALID_RATING") return "평점은 1에서 5 사이의 정수여야 합니다.";
@@ -105,11 +105,20 @@ export async function callBackend(
       throwHttpErrors: false,
       timeout: backendRequestTimeoutMilliseconds
     });
-    let response = await requestBackend();
     const retryableRequest = method === "GET" || (method === "POST" && idempotentBackendWritePaths.has(path));
-    if (retryableRequest && transientBackendStatuses.has(response.status)) {
+    let retryConsumed = false;
+    let response: Response;
+    try {
+      response = await requestBackend();
+    } catch (error) {
+      if (!retryableRequest || !(error instanceof TypeError || error instanceof TimeoutError)) throw error;
+      retryConsumed = true;
+      await new Promise((resolve) => setTimeout(resolve, backendRetryDelayMilliseconds));
+      response = await requestBackend();
+    }
+    if (!retryConsumed && retryableRequest && transientBackendStatuses.has(response.status)) {
       await response.body?.cancel();
-      await new Promise((resolve) => setTimeout(resolve, backendGetRetryDelayMilliseconds));
+      await new Promise((resolve) => setTimeout(resolve, backendRetryDelayMilliseconds));
       response = await requestBackend();
     }
     if (response.ok) return { kind: "received", response };
