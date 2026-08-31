@@ -568,6 +568,42 @@ describe("fixture BFF backend integration", () => {
     });
   });
 
+  it("retries one transient personal-insights outage before returning an error", async () => {
+    let requestCount = 0;
+    await withBackend((_request, response) => {
+      requestCount += 1;
+      response.setHeader("content-type", "application/json");
+      if (requestCount === 1) {
+        response.statusCode = 503;
+        response.end(JSON.stringify({ code: "GRAPHDB_UNAVAILABLE", requestId: "backend-request" }));
+        return;
+      }
+      response.end(JSON.stringify({
+        graphTaste: {
+          personalRecordCount: 1,
+          retrievalMethod: "PERSONAL_EVIDENCE_GRAPH_TRAVERSAL",
+          recommendations: [],
+          seedArtist: "Miles Davis"
+        },
+        taste: {
+          artists: [{ count: 1, value: "Miles Davis" }],
+          favouriteTracks: [{ count: 1, value: "So What" }],
+          recordCount: 1,
+          sentiments: [{ count: 1, value: "Loved" }]
+        }
+      }));
+    }, async (baseUrl) => {
+      process.env.BACKEND_BASE_URL = baseUrl;
+      process.env.BACKEND_BFF_SHARED_SECRET = "server-only-secret";
+
+      const response = await getPersonalInsights(personalRequest("/api/music/insights?scope=owner"));
+
+      expect(requestCount).toBe(2);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ taste: { recordCount: 1 } });
+    });
+  });
+
   it("shows only curated discovery to a visitor and never exposes a recorded album", async () => {
     vi.stubEnv("MUSIC_KG_OWNER_SESSION_REQUIRED", "true");
     vi.stubEnv("MUSIC_KG_OWNER_SESSION_SECRET", "a-session-secret-that-is-long-enough");

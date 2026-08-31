@@ -18,8 +18,10 @@ const retryableDependencyCodes = new Set([
   "MUSICBRAINZ_RATE_LIMITED",
   "NOTION_RATE_LIMITED"
 ]);
+const transientBackendStatuses = new Set([502, 503, 504]);
 
 export const backendRequestTimeoutMilliseconds = 60_000;
+const backendGetRetryDelayMilliseconds = 250;
 
 function clientErrorMessage(code: string): string {
   if (code === "INVALID_RATING") return "평점은 1에서 5 사이의 정수여야 합니다.";
@@ -87,13 +89,14 @@ export async function callBackend(
   }
 
   try {
-    const response = await ky(path, {
+    const method = options.method ?? "GET";
+    const requestBackend = () => ky(path, {
       body: options.body,
       headers: {
         "content-type": "application/json",
         "x-music-kg-bff-secret": config.data.sharedSecret
       },
-      method: options.method ?? "GET",
+      method,
       prefixUrl: config.data.baseUrl.replace(/\/$/, ""),
       redirect: "manual",
       retry: 0,
@@ -101,6 +104,12 @@ export async function callBackend(
       throwHttpErrors: false,
       timeout: backendRequestTimeoutMilliseconds
     });
+    let response = await requestBackend();
+    if (method === "GET" && transientBackendStatuses.has(response.status)) {
+      await response.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, backendGetRetryDelayMilliseconds));
+      response = await requestBackend();
+    }
     if (response.ok) return { kind: "received", response };
     if (response.status >= 300 && response.status < 400) {
       return { kind: "handled", response: backendContractError() };
