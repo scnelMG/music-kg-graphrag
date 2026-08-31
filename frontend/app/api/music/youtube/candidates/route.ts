@@ -27,6 +27,28 @@ const providerResponseSchema = z.object({
 
 const apiBaseUrlSchema = z.string().url().default("https://www.googleapis.com/youtube/v3/search");
 const productionYouTubeSearchUrl = "https://www.googleapis.com/youtube/v3/search";
+const htmlEntityPattern = /&(?:#\d+|#x[\da-f]+|amp|apos|gt|lt|quot);/gi;
+const namedHtmlEntities = new Map([
+  ["&amp;", "&"],
+  ["&apos;", "'"],
+  ["&gt;", ">"],
+  ["&lt;", "<"],
+  ["&quot;", "\""]
+]);
+
+function decodeHtmlEntity(entity: string): string {
+  if (!entity.startsWith("&#")) return namedHtmlEntities.get(entity.toLowerCase()) ?? entity;
+  const hexadecimal = entity[2]?.toLowerCase() === "x";
+  const digits = entity.slice(hexadecimal ? 3 : 2, -1);
+  const codePoint = Number.parseInt(digits, hexadecimal ? 16 : 10);
+  if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff
+      || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return entity;
+  return String.fromCodePoint(codePoint);
+}
+
+function decodeYouTubeText(value: string): string {
+  return value.replace(htmlEntityPattern, decodeHtmlEntity);
+}
 
 function configuredYouTubeSearchUrl(): string | null {
   const configured = apiBaseUrlSchema.safeParse(process.env.YOUTUBE_DATA_API_BASE_URL);
@@ -80,7 +102,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }).json();
     const parsed = providerResponseSchema.safeParse(payload);
     if (!parsed.success) return NextResponse.json({ code: "YOUTUBE_RESPONSE_INVALID", retryable: false }, { status: 502 });
-    const candidates = parsed.data.items.filter((item) => matchesRequestedRecording(query, item)).map((item) => ({
+    const items = parsed.data.items.map((item) => ({
+      ...item,
+      snippet: {
+        ...item.snippet,
+        channelTitle: decodeYouTubeText(item.snippet.channelTitle),
+        title: decodeYouTubeText(item.snippet.title)
+      }
+    }));
+    const candidates = items.filter((item) => matchesRequestedRecording(query, item)).map((item) => ({
       channelTitle: item.snippet.channelTitle,
       thumbnailUrl: item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? "",
       title: item.snippet.title,

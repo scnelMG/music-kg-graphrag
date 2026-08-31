@@ -54,8 +54,8 @@ describe("verified YouTube candidate BFF", () => {
         items: [{
           id: { videoId: "dQw4w9WgXcQ" },
           snippet: {
-            channelTitle: "Artist Official",
-            title: "Artist - Track (Official Audio)",
+            channelTitle: "Artist &amp; Friends Official",
+            title: "Artist - Track &#39;Live&#39; &amp; More",
             thumbnails: { medium: { url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg" } }
           }
         }]
@@ -71,9 +71,9 @@ describe("verified YouTube candidate BFF", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({
         candidates: [{
-          channelTitle: "Artist Official",
+          channelTitle: "Artist & Friends Official",
           thumbnailUrl: "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg",
-          title: "Artist - Track (Official Audio)",
+          title: "Artist - Track 'Live' & More",
           videoId: "dQw4w9WgXcQ"
         }]
       });
