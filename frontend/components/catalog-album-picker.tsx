@@ -79,7 +79,7 @@ export function CatalogAlbumPicker({
           <p className="section-kicker">수록곡</p><h4 id="catalog-tracks-heading">{isITunesAlbum ? selectedAlbum.title : selectedEdition === null ? "발매판을 고르면 수록곡을 확인합니다." : selectedEdition.title}</h4>
           {trackState === "idle" && (isITunesAlbum || selectedEdition !== null) && <p>선택한 음반의 수록곡을 준비합니다.</p>}
           {trackState === "loading" && <p>수록곡을 불러오는 중입니다.</p>}
-          {trackState === "error" && <p className="notice error" role="status">{trackMessage}</p>}
+          {trackState === "error" && <><p className="notice error" role="status">{trackMessage}</p>{selectedEdition !== null && <button type="button" className="edition-more" onClick={() => onSelectEdition(selectedEdition)}>수록곡 다시 불러오기</button>}</>}
           {trackState === "empty" && <p>{trackMessage}</p>}
           {trackState === "ready" && <ol className="catalog-track-list">{tracks.map((track) => <li key={track.recordingMbid}>{track.title}</li>)}</ol>}
         </section>

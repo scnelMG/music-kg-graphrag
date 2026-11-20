@@ -45,18 +45,26 @@ describe("free public catalog without Cloud Run", () => {
   });
 
   it("uses the supplementary store during a primary provider outage", async () => {
-    fetchMock.mockResolvedValueOnce(new Response("unavailable", { status: 503 })).mockResolvedValueOnce(Response.json({ results: [{ collectionId: 123, collectionName: "Store Album", artistName: "Store Artist", collectionViewUrl: "https://music.apple.com/kr/album/123" }] }));
+    fetchMock.mockResolvedValueOnce(new Response("unavailable", { status: 503 })).mockResolvedValueOnce(new Response("unavailable", { status: 503 })).mockResolvedValueOnce(Response.json({ results: [{ collectionId: 123, collectionName: "Store Album", artistName: "Store Artist", collectionViewUrl: "https://music.apple.com/kr/album/123" }] }));
     const response = await albums(request("/api/music/albums?q=Store"));
     expect(response.status).toBe(200);
     expect(publicAlbumsSchema.parse(await response.json()).albums[0]).toMatchObject({ catalogSource: "ITUNES", catalogId: "123", releaseGroupMbid: "" });
   });
 
   it("does not disguise an outage as an empty search", async () => {
-    fetchMock.mockResolvedValueOnce(new Response("limited", { status: 503 })).mockResolvedValueOnce(Response.json({ results: [] }));
+    fetchMock.mockResolvedValueOnce(new Response("limited", { status: 503 })).mockResolvedValueOnce(new Response("limited", { status: 503 })).mockResolvedValueOnce(Response.json({ results: [] }));
     const response = await albums(request("/api/music/albums?q=Missing"));
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ code: "MUSICBRAINZ_RATE_LIMITED", retryable: true });
     expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("recovers a temporary provider throttle before showing a track error", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("limited", { status: 503 })).mockResolvedValueOnce(Response.json({ ...release, media: [{ tracks: [{ position: 1, recording: { id: recordingId, title: "So What" } }] }] }));
+    const response = await tracks(request(`/api/music/albums/x/tracks?edition=${releaseId}`), context);
+    expect(response.status).toBe(200);
+    expect(publicTracksSchema.parse(await response.json()).tracks[0].title).toBe("So What");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("labels public tag discovery without fabricated personal evidence", async () => {

@@ -27,22 +27,26 @@ class CatalogError extends Error {
 async function readProvider(provider: "MUSICBRAINZ" | "ITUNES", path: string, params: Record<string, string>): Promise<unknown> {
   const url = new URL(path, provider === "MUSICBRAINZ" ? "https://musicbrainz.org/ws/2/" : "https://itunes.apple.com/");
   url.search = new URLSearchParams(params).toString();
-  if (provider === "MUSICBRAINZ") {
-    // shortcut: pacing is per warm instance; use a shared limiter if traffic needs multiple instances.
-    const delay = Math.max(0, nextMusicBrainzRequestAt - Date.now());
-    if (delay > 5000) throw new CatalogError("MUSICBRAINZ_RATE_LIMITED");
-    nextMusicBrainzRequestAt = Date.now() + delay + 1100;
-    if (delay > 0) await new Promise<void>((resolve) => setTimeout(resolve, delay));
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (provider === "MUSICBRAINZ") {
+      // shortcut: pacing is per warm instance; use a shared limiter if traffic needs multiple instances.
+      const delay = Math.max(attempt === 0 ? 1100 : 2200, nextMusicBrainzRequestAt - Date.now());
+      if (delay > 5000) throw new CatalogError("MUSICBRAINZ_RATE_LIMITED");
+      nextMusicBrainzRequestAt = Date.now() + delay + 1100;
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    }
+    const response = await fetch(url, {
+      headers: { accept: "application/json", "user-agent": userAgent },
+      signal: AbortSignal.timeout(12_000), redirect: "error", next: { revalidate: 600 }
+    });
+    if (provider === "MUSICBRAINZ" && attempt === 0 && (response.status === 503 || response.status === 429)) continue;
+    if (!response.ok) {
+      if (response.status === 429 || (provider === "MUSICBRAINZ" && response.status === 503)) throw new CatalogError(`${provider}_RATE_LIMITED`);
+      throw new CatalogError(`${provider}_UNAVAILABLE`);
+    }
+    return response.json();
   }
-  const response = await fetch(url, {
-    headers: { accept: "application/json", "user-agent": userAgent },
-    signal: AbortSignal.timeout(12_000), redirect: "error", next: { revalidate: 600 }
-  });
-  if (!response.ok) {
-    if (response.status === 429 || (provider === "MUSICBRAINZ" && response.status === 503)) throw new CatalogError(`${provider}_RATE_LIMITED`);
-    throw new CatalogError(`${provider}_UNAVAILABLE`);
-  }
-  return response.json();
+  throw new CatalogError(`${provider}_UNAVAILABLE`);
 }
 
 async function searchMusicBrainz(query: string) {
