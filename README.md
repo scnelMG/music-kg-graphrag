@@ -1,5 +1,7 @@
 # 근거 중심 개인 음악 아카이브
 
+> **상태:** 2026.08 이후 추가 개발을 중단했습니다. 아래 내용은 중단 시점의 구현 범위입니다.
+
 ![Java](https://img.shields.io/badge/Java-Spring%20Boot-6DB33F?logo=springboot&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-Data%20Pipeline-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)
