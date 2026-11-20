@@ -1,5 +1,22 @@
 # Deployment topology, connected personal service, and GraphDB recovery
 
+## Free public catalog deployment (2026-11-20)
+
+Production Vercel uses `MUSIC_KG_PUBLIC_CATALOG_ONLY=true` while Cloud Run
+billing is disabled. Only read-only catalog requests bypass the Spring API:
+album search, genre discovery, editions and tracks use MusicBrainz, with
+iTunes KR supplementary search and KR/US track lookup. Provider responses
+are validated, bounded by timeouts, cached for ten minutes and paced per
+warm instance. Provider throttling remains a retryable error; a shared
+limiter is needed before scaling beyond the small portfolio deployment.
+
+The public home uses a labelled MusicBrainz tag collection, not a personal
+graph recommendation or fixture. Owner authentication remains mandatory for
+all personal routes, and the owner entry page explains that personal record
+access is paused. No billing account or paid infrastructure is enabled by
+this mode. Set the flag to `false` only after restoring and checking the
+existing private backend; do not remove its authentication boundary.
+
 ## Current production boundaries
 
 The product has two deliberately separate data planes. They must not be

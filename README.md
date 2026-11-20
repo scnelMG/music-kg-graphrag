@@ -2,6 +2,8 @@
 
 > **상태:** 2026.08 이후 추가 개발을 중단했습니다. 아래 내용은 중단 시점의 구현 범위입니다.
 
+> **공개 서비스 점검 (2026-11-20):** 기존 Vercel 배포에서 무료 공개 카탈로그 모드로 앨범 검색·장르 탐색·발매판·수록곡 조회를 제공합니다. Cloud Run의 개인 기록·GraphDB 연결은 중지 상태이며, 공개 탐색 결과를 개인화 추천으로 표시하지 않습니다.
+
 ![Java](https://img.shields.io/badge/Java-Spring%20Boot-6DB33F?logo=springboot&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-Data%20Pipeline-3776AB?logo=python&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)

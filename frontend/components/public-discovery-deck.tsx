@@ -8,7 +8,7 @@ import { AlbumArt } from "./album-art";
 import { useBrowserAlbumLikes } from "./use-browser-album-likes";
 
 export type PublicDiscoveryAlbum = CatalogAlbum & Readonly<{
-  publicCurationReason?: "same-artist" | "shared-tag";
+  publicCurationReason?: "same-artist" | "shared-tag" | "catalog-tag";
   sharedMusicBrainzTag?: string;
 }>;
 
@@ -32,7 +32,9 @@ type DiscoveryAlbumCardProps = Readonly<{
 function DiscoveryAlbumCard({ album, layer, onOpenAlbum, transitionState }: DiscoveryAlbumCardProps): React.JSX.Element {
   return <article className={`discovery-card discovery-card-${layer}`} data-transition-state={transitionState} aria-hidden={layer === "outgoing" ? true : undefined} aria-label={`${album.title}, ${album.artist}`}>
     <AlbumArt album={album} size="hero" priority />
-    <div className="discovery-card-copy"><p className="entry-eyebrow">{album.primaryType === "EP" ? "EP" : "앨범"}</p><h3>{album.title}</h3><p>{album.artist}</p>{album.publicCurationReason !== undefined && <p className="public-reason">{album.publicCurationReason === "shared-tag"
+    <div className="discovery-card-copy"><p className="entry-eyebrow">{album.primaryType === "EP" ? "EP" : "앨범"}</p><h3>{album.title}</h3><p>{album.artist}</p>{album.publicCurationReason !== undefined && <p className="public-reason">{album.publicCurationReason === "catalog-tag"
+      ? <>MusicBrainz의 “{album.sharedMusicBrainzTag}” 태그에서 찾은 공개 앨범입니다. 개인 기록 기반 추천은 아닙니다.</>
+      : album.publicCurationReason === "shared-tag"
       ? <>아카이브에 쌓인 <span className="keep-together">“{album.sharedMusicBrainzTag}”</span> 흐름과 이어집니다.</>
       : "아카이브가 다뤄 온 아티스트의 다른 앨범입니다."}</p>}
       <button className="discovery-open" type="button" disabled={transitionState !== "idle"} onClick={() => onOpenAlbum(album)}>수록곡 보기</button></div>

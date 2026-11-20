@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { backendContractError, callBackend } from "../../../../lib/backend-bff";
 import { directCoverArtArchiveUrl } from "../../../../lib/cover-art";
+import { catalogAlbumSchema } from "../../../../lib/music-catalog-contract";
 import { requireOwnerSession } from "../../../../lib/owner-session";
 
 const personalGraphRetrievalMethodSchema = z.enum([
@@ -108,6 +109,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (ownerScope) {
     const ownerSession = requireOwnerSession(request);
     if (ownerSession !== null) return ownerSession;
+  }
+  if (!ownerScope && process.env.MUSIC_KG_PUBLIC_CATALOG_ONLY === "true") {
+    const result = await callBackend("api/v1/catalog/explore", { searchParams: new URLSearchParams({ genre: "dream-pop" }) });
+    if (result.kind === "handled") return result.response;
+    const albums = z.array(catalogAlbumSchema).safeParse(await result.response.json());
+    if (!albums.success) return backendContractError();
+    return NextResponse.json({ graphTaste: { relisten: [], recommendations: albums.data.map(({ artist, artistCredits, coverUrl, firstReleaseDate, primaryType, releaseGroupMbid, title }) => ({
+      artist, artistCredits, coverUrl, firstReleaseDate, primaryType, releaseGroupMbid, title,
+      publicCurationReason: "catalog-tag", sharedMusicBrainzTag: "dream pop"
+    })) } }, { headers: { "Cache-Control": publicDiscoveryCacheControl } });
   }
   const result = await callBackend(ownerScope ? "api/v1/personal-insights" : "api/v1/recommendations/discover");
   if (result.kind === "handled") return result.response;

@@ -12,7 +12,7 @@ const publicRecommendationSchema = z.object({
   coverUrl: z.string().url().or(z.literal("")),
   firstReleaseDate: z.string(),
   primaryType: z.enum(["Album", "EP"]).optional(),
-  publicCurationReason: z.enum(["same-artist", "shared-tag"]).optional(),
+  publicCurationReason: z.enum(["same-artist", "shared-tag", "catalog-tag"]).optional(),
   releaseGroupMbid: z.string().min(1),
   sharedMusicBrainzTag: z.string().min(1).optional(),
   title: z.string().min(1)

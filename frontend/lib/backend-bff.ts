@@ -1,6 +1,7 @@
 import ky, { TimeoutError } from "ky";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { callPublicCatalog } from "./public-catalog";
 
 const backendConfigSchema = z.object({
   baseUrl: z.string().url(),
@@ -74,6 +75,9 @@ export async function callBackend(
   path: BackendPath | ConnectedBackendPath,
   options: { readonly body?: string; readonly method?: "DELETE" | "GET" | "POST"; readonly searchParams?: URLSearchParams } = {}
 ): Promise<BackendCall> {
+  if (process.env.MUSIC_KG_PUBLIC_CATALOG_ONLY === "true" && path.startsWith("api/v1/catalog/") && (options.method ?? "GET") === "GET") {
+    return callPublicCatalog(path, options.searchParams);
+  }
   const config = backendConfigSchema.safeParse({
     baseUrl: process.env.BACKEND_BASE_URL,
     sharedSecret: process.env.BACKEND_BFF_SHARED_SECRET

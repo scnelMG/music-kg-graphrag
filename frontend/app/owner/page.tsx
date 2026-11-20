@@ -12,7 +12,9 @@ export default function OwnerPage(): React.JSX.Element {
       <h1 id="owner-session-heading"><span className="keep-phrase">개인 음악 기록</span><span className="title-line"> 열기</span></h1>
       <p className="instruction">소유자 확인 후 최근 기록과 오늘 다시 들을 앨범을 관리합니다.</p>
       <dl className="access-facts"><div><dt>보관 위치</dt><dd>기록은 연결한 Notion에만 저장됩니다.</dd></div><div><dt>세션 처리</dt><dd>토큰은 브라우저 코드나 Notion에 저장되지 않습니다.</dd></div></dl></div>
-      <OwnerSessionForm />
+      {process.env.MUSIC_KG_PUBLIC_CATALOG_ONLY === "true"
+        ? <p className="instruction" role="status">개인 기록 연결은 현재 중지되어 있습니다. 공개 화면에서는 앨범 검색, 장르 탐색과 수록곡 조회를 이용할 수 있습니다.</p>
+        : <OwnerSessionForm />}
     </section>
   </main><FontLoader /></>;
 }

@@ -53,7 +53,7 @@ export function PublicDiscoveryHome({ graphTaste, insightMessage, insightState, 
   const deckAlbums = hasGenreResults ? genreExplore.albums : curatedAlbums;
   const deckLabel = hasGenreResults
     ? `${genres.find((genre) => genre.key === genreExplore.genre)?.label ?? "장르"} 탐색`
-    : "오늘의 공개 큐레이션";
+    : curatedAlbums.some((album) => album.publicCurationReason === "catalog-tag") ? "공개 카탈로그 · 드림 팝" : "오늘의 공개 큐레이션";
 
   return <section className="public-discovery-home" aria-label="공개 음악 탐색">
     {insightState === "loading" && deckAlbums.length === 0 && <section className="public-discovery-skeleton" aria-busy="true" aria-label="오늘의 음악을 고르는 중">
